@@ -1,6 +1,10 @@
 .venv/
 .tmp/
 Git-*.exe
+node_modules/
+dist/
+.env
+.env.local
 
 # Python cache
 __pycache__/
