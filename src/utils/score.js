@@ -28,7 +28,7 @@ export function parseScoreData(txt, bpmVal, sigNum, sigDen, charRes) {
           index += 1;
           continue;
         }
-        if ((token === '+' || token === '-' || token === '嚗?' || token === '嚗?') && index + 1 < cleanTxt.length) {
+        if ((token === '+' || token === '-' || token === '＋' || token === '－') && index + 1 < cleanTxt.length) {
           const nextChar = cleanTxt[index + 1];
           if (nextChar >= '1' && nextChar <= '7') {
             token += nextChar;
@@ -56,7 +56,7 @@ export function parseScoreData(txt, bpmVal, sigNum, sigDen, charRes) {
     }
 
     let token = char;
-    if ((token === '+' || token === '-' || token === '嚗?' || token === '嚗?') && index + 1 < cleanTxt.length) {
+    if ((token === '+' || token === '-' || token === '＋' || token === '－') && index + 1 < cleanTxt.length) {
       const nextChar = cleanTxt[index + 1];
       if (nextChar >= '1' && nextChar <= '7') {
         token += nextChar;
