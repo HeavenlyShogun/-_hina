@@ -1,73 +1,78 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle } from 'lucide-react';
 import AppHeader from './components/AppHeader';
 import ControlPanel from './components/ControlPanel';
 import PianoKeys from './components/PianoKeys';
-import ScoreLibrary from './components/ScoreLibrary';
-import SheetDisplay from './components/SheetDisplay';
 import WindParticles from './components/WindParticles';
-import { DEFAULT_SCORE, DEFAULT_SCORE_PARAMS, KEY_INFO_MAP, mapKey } from './constants/music';
+import { mapKey } from './constants/music';
 import { useAudioEngine } from './hooks/useAudioEngine';
-import { connectFirebaseAuth, deleteScore, saveScore, subscribeToScores, uploadScores } from './services/firebase';
-import { clearActiveKeysDOM, createRippleDOM, toggleKeyDOM } from './utils/domEffects';
-import { parseScoreData } from './utils/score';
+import { useCloudScores } from './hooks/useCloudScores';
+import { useScorePlayback } from './hooks/useScorePlayback';
+import { useScoreState } from './hooks/useScoreState';
+
+const ScoreLibrary = lazy(() => import('./components/ScoreLibrary'));
+const SheetDisplay = lazy(() => import('./components/SheetDisplay'));
+
+function PanelFallback({ heightClass }) {
+  return (
+    <div className={`bg-white/[0.02] border border-white/5 rounded-[40px] ${heightClass} p-6 md:p-8 shadow-2xl animate-pulse`}>
+      <div className="h-5 w-32 rounded bg-white/10 mb-6" />
+      <div className="space-y-3">
+        <div className="h-12 rounded-2xl bg-white/5" />
+        <div className="h-12 rounded-2xl bg-white/5" />
+        <div className="h-40 rounded-3xl bg-white/5" />
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
-  const [vol, setVol] = useState(0.65);
-  const [reverb, setReverb] = useState(true);
-  const [globalKeyOffset, setGlobalKeyOffset] = useState(0);
-  const [accidentals, setAccidentals] = useState({});
-  const [tone, setTone] = useState(DEFAULT_SCORE_PARAMS.tone);
-  const [score, setScore] = useState(DEFAULT_SCORE);
-  const [scoreTitle, setScoreTitle] = useState('撠???');
-  const [savedScores, setSavedScores] = useState([]);
-  const [user, setUser] = useState(null);
-  const [firebaseCtx, setFirebaseCtx] = useState(null);
-  const [cloudStatus, setCloudStatus] = useState('idle');
-  const [isSaving, setIsSaving] = useState(false);
-  const [bpm, setBpm] = useState(DEFAULT_SCORE_PARAMS.bpm);
-  const [timeSigNum, setTimeSigNum] = useState(DEFAULT_SCORE_PARAMS.timeSigNum);
-  const [timeSigDen, setTimeSigDen] = useState(DEFAULT_SCORE_PARAMS.timeSigDen);
-  const [charResolution, setCharResolution] = useState(DEFAULT_SCORE_PARAMS.charResolution);
-  const [playHotkey, setPlayHotkey] = useState('Space');
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [toast, setToast] = useState(null);
+  const {
+    score,
+    setScore,
+    scoreTitle,
+    setScoreTitle,
+    vol,
+    setVol,
+    reverb,
+    setReverb,
+    globalKeyOffset,
+    setGlobalKeyOffset,
+    accidentals,
+    setAccidentals,
+    tone,
+    setTone,
+    bpm,
+    setBpm,
+    timeSigNum,
+    setTimeSigNum,
+    timeSigDen,
+    setTimeSigDen,
+    charResolution,
+    setCharResolution,
+    currentScoreParams,
+    applySavedScore,
+    resetScoreState,
+  } = useScoreState();
+  const {
+    savedScores,
+    user,
+    cloudStatus,
+    isSaving,
+    ensureCloudConnection,
+    saveCloudScore,
+    deleteCloudScore,
+    clearAllCloudScores,
+    uploadCloudScores,
+  } = useCloudScores();
 
-  const isPlayingRef = useRef(false);
-  const progressBarRef = useRef(null);
+  const [playHotkey, setPlayHotkey] = useState('Space');
+  const [toast, setToast] = useState(null);
   const toastTimerRef = useRef(null);
-  const schedulerTimerRef = useRef(null);
-  const visualTimerRef = useRef(null);
-  const scoreRef = useRef(score);
-  const actionRefs = useRef({ playScoreAction: null });
   const hotkeyRef = useRef(playHotkey);
-  const authUnsubscribeRef = useRef(null);
-  const scoresUnsubscribeRef = useRef(null);
-  const connectPromiseRef = useRef(null);
+  const actionRefs = useRef({ playScoreAction: null });
 
   const { audioCtx, setupAudio, triggerNote, stopAllNodes, updateSettings } = useAudioEngine();
-
-  useEffect(() => { scoreRef.current = score; }, [score]);
-  useEffect(() => { hotkeyRef.current = playHotkey; }, [playHotkey]);
-
-  const stopAll = useCallback(() => {
-    if (schedulerTimerRef.current) clearTimeout(schedulerTimerRef.current);
-    if (visualTimerRef.current) cancelAnimationFrame(visualTimerRef.current);
-    schedulerTimerRef.current = null;
-    visualTimerRef.current = null;
-    stopAllNodes();
-    setIsPlaying(false);
-    isPlayingRef.current = false;
-    clearActiveKeysDOM();
-    if (progressBarRef.current) progressBarRef.current.style.width = '0%';
-  }, [stopAllNodes]);
-
-  useEffect(() => () => {
-    stopAll();
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    authUnsubscribeRef.current?.();
-    scoresUnsubscribeRef.current?.();
-  }, [stopAll]);
 
   const showToast = useCallback((msg, type = 'info') => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -75,69 +80,38 @@ export default function App() {
     toastTimerRef.current = setTimeout(() => setToast(null), 3000);
   }, []);
 
-  const ensureCloudConnection = useCallback(async () => {
-    if (firebaseCtx) return firebaseCtx;
-    if (connectPromiseRef.current) return connectPromiseRef.current;
-
-    setCloudStatus('loading');
-    connectPromiseRef.current = connectFirebaseAuth(setUser)
-      .then((result) => {
-        if (!result?.ctx) {
-          setCloudStatus('unavailable');
-          return null;
-        }
-        authUnsubscribeRef.current?.();
-        authUnsubscribeRef.current = result.unsubscribe;
-        setFirebaseCtx(result.ctx);
-        setCloudStatus('ready');
-        return result.ctx;
-      })
-      .catch((error) => {
-        console.error(error);
-        setCloudStatus('error');
-        showToast('Firebase 載入失敗', 'error');
-        return null;
-      })
-      .finally(() => {
-        connectPromiseRef.current = null;
-      });
-
-    return connectPromiseRef.current;
-  }, [firebaseCtx, showToast]);
-
-  useEffect(() => {
-    if (!firebaseCtx || !user) return undefined;
-    scoresUnsubscribeRef.current?.();
-    const unsubscribe = subscribeToScores(firebaseCtx, user.uid, setSavedScores);
-    scoresUnsubscribeRef.current = unsubscribe;
-    return () => unsubscribe();
-  }, [firebaseCtx, user]);
-
-  const loadScore = useCallback((saved) => {
-    setScore(saved.content);
-    setScoreTitle(saved.title);
-    setBpm(saved.bpm ?? DEFAULT_SCORE_PARAMS.bpm);
-    setTimeSigNum(saved.timeSigNum ?? DEFAULT_SCORE_PARAMS.timeSigNum);
-    setTimeSigDen(saved.timeSigDen ?? DEFAULT_SCORE_PARAMS.timeSigDen);
-    setCharResolution(saved.charResolution ?? DEFAULT_SCORE_PARAMS.charResolution);
-    setGlobalKeyOffset(saved.globalKeyOffset ?? 0);
-    setAccidentals(saved.accidentals ?? {});
-    setTone(saved.tone ?? DEFAULT_SCORE_PARAMS.tone);
-    setReverb(saved.reverb ?? true);
-    stopAll();
-    showToast(`撌脰??交?蝡?${saved.title} (銝血??典?閮剖?)`, 'success');
-  }, [showToast, stopAll]);
-
-  const currentScoreParams = useMemo(() => ({
-    bpm: Number(bpm) || DEFAULT_SCORE_PARAMS.bpm,
+  const {
+    isPlaying,
+    progressBarRef,
+    isPlayingRef,
+    playScoreAction,
+    stopAll,
+    handleKeyActivate,
+    handleKeyDeactivate,
+  } = useScorePlayback({
+    audioCtx,
+    setupAudio,
+    triggerNote,
+    stopAllNodes,
+    score,
+    bpm,
     timeSigNum,
     timeSigDen,
     charResolution,
-    globalKeyOffset,
-    accidentals,
-    tone,
-    reverb,
-  }), [accidentals, bpm, charResolution, globalKeyOffset, reverb, timeSigDen, timeSigNum, tone]);
+    showToast,
+  });
+
+  useEffect(() => { hotkeyRef.current = playHotkey; }, [playHotkey]);
+
+  useEffect(() => () => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+  }, []);
+
+  const loadScore = useCallback((saved) => {
+    applySavedScore(saved);
+    stopAll();
+    showToast(`已載入曲譜：${saved.title}（參數已同步套用）`, 'success');
+  }, [applySavedScore, showToast, stopAll]);
 
   const parseImportFile = useCallback(async (file) => {
     const content = await file.text();
@@ -174,193 +148,95 @@ export default function App() {
       return;
     }
 
-    showToast(`甇??寞活?郊 ${files.length} 隞賜霅?脩垢摨?..`, 'info');
+    showToast(`正在匯入 ${files.length} 份曲譜到雲端...`, 'info');
     try {
-      const payloads = await Promise.all(files.map(parseImportFile));
-      await uploadScores(ctx, user.uid, payloads);
-      showToast(`??撠?${files.length} 隞賜霅遣瑼?脩垢摨冑`, 'success');
+      await uploadCloudScores(await Promise.all(files.map(parseImportFile)));
+      showToast(`已成功上傳 ${files.length} 份曲譜到雲端`, 'success');
     } catch {
-      showToast('?寞活撱箸????潛??航炊', 'error');
+      showToast('批次上傳失敗', 'error');
     }
 
     event.target.value = '';
-  }, [ensureCloudConnection, loadScore, parseImportFile, showToast, user]);
+  }, [ensureCloudConnection, loadScore, parseImportFile, showToast, uploadCloudScores, user]);
 
   useEffect(() => {
     updateSettings({ vol, reverb, globalOffset: globalKeyOffset, accidentals, tone });
   }, [accidentals, globalKeyOffset, reverb, tone, updateSettings, vol]);
 
   const handleSaveScore = useCallback(async () => {
-    const ctx = await ensureCloudConnection();
-    if (!ctx || !user) return showToast('?Ｙ?璅∪??⊥??脩垢摮?', 'error');
-    if (isSaving || !scoreTitle.trim()) return showToast('隢撓?交?蝡?蝔?', 'error');
+    if (!scoreTitle.trim()) return showToast('請輸入曲譜名稱', 'error');
 
-    setIsSaving(true);
     try {
-      await saveScore(ctx, user.uid, scoreTitle.trim(), {
+      const saved = await saveCloudScore(scoreTitle.trim(), {
         content: score,
         ...currentScoreParams,
       });
-      showToast('璅?撌脩???脩垢嚗歇????憟??唾閮剖?嚗?', 'success');
+
+      if (!saved) {
+        showToast('請先連接雲端再儲存', 'error');
+        return;
+      }
+
+      showToast('已儲存到雲端，並同步目前的播放參數', 'success');
     } catch {
-      showToast('摮?憭望?', 'error');
-    } finally {
-      setIsSaving(false);
+      showToast('儲存失敗', 'error');
     }
-  }, [currentScoreParams, ensureCloudConnection, isSaving, score, scoreTitle, showToast, user]);
+  }, [currentScoreParams, saveCloudScore, score, scoreTitle, showToast]);
 
   const handleDeleteScore = useCallback(async (id) => {
-    if (!window.confirm('蝣箏??芷甇斗?蝡?')) return;
-    const ctx = await ensureCloudConnection();
-    if (!ctx || !user) return;
+    if (!window.confirm('確定要刪除這份曲譜嗎？')) return;
+
     try {
-      await deleteScore(ctx, user.uid, id);
-      showToast('撌脣??', 'success');
+      const deleted = await deleteCloudScore(id);
+      if (!deleted) return;
+      showToast('曲譜已刪除', 'success');
     } catch {
-      showToast('?芷??', 'error');
+      showToast('刪除失敗', 'error');
     }
-  }, [ensureCloudConnection, showToast, user]);
+  }, [deleteCloudScore, showToast]);
 
   const handleClearAllScores = useCallback(async () => {
-    if (!window.confirm('蝣箏?皜征??蝡舐霅?嚗瘜儔??')) return;
-    const ctx = await ensureCloudConnection();
-    if (!ctx || !user) return;
+    if (!window.confirm('確定要清空所有雲端曲譜嗎？這個操作無法復原。')) return;
+
     try {
-      await Promise.all(savedScores.map((saved) => deleteScore(ctx, user.uid, saved.id)));
-      showToast('撌脫?蝛箇霅澈', 'success');
+      const cleared = await clearAllCloudScores();
+      if (!cleared) return;
+      showToast('已清空所有雲端曲譜', 'success');
     } catch {
-      showToast('皜征憭望?', 'error');
+      showToast('清空失敗', 'error');
     }
-  }, [ensureCloudConnection, savedScores, showToast, user]);
+  }, [clearAllCloudScores, showToast]);
 
   const handleExportLocal = useCallback(() => {
-    if (!score.trim()) return showToast('?渲??箇征', 'error');
+    if (!score.trim()) return showToast('目前沒有可匯出的譜面', 'error');
     const meta = JSON.stringify(currentScoreParams);
     const exportContent = `// [META] ${meta}\n${score}`;
     const blob = new Blob([exportContent], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${scoreTitle.trim() || '?芸????'}.txt`;
+    link.download = `${scoreTitle.trim() || '未命名曲譜'}.txt`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    showToast('撌脖?頛?祆? (?葆????貉???', 'success');
+    showToast('已匯出到本機（包含目前參數）', 'success');
   }, [currentScoreParams, score, scoreTitle, showToast]);
 
   const handleResetScore = useCallback(() => {
-    setScore(DEFAULT_SCORE);
-    setBpm(DEFAULT_SCORE_PARAMS.bpm);
-    setTone(DEFAULT_SCORE_PARAMS.tone);
-    setCharResolution(DEFAULT_SCORE_PARAMS.charResolution);
-    setGlobalKeyOffset(DEFAULT_SCORE_PARAMS.globalKeyOffset);
-    setAccidentals(DEFAULT_SCORE_PARAMS.accidentals);
-    setReverb(DEFAULT_SCORE_PARAMS.reverb);
+    resetScoreState();
     stopAll();
-    showToast('撌脤?蝵桃?身璅???閮剖???', 'success');
-  }, [showToast, stopAll]);
+    showToast('已重設為預設曲譜與參數', 'success');
+  }, [resetScoreState, showToast, stopAll]);
 
-  const handleKeyActivate = useCallback((keyK) => {
-    const doActivate = () => {
-      const info = KEY_INFO_MAP[keyK];
-      if (info) triggerNote(info, 0.9);
-      toggleKeyDOM(keyK, true);
-      createRippleDOM(keyK);
-    };
-    if (!audioCtx.current || audioCtx.current.state === 'suspended') setupAudio().then(doActivate);
-    else doActivate();
-  }, [audioCtx, setupAudio, triggerNote]);
+  const handleToggleSharp = useCallback((key) => {
+    setAccidentals((prev) => ({ ...prev, [key]: prev[key] ? 0 : 1 }));
+  }, [setAccidentals]);
 
-  const handleKeyDeactivate = useCallback((keyK) => toggleKeyDOM(keyK, false), []);
-  const handleToggleSharp = useCallback((key) => setAccidentals((prev) => ({ ...prev, [key]: prev[key] ? 0 : 1 })), []);
-  const handleToggleReverb = useCallback(() => { setupAudio(); setReverb((value) => !value); }, [setupAudio]);
-
-  const playScoreAction = useCallback(async () => {
-    if (isPlayingRef.current) {
-      stopAll();
-      return;
-    }
-
-    isPlayingRef.current = true;
-    setIsPlaying(true);
-
-    try {
-      await setupAudio();
-      const currentBpm = Number(bpm) || DEFAULT_SCORE_PARAMS.bpm;
-      const { events, maxTime } = parseScoreData(scoreRef.current, currentBpm, timeSigNum, timeSigDen, charResolution);
-
-      if (!events.length) {
-        stopAll();
-        showToast('?芸皜砍???喟泵', 'error');
-        return;
-      }
-
-      const start = audioCtx.current.currentTime + 0.3;
-      const queue = events.map((event) => ({ ...event, time: start + event.time }));
-      const visualQueue = events.map((event) => ({
-        k: event.k,
-        on: start + event.time,
-        off: start + event.time + Math.min(event.durationSec ?? 0.2, 0.2),
-      }));
-
-      let noteIndex = 0;
-      let visualIndex = 0;
-      let deactivateIndex = 0;
-      const activeVisualCounts = new Map();
-
-      const scheduleAudio = () => {
-        if (!isPlayingRef.current) return;
-        const currentTime = audioCtx.current.currentTime;
-        while (noteIndex < queue.length && queue[noteIndex].time < currentTime + 0.5) {
-          const event = queue[noteIndex];
-          noteIndex += 1;
-          const info = KEY_INFO_MAP[event.k];
-          if (info) triggerNote(info, event.v, event.time, event.durationSec);
-        }
-        if (noteIndex < queue.length) schedulerTimerRef.current = setTimeout(scheduleAudio, 25);
-      };
-
-      const syncVisuals = () => {
-        if (!isPlayingRef.current) return;
-        const currentTime = audioCtx.current.currentTime;
-
-        if (progressBarRef.current && maxTime > 0) {
-          progressBarRef.current.style.width = `${Math.min(100, Math.max(0, ((currentTime - start) / maxTime) * 100))}%`;
-        }
-
-        while (visualIndex < visualQueue.length && visualQueue[visualIndex].on <= currentTime) {
-          const visual = visualQueue[visualIndex];
-          visualIndex += 1;
-          activeVisualCounts.set(visual.k, (activeVisualCounts.get(visual.k) ?? 0) + 1);
-          toggleKeyDOM(visual.k, true);
-          createRippleDOM(visual.k);
-        }
-
-        while (deactivateIndex < visualQueue.length && visualQueue[deactivateIndex].off <= currentTime) {
-          const visual = visualQueue[deactivateIndex];
-          deactivateIndex += 1;
-          const nextCount = (activeVisualCounts.get(visual.k) ?? 1) - 1;
-          if (nextCount <= 0) {
-            activeVisualCounts.delete(visual.k);
-            toggleKeyDOM(visual.k, false);
-          } else {
-            activeVisualCounts.set(visual.k, nextCount);
-          }
-        }
-
-        if (currentTime - start >= maxTime + 0.4) stopAll();
-        else visualTimerRef.current = requestAnimationFrame(syncVisuals);
-      };
-
-      scheduleAudio();
-      visualTimerRef.current = requestAnimationFrame(syncVisuals);
-    } catch (error) {
-      console.error(error);
-      stopAll();
-      showToast('?唾????潛??航炊', 'error');
-    }
-  }, [audioCtx, bpm, charResolution, setupAudio, showToast, stopAll, timeSigDen, timeSigNum, triggerNote]);
+  const handleToggleReverb = useCallback(() => {
+    setupAudio();
+    setReverb((value) => !value);
+  }, [setReverb, setupAudio]);
 
   useEffect(() => {
     actionRefs.current.playScoreAction = playScoreAction;
@@ -379,10 +255,7 @@ export default function App() {
       const mappedKey = mapKey(event.key);
       if (mappedKey) {
         event.preventDefault();
-        const element = document.getElementById(`key-${mappedKey}`);
-        if (!element || !element.classList.contains('playing-active')) {
-          handleKeyActivate(mappedKey);
-        }
+        handleKeyActivate(mappedKey);
       }
     };
 
@@ -397,7 +270,7 @@ export default function App() {
       window.removeEventListener('keydown', down);
       window.removeEventListener('keyup', up);
     };
-  }, [handleKeyActivate, handleKeyDeactivate]);
+  }, [handleKeyActivate, handleKeyDeactivate, isPlayingRef]);
 
   return (
     <div className="min-h-screen bg-[#060a12] text-emerald-50 flex flex-col items-center font-serif relative overflow-hidden select-none pb-20 touch-manipulation" onContextMenu={(event) => event.preventDefault()}>
@@ -406,22 +279,25 @@ export default function App() {
 
       {toast && (
         <div className={`fixed top-6 right-6 z-50 px-6 py-3.5 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.5)] backdrop-blur-md border flex items-center gap-3 animate-in slide-in-from-top-5 fade-in duration-300 ${toast.type === 'error' ? 'bg-rose-500/20 border-rose-500/50 text-rose-100' : 'bg-emerald-500/20 border-emerald-500/50 text-emerald-100'}`}>
-          {toast.type === 'error' ? <AlertCircle size={18} /> : <CheckCircle size={18} />} <span className="text-sm font-bold tracking-wider">{toast.msg}</span>
+          {toast.type === 'error' ? <AlertCircle size={18} /> : <CheckCircle size={18} />}
+          <span className="text-sm font-bold tracking-wider">{toast.msg}</span>
         </div>
       )}
 
       <AppHeader playHotkey={playHotkey} setPlayHotkey={setPlayHotkey} isPlaying={isPlaying} onTogglePlay={playScoreAction} />
-
       <PianoKeys accidentals={accidentals} globalKeyOffset={globalKeyOffset} onKeyActivate={handleKeyActivate} onKeyDeactivate={handleKeyDeactivate} onToggleSharp={handleToggleSharp} progressBarRef={progressBarRef} />
-
       <ControlPanel bpm={bpm} setBpm={setBpm} timeSigNum={timeSigNum} setTimeSigNum={setTimeSigNum} timeSigDen={timeSigDen} setTimeSigDen={setTimeSigDen} charResolution={charResolution} setCharResolution={setCharResolution} vol={vol} setVol={setVol} tone={tone} setTone={setTone} reverb={reverb} onToggleReverb={handleToggleReverb} globalKeyOffset={globalKeyOffset} setGlobalKeyOffset={setGlobalKeyOffset} />
 
       <section className="z-20 w-full max-w-6xl grid lg:grid-cols-[300px_1fr] gap-8 px-4 items-start">
-        <ScoreLibrary user={user} savedScores={savedScores} onLoadScore={loadScore} onClearAll={handleClearAllScores} onDeleteScore={handleDeleteScore} onConnectCloud={ensureCloudConnection} cloudStatus={cloudStatus} />
-        <SheetDisplay score={score} setScore={setScore} scoreTitle={scoreTitle} setScoreTitle={setScoreTitle} onImport={handleImportLocal} onExport={handleExportLocal} onSave={handleSaveScore} onReset={handleResetScore} isSaving={isSaving} onConnectCloud={ensureCloudConnection} cloudStatus={cloudStatus} />
+        <Suspense fallback={<PanelFallback heightClass="min-h-[320px]" />}>
+          <ScoreLibrary user={user} savedScores={savedScores} onLoadScore={loadScore} onClearAll={handleClearAllScores} onDeleteScore={handleDeleteScore} onConnectCloud={ensureCloudConnection} cloudStatus={cloudStatus} />
+        </Suspense>
+        <Suspense fallback={<PanelFallback heightClass="min-h-[520px]" />}>
+          <SheetDisplay score={score} setScore={setScore} scoreTitle={scoreTitle} setScoreTitle={setScoreTitle} onImport={handleImportLocal} onExport={handleExportLocal} onSave={handleSaveScore} onReset={handleResetScore} isSaving={isSaving} onConnectCloud={ensureCloudConnection} cloudStatus={cloudStatus} />
+        </Suspense>
       </section>
 
-      <footer className="z-20 mt-16 opacity-20 text-[10px] tracking-[0.6em] uppercase">Aria Engine ??Teyvat Symphony Studio</footer>
+      <footer className="z-20 mt-16 opacity-20 text-[10px] tracking-[0.6em] uppercase">Aria Engine x Teyvat Symphony Studio</footer>
 
       <style>{`
         input[type=range] { -webkit-appearance: none; background: rgba(255,255,255,0.05); height: 2px; border-radius: 1px; }
