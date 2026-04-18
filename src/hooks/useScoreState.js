@@ -1,21 +1,27 @@
 import { useCallback, useMemo, useState } from 'react';
 import { DEFAULT_SCORE, DEFAULT_SCORE_PARAMS } from '../constants/music';
 
-const DEFAULT_TITLE = '未命名曲譜';
+const DEFAULT_TITLE = '未命名琴譜';
+
+function normalizeScoreParams(source = {}) {
+  return {
+    bpm: Number(source.bpm) || DEFAULT_SCORE_PARAMS.bpm,
+    timeSigNum: source.timeSigNum ?? DEFAULT_SCORE_PARAMS.timeSigNum,
+    timeSigDen: source.timeSigDen ?? DEFAULT_SCORE_PARAMS.timeSigDen,
+    charResolution: source.charResolution ?? DEFAULT_SCORE_PARAMS.charResolution,
+    globalKeyOffset: source.globalKeyOffset ?? DEFAULT_SCORE_PARAMS.globalKeyOffset,
+    accidentals: source.accidentals ?? DEFAULT_SCORE_PARAMS.accidentals,
+    tone: source.tone ?? DEFAULT_SCORE_PARAMS.tone,
+    reverb: source.reverb ?? DEFAULT_SCORE_PARAMS.reverb,
+  };
+}
 
 function createDefaultState() {
   return {
     score: DEFAULT_SCORE,
     scoreTitle: DEFAULT_TITLE,
     vol: 0.65,
-    reverb: DEFAULT_SCORE_PARAMS.reverb,
-    globalKeyOffset: DEFAULT_SCORE_PARAMS.globalKeyOffset,
-    accidentals: DEFAULT_SCORE_PARAMS.accidentals,
-    tone: DEFAULT_SCORE_PARAMS.tone,
-    bpm: DEFAULT_SCORE_PARAMS.bpm,
-    timeSigNum: DEFAULT_SCORE_PARAMS.timeSigNum,
-    timeSigDen: DEFAULT_SCORE_PARAMS.timeSigDen,
-    charResolution: DEFAULT_SCORE_PARAMS.charResolution,
+    ...normalizeScoreParams(DEFAULT_SCORE_PARAMS),
   };
 }
 
@@ -34,14 +40,7 @@ export function useScoreState() {
       ...prev,
       score: saved.content,
       scoreTitle: saved.title,
-      bpm: saved.bpm ?? DEFAULT_SCORE_PARAMS.bpm,
-      timeSigNum: saved.timeSigNum ?? DEFAULT_SCORE_PARAMS.timeSigNum,
-      timeSigDen: saved.timeSigDen ?? DEFAULT_SCORE_PARAMS.timeSigDen,
-      charResolution: saved.charResolution ?? DEFAULT_SCORE_PARAMS.charResolution,
-      globalKeyOffset: saved.globalKeyOffset ?? DEFAULT_SCORE_PARAMS.globalKeyOffset,
-      accidentals: saved.accidentals ?? DEFAULT_SCORE_PARAMS.accidentals,
-      tone: saved.tone ?? DEFAULT_SCORE_PARAMS.tone,
-      reverb: saved.reverb ?? DEFAULT_SCORE_PARAMS.reverb,
+      ...normalizeScoreParams(saved),
     }));
   }, []);
 
@@ -49,16 +48,7 @@ export function useScoreState() {
     setState(createDefaultState());
   }, []);
 
-  const currentScoreParams = useMemo(() => ({
-    bpm: Number(state.bpm) || DEFAULT_SCORE_PARAMS.bpm,
-    timeSigNum: state.timeSigNum,
-    timeSigDen: state.timeSigDen,
-    charResolution: state.charResolution,
-    globalKeyOffset: state.globalKeyOffset,
-    accidentals: state.accidentals,
-    tone: state.tone,
-    reverb: state.reverb,
-  }), [state.accidentals, state.bpm, state.charResolution, state.globalKeyOffset, state.reverb, state.timeSigDen, state.timeSigNum, state.tone]);
+  const currentScoreParams = useMemo(() => normalizeScoreParams(state), [state]);
 
   return {
     ...state,

@@ -3,44 +3,97 @@ import { DEFAULT_SCORE_PARAMS, KEY_INFO_MAP } from '../constants/music';
 import { clearActiveKeysDOM, createRippleDOM, toggleKeyDOM } from '../utils/domEffects';
 import { parseScoreData } from '../utils/score';
 
-export function useScorePlayback({ audioCtx, setupAudio, triggerNote, stopAllNodes, score, bpm, timeSigNum, timeSigDen, charResolution, showToast }) {
+function buildQueues(events, startTime) {
+  const audioQueue = new Array(events.length);
+  const visualQueue = new Array(events.length);
+
+  for (let index = 0; index < events.length; index += 1) {
+    const event = events[index];
+    const on = startTime + event.time;
+    audioQueue[index] = { ...event, time: on };
+    visualQueue[index] = {
+      k: event.k,
+      on,
+      off: on + Math.min(event.durationSec ?? 0.2, 0.2),
+    };
+  }
+
+  return { audioQueue, visualQueue };
+}
+
+export function useScorePlayback({
+  audioCtx,
+  setupAudio,
+  triggerNote,
+  stopAllNodes,
+  score,
+  bpm,
+  timeSigNum,
+  timeSigDen,
+  charResolution,
+  showToast,
+}) {
   const [isPlaying, setIsPlaying] = useState(false);
   const progressBarRef = useRef(null);
   const schedulerTimerRef = useRef(null);
   const visualTimerRef = useRef(null);
-  const scoreRef = useRef(score);
   const isPlayingRef = useRef(false);
+  const playbackConfigRef = useRef({
+    score,
+    bpm,
+    timeSigNum,
+    timeSigDen,
+    charResolution,
+  });
 
   useEffect(() => {
-    scoreRef.current = score;
-  }, [score]);
+    playbackConfigRef.current = {
+      score,
+      bpm,
+      timeSigNum,
+      timeSigDen,
+      charResolution,
+    };
+  }, [bpm, charResolution, score, timeSigDen, timeSigNum]);
 
-  const stopAll = useCallback(() => {
+  const clearPlaybackTimers = useCallback(() => {
     if (schedulerTimerRef.current) clearTimeout(schedulerTimerRef.current);
     if (visualTimerRef.current) cancelAnimationFrame(visualTimerRef.current);
     schedulerTimerRef.current = null;
     visualTimerRef.current = null;
-    stopAllNodes();
-    setIsPlaying(false);
-    isPlayingRef.current = false;
+  }, []);
+
+  const resetPlaybackVisuals = useCallback(() => {
     clearActiveKeysDOM();
     if (progressBarRef.current) progressBarRef.current.style.width = '0%';
-  }, [stopAllNodes]);
+  }, []);
+
+  const stopAll = useCallback(() => {
+    clearPlaybackTimers();
+    stopAllNodes();
+    isPlayingRef.current = false;
+    setIsPlaying(false);
+    resetPlaybackVisuals();
+  }, [clearPlaybackTimers, resetPlaybackVisuals, stopAllNodes]);
 
   useEffect(() => () => {
     stopAll();
   }, [stopAll]);
 
   const handleKeyActivate = useCallback((keyK) => {
-    const doActivate = () => {
+    const activate = () => {
       const info = KEY_INFO_MAP[keyK];
       if (info) triggerNote(info, 0.9);
       toggleKeyDOM(keyK, true);
       createRippleDOM(keyK);
     };
 
-    if (!audioCtx.current || audioCtx.current.state === 'suspended') setupAudio().then(doActivate);
-    else doActivate();
+    if (!audioCtx.current || audioCtx.current.state === 'suspended') {
+      setupAudio().then(activate);
+      return;
+    }
+
+    activate();
   }, [audioCtx, setupAudio, triggerNote]);
 
   const handleKeyDeactivate = useCallback((keyK) => {
@@ -53,51 +106,59 @@ export function useScorePlayback({ audioCtx, setupAudio, triggerNote, stopAllNod
       return;
     }
 
-    isPlayingRef.current = true;
-    setIsPlaying(true);
-
     try {
       await setupAudio();
-      const currentBpm = Number(bpm) || DEFAULT_SCORE_PARAMS.bpm;
-      const { events, maxTime } = parseScoreData(scoreRef.current, currentBpm, timeSigNum, timeSigDen, charResolution);
+
+      const config = playbackConfigRef.current;
+      const normalizedBpm = Number(config.bpm) || DEFAULT_SCORE_PARAMS.bpm;
+      const { events, maxTime } = parseScoreData(
+        config.score,
+        normalizedBpm,
+        config.timeSigNum,
+        config.timeSigDen,
+        config.charResolution,
+      );
 
       if (!events.length) {
         stopAll();
-        showToast('譜面中沒有可播放的音符', 'error');
+        showToast('琴譜內容無法解析出任何音符', 'error');
         return;
       }
 
-      const start = audioCtx.current.currentTime + 0.3;
-      const queue = events.map((event) => ({ ...event, time: start + event.time }));
-      const visualQueue = events.map((event) => ({
-        k: event.k,
-        on: start + event.time,
-        off: start + event.time + Math.min(event.durationSec ?? 0.2, 0.2),
-      }));
+      isPlayingRef.current = true;
+      setIsPlaying(true);
+
+      const startTime = audioCtx.current.currentTime + 0.3;
+      const { audioQueue, visualQueue } = buildQueues(events, startTime);
+      const activeVisualCounts = new Map();
 
       let noteIndex = 0;
       let visualIndex = 0;
       let deactivateIndex = 0;
-      const activeVisualCounts = new Map();
 
       const scheduleAudio = () => {
         if (!isPlayingRef.current) return;
+
         const currentTime = audioCtx.current.currentTime;
-        while (noteIndex < queue.length && queue[noteIndex].time < currentTime + 0.5) {
-          const event = queue[noteIndex];
+        while (noteIndex < audioQueue.length && audioQueue[noteIndex].time < currentTime + 0.5) {
+          const event = audioQueue[noteIndex];
           noteIndex += 1;
           const info = KEY_INFO_MAP[event.k];
           if (info) triggerNote(info, event.v, event.time, event.durationSec);
         }
-        if (noteIndex < queue.length) schedulerTimerRef.current = setTimeout(scheduleAudio, 25);
+
+        if (noteIndex < audioQueue.length) {
+          schedulerTimerRef.current = setTimeout(scheduleAudio, 25);
+        }
       };
 
       const syncVisuals = () => {
         if (!isPlayingRef.current) return;
-        const currentTime = audioCtx.current.currentTime;
 
+        const currentTime = audioCtx.current.currentTime;
         if (progressBarRef.current && maxTime > 0) {
-          progressBarRef.current.style.width = `${Math.min(100, Math.max(0, ((currentTime - start) / maxTime) * 100))}%`;
+          const progress = ((currentTime - startTime) / maxTime) * 100;
+          progressBarRef.current.style.width = `${Math.min(100, Math.max(0, progress))}%`;
         }
 
         while (visualIndex < visualQueue.length && visualQueue[visualIndex].on <= currentTime) {
@@ -112,6 +173,7 @@ export function useScorePlayback({ audioCtx, setupAudio, triggerNote, stopAllNod
           const visual = visualQueue[deactivateIndex];
           deactivateIndex += 1;
           const nextCount = (activeVisualCounts.get(visual.k) ?? 1) - 1;
+
           if (nextCount <= 0) {
             activeVisualCounts.delete(visual.k);
             toggleKeyDOM(visual.k, false);
@@ -120,8 +182,12 @@ export function useScorePlayback({ audioCtx, setupAudio, triggerNote, stopAllNod
           }
         }
 
-        if (currentTime - start >= maxTime + 0.4) stopAll();
-        else visualTimerRef.current = requestAnimationFrame(syncVisuals);
+        if (currentTime - startTime >= maxTime + 0.4) {
+          stopAll();
+          return;
+        }
+
+        visualTimerRef.current = requestAnimationFrame(syncVisuals);
       };
 
       scheduleAudio();
@@ -129,9 +195,9 @@ export function useScorePlayback({ audioCtx, setupAudio, triggerNote, stopAllNod
     } catch (error) {
       console.error(error);
       stopAll();
-      showToast('播放失敗，請檢查譜面格式', 'error');
+      showToast('播放失敗，請檢查琴譜內容', 'error');
     }
-  }, [audioCtx, bpm, charResolution, setupAudio, showToast, stopAll, timeSigDen, timeSigNum, triggerNote]);
+  }, [audioCtx, setupAudio, showToast, stopAll, triggerNote]);
 
   return {
     isPlaying,

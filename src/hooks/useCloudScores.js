@@ -8,12 +8,22 @@ export function useCloudScores() {
   const [cloudStatus, setCloudStatus] = useState('idle');
   const [isSaving, setIsSaving] = useState(false);
 
+  const userRef = useRef(null);
+  const firebaseCtxRef = useRef(null);
   const authUnsubscribeRef = useRef(null);
   const scoresUnsubscribeRef = useRef(null);
   const connectPromiseRef = useRef(null);
 
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
+  useEffect(() => {
+    firebaseCtxRef.current = firebaseCtx;
+  }, [firebaseCtx]);
+
   const ensureCloudConnection = useCallback(async () => {
-    if (firebaseCtx) return firebaseCtx;
+    if (firebaseCtxRef.current) return firebaseCtxRef.current;
     if (connectPromiseRef.current) return connectPromiseRef.current;
 
     setCloudStatus('loading');
@@ -23,8 +33,10 @@ export function useCloudScores() {
           setCloudStatus('unavailable');
           return null;
         }
+
         authUnsubscribeRef.current?.();
         authUnsubscribeRef.current = result.unsubscribe;
+        firebaseCtxRef.current = result.ctx;
         setFirebaseCtx(result.ctx);
         setCloudStatus('ready');
         return result.ctx;
@@ -39,10 +51,15 @@ export function useCloudScores() {
       });
 
     return connectPromiseRef.current;
-  }, [firebaseCtx]);
+  }, []);
 
   useEffect(() => {
-    if (!firebaseCtx || !user) return undefined;
+    if (!firebaseCtx || !user) {
+      scoresUnsubscribeRef.current?.();
+      if (!user) setSavedScores([]);
+      return undefined;
+    }
+
     scoresUnsubscribeRef.current?.();
     const unsubscribe = subscribeToScores(firebaseCtx, user.uid, setSavedScores);
     scoresUnsubscribeRef.current = unsubscribe;
@@ -54,39 +71,46 @@ export function useCloudScores() {
     scoresUnsubscribeRef.current?.();
   }, []);
 
-  const saveCloudScore = useCallback(async (title, payload) => {
+  const getConnectedUser = useCallback(async () => {
     const ctx = await ensureCloudConnection();
-    if (!ctx || !user) return false;
+    const currentUser = userRef.current;
+    if (!ctx || !currentUser) return null;
+    return { ctx, uid: currentUser.uid };
+  }, [ensureCloudConnection]);
+
+  const saveCloudScore = useCallback(async (title, payload) => {
+    const connection = await getConnectedUser();
+    if (!connection) return false;
 
     setIsSaving(true);
     try {
-      await saveScore(ctx, user.uid, title, payload);
+      await saveScore(connection.ctx, connection.uid, title, payload);
       return true;
     } finally {
       setIsSaving(false);
     }
-  }, [ensureCloudConnection, user]);
+  }, [getConnectedUser]);
 
   const deleteCloudScore = useCallback(async (id) => {
-    const ctx = await ensureCloudConnection();
-    if (!ctx || !user) return false;
-    await deleteScore(ctx, user.uid, id);
+    const connection = await getConnectedUser();
+    if (!connection) return false;
+    await deleteScore(connection.ctx, connection.uid, id);
     return true;
-  }, [ensureCloudConnection, user]);
+  }, [getConnectedUser]);
 
   const clearAllCloudScores = useCallback(async () => {
-    const ctx = await ensureCloudConnection();
-    if (!ctx || !user) return false;
-    await Promise.all(savedScores.map((saved) => deleteScore(ctx, user.uid, saved.id)));
+    const connection = await getConnectedUser();
+    if (!connection) return false;
+    await Promise.all(savedScores.map((saved) => deleteScore(connection.ctx, connection.uid, saved.id)));
     return true;
-  }, [ensureCloudConnection, savedScores, user]);
+  }, [getConnectedUser, savedScores]);
 
   const uploadCloudScores = useCallback(async (files) => {
-    const ctx = await ensureCloudConnection();
-    if (!ctx || !user) return false;
-    await uploadScores(ctx, user.uid, files);
+    const connection = await getConnectedUser();
+    if (!connection) return false;
+    await uploadScores(connection.ctx, connection.uid, files);
     return true;
-  }, [ensureCloudConnection, user]);
+  }, [getConnectedUser]);
 
   return {
     savedScores,

@@ -12,6 +12,7 @@ import { useScoreState } from './hooks/useScoreState';
 
 const ScoreLibrary = lazy(() => import('./components/ScoreLibrary'));
 const SheetDisplay = lazy(() => import('./components/SheetDisplay'));
+const META_PREFIX = '// [META] ';
 
 function PanelFallback({ heightClass }) {
   return (
@@ -24,6 +25,30 @@ function PanelFallback({ heightClass }) {
       </div>
     </div>
   );
+}
+
+function parseImportedScore(content, fallbackTitle, defaultParams) {
+  const [firstLine, ...restLines] = content.split('\n');
+  let parsedParams = {};
+  let finalContent = content;
+
+  if (firstLine.startsWith(META_PREFIX)) {
+    try {
+      parsedParams = JSON.parse(firstLine.slice(META_PREFIX.length));
+      finalContent = restLines.join('\n').replace(/^\n/, '');
+    } catch {
+      finalContent = content;
+    }
+  }
+
+  return {
+    title: fallbackTitle,
+    payload: {
+      content: finalContent,
+      ...defaultParams,
+      ...parsedParams,
+    },
+  };
 }
 
 export default function App() {
@@ -54,6 +79,7 @@ export default function App() {
     applySavedScore,
     resetScoreState,
   } = useScoreState();
+
   const {
     savedScores,
     user,
@@ -70,7 +96,7 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const toastTimerRef = useRef(null);
   const hotkeyRef = useRef(playHotkey);
-  const actionRefs = useRef({ playScoreAction: null });
+  const playActionRef = useRef(null);
 
   const { audioCtx, setupAudio, triggerNote, stopAllNodes, updateSettings } = useAudioEngine();
 
@@ -101,132 +127,130 @@ export default function App() {
     showToast,
   });
 
-  useEffect(() => { hotkeyRef.current = playHotkey; }, [playHotkey]);
+  useEffect(() => {
+    hotkeyRef.current = playHotkey;
+  }, [playHotkey]);
+
+  useEffect(() => {
+    playActionRef.current = playScoreAction;
+  }, [playScoreAction]);
 
   useEffect(() => () => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
   }, []);
 
+  useEffect(() => {
+    updateSettings({ vol, reverb, globalOffset: globalKeyOffset, accidentals, tone });
+  }, [accidentals, globalKeyOffset, reverb, tone, updateSettings, vol]);
+
   const loadScore = useCallback((saved) => {
     applySavedScore(saved);
     stopAll();
-    showToast(`已載入曲譜：${saved.title}（參數已同步套用）`, 'success');
+    showToast(`已載入琴譜：${saved.title}`, 'success');
   }, [applySavedScore, showToast, stopAll]);
 
   const parseImportFile = useCallback(async (file) => {
     const content = await file.text();
     const title = file.name.replace(/\.[^/.]+$/, '');
-    let finalContent = content;
-    let params = {};
-    const firstLine = content.split('\n')[0];
-
-    if (firstLine.startsWith('// [META] ')) {
-      try {
-        params = JSON.parse(firstLine.replace('// [META] ', ''));
-        finalContent = content.substring(firstLine.length + 1).replace(/^\n/, '');
-      } catch {}
-    }
-
-    return { title, payload: { content: finalContent, ...currentScoreParams, ...params } };
+    return parseImportedScore(content, title, currentScoreParams);
   }, [currentScoreParams]);
 
   const handleImportLocal = useCallback(async (event) => {
     const files = Array.from(event.target.files || []);
     if (!files.length) return;
 
-    if (files.length === 1) {
-      const parsed = await parseImportFile(files[0]);
-      loadScore({ title: parsed.title, ...parsed.payload });
-      event.target.value = '';
-      return;
-    }
-
-    const ctx = await ensureCloudConnection();
-    if (!ctx || !user) {
-      showToast('需先連接 Firebase 才能批次上傳雲端', 'error');
-      event.target.value = '';
-      return;
-    }
-
-    showToast(`正在匯入 ${files.length} 份曲譜到雲端...`, 'info');
     try {
-      await uploadCloudScores(await Promise.all(files.map(parseImportFile)));
-      showToast(`已成功上傳 ${files.length} 份曲譜到雲端`, 'success');
-    } catch {
-      showToast('批次上傳失敗', 'error');
+      const parsedFiles = await Promise.all(files.map(parseImportFile));
+
+      if (parsedFiles.length === 1) {
+        loadScore({ title: parsedFiles[0].title, ...parsedFiles[0].payload });
+        return;
+      }
+
+      const uploaded = await uploadCloudScores(parsedFiles);
+      showToast(
+        uploaded ? `已匯入 ${parsedFiles.length} 份雲端琴譜` : '雲端未連線，無法批次匯入',
+        uploaded ? 'success' : 'error',
+      );
+    } catch (error) {
+      console.error(error);
+      showToast('匯入失敗，請檢查檔案格式', 'error');
+    } finally {
+      event.target.value = '';
     }
-
-    event.target.value = '';
-  }, [ensureCloudConnection, loadScore, parseImportFile, showToast, uploadCloudScores, user]);
-
-  useEffect(() => {
-    updateSettings({ vol, reverb, globalOffset: globalKeyOffset, accidentals, tone });
-  }, [accidentals, globalKeyOffset, reverb, tone, updateSettings, vol]);
+  }, [loadScore, parseImportFile, showToast, uploadCloudScores]);
 
   const handleSaveScore = useCallback(async () => {
-    if (!scoreTitle.trim()) return showToast('請輸入曲譜名稱', 'error');
+    const trimmedTitle = scoreTitle.trim();
+    if (!trimmedTitle) {
+      showToast('請先輸入琴譜名稱', 'error');
+      return;
+    }
 
     try {
-      const saved = await saveCloudScore(scoreTitle.trim(), {
+      const saved = await saveCloudScore(trimmedTitle, {
         content: score,
         ...currentScoreParams,
       });
 
-      if (!saved) {
-        showToast('請先連接雲端再儲存', 'error');
-        return;
-      }
-
-      showToast('已儲存到雲端，並同步目前的播放參數', 'success');
-    } catch {
+      showToast(saved ? '已儲存到雲端' : '雲端未連線，無法儲存', saved ? 'success' : 'error');
+    } catch (error) {
+      console.error(error);
       showToast('儲存失敗', 'error');
     }
   }, [currentScoreParams, saveCloudScore, score, scoreTitle, showToast]);
 
   const handleDeleteScore = useCallback(async (id) => {
-    if (!window.confirm('確定要刪除這份曲譜嗎？')) return;
+    if (!window.confirm('確定要刪除這份琴譜嗎？')) return;
 
     try {
       const deleted = await deleteCloudScore(id);
-      if (!deleted) return;
-      showToast('曲譜已刪除', 'success');
-    } catch {
+      if (deleted) showToast('已刪除琴譜', 'success');
+      else showToast('雲端未連線，無法刪除', 'error');
+    } catch (error) {
+      console.error(error);
       showToast('刪除失敗', 'error');
     }
   }, [deleteCloudScore, showToast]);
 
   const handleClearAllScores = useCallback(async () => {
-    if (!window.confirm('確定要清空所有雲端曲譜嗎？這個操作無法復原。')) return;
+    if (!window.confirm('確定要清空所有雲端琴譜嗎？這個動作無法復原。')) return;
 
     try {
       const cleared = await clearAllCloudScores();
-      if (!cleared) return;
-      showToast('已清空所有雲端曲譜', 'success');
-    } catch {
+      if (cleared) showToast('已清空所有雲端琴譜', 'success');
+      else showToast('雲端未連線，無法清空', 'error');
+    } catch (error) {
+      console.error(error);
       showToast('清空失敗', 'error');
     }
   }, [clearAllCloudScores, showToast]);
 
   const handleExportLocal = useCallback(() => {
-    if (!score.trim()) return showToast('目前沒有可匯出的譜面', 'error');
+    if (!score.trim()) {
+      showToast('目前沒有可匯出的琴譜內容', 'error');
+      return;
+    }
+
     const meta = JSON.stringify(currentScoreParams);
-    const exportContent = `// [META] ${meta}\n${score}`;
+    const exportContent = `${META_PREFIX}${meta}\n${score}`;
     const blob = new Blob([exportContent], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
+
     link.href = url;
-    link.download = `${scoreTitle.trim() || '未命名曲譜'}.txt`;
+    link.download = `${scoreTitle.trim() || '未命名琴譜'}.txt`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    showToast('已匯出到本機（包含目前參數）', 'success');
+    showToast('已匯出本地琴譜', 'success');
   }, [currentScoreParams, score, scoreTitle, showToast]);
 
   const handleResetScore = useCallback(() => {
     resetScoreState();
     stopAll();
-    showToast('已重設為預設曲譜與參數', 'success');
+    showToast('已重設目前琴譜', 'success');
   }, [resetScoreState, showToast, stopAll]);
 
   const handleToggleSharp = useCallback((key) => {
@@ -239,24 +263,22 @@ export default function App() {
   }, [setReverb, setupAudio]);
 
   useEffect(() => {
-    actionRefs.current.playScoreAction = playScoreAction;
-  }, [playScoreAction]);
-
-  useEffect(() => {
     const down = (event) => {
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) return;
+
       if (hotkeyRef.current !== 'None' && event.code === hotkeyRef.current) {
         event.preventDefault();
-        actionRefs.current.playScoreAction?.();
+        playActionRef.current?.();
         return;
       }
+
       if (event.repeat || isPlayingRef.current) return;
 
       const mappedKey = mapKey(event.key);
-      if (mappedKey) {
-        event.preventDefault();
-        handleKeyActivate(mappedKey);
-      }
+      if (!mappedKey) return;
+
+      event.preventDefault();
+      handleKeyActivate(mappedKey);
     };
 
     const up = (event) => {
@@ -273,7 +295,10 @@ export default function App() {
   }, [handleKeyActivate, handleKeyDeactivate, isPlayingRef]);
 
   return (
-    <div className="min-h-screen bg-[#060a12] text-emerald-50 flex flex-col items-center font-serif relative overflow-hidden select-none pb-20 touch-manipulation" onContextMenu={(event) => event.preventDefault()}>
+    <div
+      className="min-h-screen bg-[#060a12] text-emerald-50 flex flex-col items-center font-serif relative overflow-hidden select-none pb-20 touch-manipulation"
+      onContextMenu={(event) => event.preventDefault()}
+    >
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(16,185,129,0.08),transparent_70%)] pointer-events-none" />
       <WindParticles />
 
@@ -284,16 +309,65 @@ export default function App() {
         </div>
       )}
 
-      <AppHeader playHotkey={playHotkey} setPlayHotkey={setPlayHotkey} isPlaying={isPlaying} onTogglePlay={playScoreAction} />
-      <PianoKeys accidentals={accidentals} globalKeyOffset={globalKeyOffset} onKeyActivate={handleKeyActivate} onKeyDeactivate={handleKeyDeactivate} onToggleSharp={handleToggleSharp} progressBarRef={progressBarRef} />
-      <ControlPanel bpm={bpm} setBpm={setBpm} timeSigNum={timeSigNum} setTimeSigNum={setTimeSigNum} timeSigDen={timeSigDen} setTimeSigDen={setTimeSigDen} charResolution={charResolution} setCharResolution={setCharResolution} vol={vol} setVol={setVol} tone={tone} setTone={setTone} reverb={reverb} onToggleReverb={handleToggleReverb} globalKeyOffset={globalKeyOffset} setGlobalKeyOffset={setGlobalKeyOffset} />
+      <AppHeader
+        playHotkey={playHotkey}
+        setPlayHotkey={setPlayHotkey}
+        isPlaying={isPlaying}
+        onTogglePlay={playScoreAction}
+      />
+      <PianoKeys
+        accidentals={accidentals}
+        globalKeyOffset={globalKeyOffset}
+        onKeyActivate={handleKeyActivate}
+        onKeyDeactivate={handleKeyDeactivate}
+        onToggleSharp={handleToggleSharp}
+        progressBarRef={progressBarRef}
+      />
+      <ControlPanel
+        bpm={bpm}
+        setBpm={setBpm}
+        timeSigNum={timeSigNum}
+        setTimeSigNum={setTimeSigNum}
+        timeSigDen={timeSigDen}
+        setTimeSigDen={setTimeSigDen}
+        charResolution={charResolution}
+        setCharResolution={setCharResolution}
+        vol={vol}
+        setVol={setVol}
+        tone={tone}
+        setTone={setTone}
+        reverb={reverb}
+        onToggleReverb={handleToggleReverb}
+        globalKeyOffset={globalKeyOffset}
+        setGlobalKeyOffset={setGlobalKeyOffset}
+      />
 
       <section className="z-20 w-full max-w-6xl grid lg:grid-cols-[300px_1fr] gap-8 px-4 items-start">
         <Suspense fallback={<PanelFallback heightClass="min-h-[320px]" />}>
-          <ScoreLibrary user={user} savedScores={savedScores} onLoadScore={loadScore} onClearAll={handleClearAllScores} onDeleteScore={handleDeleteScore} onConnectCloud={ensureCloudConnection} cloudStatus={cloudStatus} />
+          <ScoreLibrary
+            user={user}
+            savedScores={savedScores}
+            onLoadScore={loadScore}
+            onClearAll={handleClearAllScores}
+            onDeleteScore={handleDeleteScore}
+            onConnectCloud={ensureCloudConnection}
+            cloudStatus={cloudStatus}
+          />
         </Suspense>
         <Suspense fallback={<PanelFallback heightClass="min-h-[520px]" />}>
-          <SheetDisplay score={score} setScore={setScore} scoreTitle={scoreTitle} setScoreTitle={setScoreTitle} onImport={handleImportLocal} onExport={handleExportLocal} onSave={handleSaveScore} onReset={handleResetScore} isSaving={isSaving} onConnectCloud={ensureCloudConnection} cloudStatus={cloudStatus} />
+          <SheetDisplay
+            score={score}
+            setScore={setScore}
+            scoreTitle={scoreTitle}
+            setScoreTitle={setScoreTitle}
+            onImport={handleImportLocal}
+            onExport={handleExportLocal}
+            onSave={handleSaveScore}
+            onReset={handleResetScore}
+            isSaving={isSaving}
+            onConnectCloud={ensureCloudConnection}
+            cloudStatus={cloudStatus}
+          />
         </Suspense>
       </section>
 
