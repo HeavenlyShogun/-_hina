@@ -9,7 +9,7 @@ import WindParticles from './components/WindParticles';
 import { DEFAULT_SCORE, DEFAULT_SCORE_PARAMS, KEY_INFO_MAP, mapKey } from './constants/music';
 import { useAudioEngine } from './hooks/useAudioEngine';
 import { connectFirebaseAuth, deleteScore, saveScore, subscribeToScores, uploadScores } from './services/firebase';
-import { createRippleDOM, toggleKeyDOM } from './utils/domEffects';
+import { clearActiveKeysDOM, createRippleDOM, toggleKeyDOM } from './utils/domEffects';
 import { parseScoreData } from './utils/score';
 
 export default function App() {
@@ -58,12 +58,13 @@ export default function App() {
     stopAllNodes();
     setIsPlaying(false);
     isPlayingRef.current = false;
-    document.querySelectorAll('.playing-active').forEach((element) => element.classList.remove('playing-active'));
+    clearActiveKeysDOM();
     if (progressBarRef.current) progressBarRef.current.style.width = '0%';
   }, [stopAllNodes]);
 
   useEffect(() => () => {
     stopAll();
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     authUnsubscribeRef.current?.();
     scoresUnsubscribeRef.current?.();
   }, [stopAll]);
@@ -297,10 +298,16 @@ export default function App() {
 
       const start = audioCtx.current.currentTime + 0.3;
       const queue = events.map((event) => ({ ...event, time: start + event.time }));
-      const visualQueue = events.map((event) => ({ k: event.k, on: start + event.time }));
+      const visualQueue = events.map((event) => ({
+        k: event.k,
+        on: start + event.time,
+        off: start + event.time + Math.min(event.durationSec ?? 0.2, 0.2),
+      }));
 
       let noteIndex = 0;
       let visualIndex = 0;
+      let deactivateIndex = 0;
+      const activeVisualCounts = new Map();
 
       const scheduleAudio = () => {
         if (!isPlayingRef.current) return;
@@ -325,9 +332,21 @@ export default function App() {
         while (visualIndex < visualQueue.length && visualQueue[visualIndex].on <= currentTime) {
           const visual = visualQueue[visualIndex];
           visualIndex += 1;
+          activeVisualCounts.set(visual.k, (activeVisualCounts.get(visual.k) ?? 0) + 1);
           toggleKeyDOM(visual.k, true);
           createRippleDOM(visual.k);
-          setTimeout(() => toggleKeyDOM(visual.k, false), 200);
+        }
+
+        while (deactivateIndex < visualQueue.length && visualQueue[deactivateIndex].off <= currentTime) {
+          const visual = visualQueue[deactivateIndex];
+          deactivateIndex += 1;
+          const nextCount = (activeVisualCounts.get(visual.k) ?? 1) - 1;
+          if (nextCount <= 0) {
+            activeVisualCounts.delete(visual.k);
+            toggleKeyDOM(visual.k, false);
+          } else {
+            activeVisualCounts.set(visual.k, nextCount);
+          }
         }
 
         if (currentTime - start >= maxTime + 0.4) stopAll();
@@ -425,6 +444,22 @@ export default function App() {
         .playing-active > span:first-child { color: white !important; }
         .playing-active > span:last-child { color: rgba(255,255,255,0.9) !important; }
         .playing-active sup { color: #d1fae5 !important; }
+        .key-ripple-layer::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: 9999px;
+          border: 2px solid rgba(52, 211, 153, 0.6);
+          opacity: 0;
+          transform: scale(0.92);
+        }
+        .key-ripple-layer.ripple-active::after {
+          animation: key-ripple 0.8s ease-out;
+        }
+        @keyframes key-ripple {
+          0% { opacity: 0.7; transform: scale(0.92); }
+          100% { opacity: 0; transform: scale(1.28); }
+        }
       `}</style>
     </div>
   );

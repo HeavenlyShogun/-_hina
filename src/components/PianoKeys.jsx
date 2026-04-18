@@ -6,8 +6,8 @@ const PianoKey = memo(({ keyInfo, isSharp, globalOffset, onActivate, onDeactivat
   const displayOffset =
     totalOffset !== 0
       ? (Math.abs(totalOffset) <= 2
-          ? (totalOffset > 0 ? '??' : '??').repeat(Math.abs(totalOffset))
-          : `${totalOffset > 0 ? '??' : '??'}${Math.abs(totalOffset)}`)
+          ? (totalOffset > 0 ? '#' : 'b').repeat(Math.abs(totalOffset))
+          : `${totalOffset > 0 ? '#' : 'b'}${Math.abs(totalOffset)}`)
       : null;
 
   const handleToggle = useCallback((event) => {
