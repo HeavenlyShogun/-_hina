@@ -2,7 +2,24 @@ import React, { memo } from 'react';
 import { Clock, Globe, Music, Volume2, Zap } from 'lucide-react';
 import { KEY_OPTIONS } from '../constants/music';
 
-const ControlPanel = memo(({ bpm, setBpm, timeSigNum, setTimeSigNum, timeSigDen, setTimeSigDen, charResolution, setCharResolution, vol, setVol, tone, setTone, reverb, onToggleReverb, globalKeyOffset, setGlobalKeyOffset }) => (
+const ControlPanel = memo(({
+  bpm,
+  setBpm,
+  timeSigNum,
+  setTimeSigNum,
+  timeSigDen,
+  setTimeSigDen,
+  charResolution,
+  setCharResolution,
+  vol,
+  setVol,
+  tone,
+  setTone,
+  reverb,
+  onToggleReverb,
+  globalKeyOffset,
+  setGlobalKeyOffset,
+}) => (
   <section className="z-30 w-full max-w-6xl my-10 flex flex-col gap-4 px-6">
     <div className="flex flex-wrap justify-center items-center gap-4">
       <div className="flex items-center gap-3 bg-white/[0.03] border border-white/5 rounded-full px-5 py-2.5 backdrop-blur-md shadow-inner" title="調整播放速度">
@@ -26,7 +43,7 @@ const ControlPanel = memo(({ bpm, setBpm, timeSigNum, setTimeSigNum, timeSigDen,
           {[2, 4, 8, 16].map((value) => <option key={value} value={value} className="bg-slate-900">{value}</option>)}
         </select>
         <div className="w-px h-4 bg-emerald-500/30 mx-2 md:mx-3" />
-        <span className="text-[10px] font-black text-emerald-200/70 uppercase tracking-widest mr-1 md:mr-2">1 字 =</span>
+        <span className="text-[10px] font-black text-emerald-200/70 uppercase tracking-widest mr-1 md:mr-2">1 格 =</span>
         <select value={charResolution} onChange={(event) => setCharResolution(Number(event.target.value))} className="bg-transparent outline-none text-[11px] text-emerald-400 font-black cursor-pointer">
           <option value={4} className="bg-slate-900">4 分音符</option>
           <option value={8} className="bg-slate-900">8 分音符</option>
@@ -45,8 +62,8 @@ const ControlPanel = memo(({ bpm, setBpm, timeSigNum, setTimeSigNum, timeSigDen,
         <select value={tone} onChange={(event) => setTone(event.target.value)} className="bg-transparent outline-none text-[11px] font-black text-emerald-100 uppercase cursor-pointer">
           <option value="piano" className="bg-[#0f172a]">鋼琴 (Piano)</option>
           <option value="flute" className="bg-[#0f172a]">長笛 (Flute)</option>
-          <option value="tongue-drum" className="bg-[#0f172a]">鋼舌鼓 (Steel Tongue)</option>
-          <option value="lyre-long" className="bg-[#0f172a]">詩琴延音 (Long)</option>
+          <option value="tongue-drum" className="bg-[#0f172a]">空靈鼓 (Steel Tongue)</option>
+          <option value="lyre-long" className="bg-[#0f172a]">詩琴長音 (Long)</option>
           <option value="lyre-short" className="bg-[#0f172a]">詩琴短音 (Short)</option>
           <option value="classic" className="bg-[#0f172a]">經典音色 (Classic)</option>
         </select>

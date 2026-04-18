@@ -5,16 +5,26 @@ const ScoreLibrary = memo(({ user, savedScores, onLoadScore, onClearAll, onDelet
   <div className="bg-black/40 border border-white/5 rounded-[40px] p-6 flex flex-col h-fit max-h-[500px] backdrop-blur-sm shadow-inner relative">
     {cloudStatus !== 'ready' && (
       <div className="absolute inset-0 bg-black/60 rounded-[40px] backdrop-blur-md z-10 flex flex-col items-center justify-center gap-4 text-xs text-white/50 font-bold tracking-widest px-6 text-center">
-        <div>{cloudStatus === 'loading' ? '雲端連線中...' : '按下按鈕後才會載入 Firebase 雲端功能'}</div>
+        <div>{cloudStatus === 'loading' ? '雲端連線中...' : '尚未連接 Firebase，請先連線雲端'}</div>
         <button onClick={onConnectCloud} disabled={cloudStatus === 'loading'} className="px-5 py-2 rounded-full border border-emerald-500/40 text-emerald-300 bg-emerald-500/10 disabled:opacity-50">
           {cloudStatus === 'loading' ? 'CONNECTING' : 'CONNECT CLOUD'}
         </button>
       </div>
     )}
-    {cloudStatus === 'ready' && !user && <div className="absolute inset-0 bg-black/60 rounded-[40px] backdrop-blur-md z-10 flex items-center justify-center text-xs text-white/50 font-bold tracking-widest">尚未登入</div>}
+    {cloudStatus === 'ready' && !user && (
+      <div className="absolute inset-0 bg-black/60 rounded-[40px] backdrop-blur-md z-10 flex items-center justify-center text-xs text-white/50 font-bold tracking-widest">
+        尚未登入
+      </div>
+    )}
     <div className="flex items-center justify-between mb-6 px-2">
-      <div className="flex items-center gap-2 text-emerald-400 font-black text-[10px] tracking-[0.2em] uppercase"><UploadCloud size={16} /> 雲端譜庫<span className="text-[8px] opacity-50 ml-1">（依更新時間排序）</span></div>
-      <button onClick={onClearAll} className="text-rose-400/50 hover:text-rose-400 transition-colors p-1" title="清空所有譜面"><ListX size={14} /></button>
+      <div className="flex items-center gap-2 text-emerald-400 font-black text-[10px] tracking-[0.2em] uppercase">
+        <UploadCloud size={16} />
+        雲端琴譜
+        <span className="text-[8px] opacity-50 ml-1">同步你的收藏與備份</span>
+      </div>
+      <button onClick={onClearAll} className="text-rose-400/50 hover:text-rose-400 transition-colors p-1" title="清空所有雲端琴譜">
+        <ListX size={14} />
+      </button>
     </div>
     <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3">
       {savedScores.length === 0 ? <div className="text-center py-20 opacity-10 text-[10px] uppercase tracking-widest">Library Empty</div> : savedScores.map((saved) => (
@@ -28,8 +38,12 @@ const ScoreLibrary = memo(({ user, savedScores, onLoadScore, onClearAll, onDelet
             </div>
           </div>
           <div className="flex items-center gap-2 transition-opacity">
-            <div className="bg-emerald-500/20 text-emerald-400 p-2 rounded-xl group-hover:bg-emerald-500 group-hover:text-white transition-all shadow-md" title="載入這份譜面"><FolderOpen size={16} /></div>
-            <button onClick={(event) => { event.stopPropagation(); onDeleteScore(saved.id); }} className="p-2 text-rose-400/40 hover:text-rose-400 hover:bg-rose-500/20 rounded-xl transition-all" title="刪除"><Trash2 size={16} /></button>
+            <div className="bg-emerald-500/20 text-emerald-400 p-2 rounded-xl group-hover:bg-emerald-500 group-hover:text-white transition-all shadow-md" title="載入這份琴譜">
+              <FolderOpen size={16} />
+            </div>
+            <button onClick={(event) => { event.stopPropagation(); onDeleteScore(saved.id); }} className="p-2 text-rose-400/40 hover:text-rose-400 hover:bg-rose-500/20 rounded-xl transition-all" title="刪除">
+              <Trash2 size={16} />
+            </button>
           </div>
         </div>
       ))}
