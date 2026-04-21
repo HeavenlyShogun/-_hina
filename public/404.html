@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Redirecting...</title>
+  </head>
+  <body>
+    <script>
+      (function () {
+        var location = window.location;
+        var origin = location.origin;
+        var pathname = location.pathname || '/';
+        var search = location.search || '';
+        var hash = location.hash || '';
+        var segments = pathname.split('/');
+        var repoBase = segments.slice(0, 2).join('/') || '';
+
+        sessionStorage.setItem(
+          'gh-pages-spa-redirect',
+          pathname + search + hash
+        );
+
+        window.location.replace(origin + repoBase + '/');
+      })();
+    </script>
+  </body>
+  </html>
