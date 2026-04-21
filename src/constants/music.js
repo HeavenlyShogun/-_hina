@@ -116,18 +116,104 @@ export const CHAR_TO_KEY_MAP = {
   '↓7': 'm',
 };
 
-export const DEFAULT_SCORE = `// 風物之詩琴示例譜
-// 高音: QWERTYU
-// 中音: ASDFGHJ 或 1234567
-// 低音: ZXCVBNM 或 -1 ~ -7
-// 和弦請用括號，例如 (QWE) 或 (135)
-// 小節線可用 | 幫助對拍
+export const DEFAULT_SCORE = `(VA) / M / (MG) /(AG) Q /
+(BAQ) G /G (MD) /D (MS) /(AD) S /
+(NAD) S / M / M /A /
+(ZA) /A B / B /A /
 
-(ZA) Q (CG) Q (AW) E (CG) E | (QY) E (CG) E (EW) W
-(CJ) Q (MW) Q (NW) W (DJ) W | (BS) Q (ZA) Q (VF)
+(VA) / M / (MG) /(AG) Q /
+(BAQ) Q /Q (MQ) /Q (MQ) /(AQ) Q /
+(NAW) / M / M /A /
+(ZBA) /D / / /
 
-(-1-1) +1 (-3-5) +1 (1+2) +3 (-3-5) +3 | (+1+6) +3 (-3-5) +3 (+3+2) +2
-(-3-7) +1 (-7+3) +1 (-6+2) +2 (-5+1) +2 | (-5+2) +1 (-1-1) +1 (-4-4)`;
+(VA) / M / (MG) /(AG) Q /
+(BAQ) G /G (MD) /D (MS) /(AD) S /
+(NAD) / (MG) /D M /A S /
+(ZAS) / (BD) /A B /Z /
+
+(VA) / M / (MJ) /(AJ) Q /
+(BAQ) Q /Q (MW) /W M /A /
+(NA) / M / M /A /
+(ZBA) /D / /Q /
+(VA) /(VAQ) W /(VAW) /(VA) Q /
+(BSQ) W /(BSW) /(BSW) /(BSQ) Q /
+(NDT) T /(NDT) T /(NDT) /(NDQ) Q /
+(ND) Q /(NDQ) W /(NDW) /(BSQ) /
+
+(VA) /(VA) /(VA) Q /(VAQ) Q /
+(BST) T /(BST) T /(BST) /(BSQ) Q /
+(NDH) /(ND) /(ND) /(NDG) /
+(NDT) T /(NDT) T /(NDT) /(BSQ) /
+
+(VA) /(VAQ) W /(VAW) /(VA) Q /
+(BSQ) W /(BSW) /(BSW) /(BSQ) Q /
+(NDT) T /(NDT) T /(NDT) /(ND) Y /
+(ND) T /(NDT) T /(NDW) /(BSQ) W /
+
+(XN) /(XN) /(XN) Q /(XNQ) /
+(CBS) D /(CB) S /(CBA) /(CB) /
+(ZV) /(ZV) /(ZV) /(ZV) /
+(ZVN) (ZVN) /(ZVN) G /Q Q / Q /
+(ZV) G /(AFQ) V/Q (VQ) /(AF) Q /
+(ZB) G /(AGQ) Z/J (ZQ) /(AG) Q /
+(CN) G /(ADQ) QN/Q (NQ) /(ADQ) W /
+(XBW) E /(SGQ) GB/Q (BQ) /(SG) Q /
+
+(ZV) G /(AFQ) V/Q (VQ) /(AF) Q /
+(ZB) G /(AGQ) Z/Q (ZQ) /(AGQ) Q /
+(CN) G /(ADQ) N/Q (NQ) /(ADQ) W /
+(XBW) /(SGQ) QB/E (BT) /(SGE) W /
+
+(VAW) Q /Q (VAW) /Q /(VA) /
+(ZB) / (ZBW) /E /(ZBW) /
+(CNW) / (CNE) /W /(CN) /
+(XB) /Q (XBQ) /E T /(XBE) W /
+
+(VAW) Q /Q (VAW) /Q /(VAG) Q /
+(ZB) G /Q (ZBG) /Q Q /(ZBG) Q /
+(CN) G /Q (CN) /Q Q /(CNQ) W /
+(XBW) E /Q (XB) / /(XB) /
+
+(BSQ) T / E/W / /
+(CND) / / / /
+(VA) /(VA) M /(VA) (MG) /(VAG) Q /
+(BAQ) G /(BAG) D /(BAD) S /(BAD) S /
+(NAD) S /(NA) M /(NA) M /(NA) /
+(NA) /(NA) B /(NA) B /(NA) /
+
+(VA) /(VA) M /(VA) (MG) /(VAG) Q /
+(BSQ) Q /(BSQ) Q /(BSQ) Q /(BSQ) W /
+(NDW) /(ND) M /(ND) (MQ) /(NADH) /
+(ND) /(ND) B /(ND) (BG) /(NADQ) /
+
+(ZVH) /(ZV) G /(ZV) G /(ZVG) Q /
+(XBQ) G /(XBG) D /(XBD) S /(XBD) S /
+(CND) /(CN) G /(CND) /(CN) S /
+(CNS) /(CN) D /(CNA) /B /
+
+(XN) /(XN) /(XN) G /(XNG) G /
+(CBG) G /(CBG) G /(CBQ) W /(CBQ) /
+(ZVA) S /(ZVA) /(ZVQ) W /(ZVQ) /
+(ZVN) (ZVN) /(ZVN) G /Q Q / Q /
+(ZV) G /(AFQ) V/Q (VQ) /(AF) Q /
+(ZB) G /(AGQ) Z/J (ZQ) /(AG) Q /
+(CN) G /(ADQ) QN/Q (NQ) /(ADQ) W /
+(XBW) E /(SGQ) GB/Q (BQ) /(SG) Q /
+
+(ZV) G /(AFQ) V/Q (VQ) /(AF) Q /
+(ZB) G /(AGQ) Z/Q (ZQ) /(AGQ) Q /
+(CN) G /(ADQ) N/Q (NQ) /(ADQ) W /
+(XBW) /(SGQ) QB/E (BT) /(SGE) W /
+
+(VAW) Q /Q (VAW) /Q /(VA) /
+(ZB) / (ZBW) /E /(ZBW) /
+(CNW) / (CNE) /W /(CN) /
+(XB) /Q (XBQ) /E T /(XBE) W /
+
+(VAW) Q /Q (VAW) /Q /(VAG) Q /
+(ZB) G /Q (ZBG) /Q Q /(ZBG) Q /
+(CN) G /Q (CN) /Q Q /(CNQ) W /
+(XBW) E /Q (XB) / /(XBQ) /`;
 
 export const DEFAULT_SCORE_PARAMS = {
   bpm: 90,
