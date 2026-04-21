@@ -1,0 +1,28 @@
+{
+  "name": "wind-poetry-lyre",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "node scripts/build-github-pages.mjs",
+    "build:vite": "vite build",
+    "build:pages": "node scripts/build-github-pages.mjs",
+    "preview": "vite preview",
+    "preview:pages": "npm run build && node scripts/preview-github-pages.mjs"
+  },
+  "dependencies": {
+    "firebase": "^12.4.0",
+    "lucide-react": "^0.542.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.0.2",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.17",
+    "tailwindcss-animate": "^1.0.7",
+    "vite": "^7.1.3"
+  }
+}
