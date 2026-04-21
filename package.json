@@ -5,8 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "build": "node scripts/build-github-pages.mjs",
+    "build:vite": "vite build",
+    "build:pages": "node scripts/build-github-pages.mjs",
+    "preview": "vite preview",
+    "preview:pages": "npm run build && node scripts/preview-github-pages.mjs"
   },
   "dependencies": {
     "firebase": "^12.4.0",
