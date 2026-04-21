@@ -18,6 +18,7 @@ try {
       stdio: 'inherit',
       env: {
         ...process.env,
+        VITE_GITHUB_PAGES_REPO: repo,
         GITHUB_REPOSITORY: `${owner}/${repo}`,
       },
     }
