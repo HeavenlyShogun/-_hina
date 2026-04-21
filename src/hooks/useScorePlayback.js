@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { DEFAULT_SCORE_PARAMS, KEY_INFO_MAP } from '../constants/music';
-import { clearActiveKeysDOM, createRippleDOM, toggleKeyDOM } from '../utils/domEffects';
 import { parseScoreData } from '../utils/score';
 
 function buildQueues(events, startTime) {
@@ -25,6 +24,8 @@ export function useScorePlayback({
   audioCtx,
   setupAudio,
   triggerNote,
+  playLiveNote,
+  releaseLiveNote,
   stopAllNodes,
   score,
   bpm,
@@ -32,12 +33,16 @@ export function useScorePlayback({
   timeSigDen,
   charResolution,
   showToast,
+  onKeyVisualAttack,
+  onKeyVisualRelease,
+  onVisualReset,
 }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const progressBarRef = useRef(null);
   const schedulerTimerRef = useRef(null);
   const visualTimerRef = useRef(null);
   const isPlayingRef = useRef(false);
+  const activeLiveKeysRef = useRef(new Set());
   const playbackConfigRef = useRef({
     score,
     bpm,
@@ -64,12 +69,13 @@ export function useScorePlayback({
   }, []);
 
   const resetPlaybackVisuals = useCallback(() => {
-    clearActiveKeysDOM();
+    onVisualReset();
     if (progressBarRef.current) progressBarRef.current.style.width = '0%';
-  }, []);
+  }, [onVisualReset]);
 
   const stopAll = useCallback(() => {
     clearPlaybackTimers();
+    activeLiveKeysRef.current.clear();
     stopAllNodes();
     isPlayingRef.current = false;
     setIsPlaying(false);
@@ -83,9 +89,14 @@ export function useScorePlayback({
   const handleKeyActivate = useCallback((keyK) => {
     const activate = () => {
       const info = KEY_INFO_MAP[keyK];
-      if (info) triggerNote(info, 0.9);
-      toggleKeyDOM(keyK, true);
-      createRippleDOM(keyK);
+      if (info && !activeLiveKeysRef.current.has(keyK)) {
+        const voice = playLiveNote(info, 0.9);
+        if (voice) {
+          activeLiveKeysRef.current.add(keyK);
+          console.log(`[lyre] ${voice.noteName} ${voice.frequency.toFixed(2)}Hz`);
+        }
+      }
+      onKeyVisualAttack(keyK);
     };
 
     if (!audioCtx.current || audioCtx.current.state === 'suspended') {
@@ -94,11 +105,13 @@ export function useScorePlayback({
     }
 
     activate();
-  }, [audioCtx, setupAudio, triggerNote]);
+  }, [audioCtx, onKeyVisualAttack, playLiveNote, setupAudio]);
 
   const handleKeyDeactivate = useCallback((keyK) => {
-    toggleKeyDOM(keyK, false);
-  }, []);
+    activeLiveKeysRef.current.delete(keyK);
+    releaseLiveNote(keyK);
+    onKeyVisualRelease(keyK);
+  }, [onKeyVisualRelease, releaseLiveNote]);
 
   const playScoreAction = useCallback(async () => {
     if (isPlayingRef.current) {
@@ -165,8 +178,7 @@ export function useScorePlayback({
           const visual = visualQueue[visualIndex];
           visualIndex += 1;
           activeVisualCounts.set(visual.k, (activeVisualCounts.get(visual.k) ?? 0) + 1);
-          toggleKeyDOM(visual.k, true);
-          createRippleDOM(visual.k);
+          onKeyVisualAttack(visual.k);
         }
 
         while (deactivateIndex < visualQueue.length && visualQueue[deactivateIndex].off <= currentTime) {
@@ -176,7 +188,7 @@ export function useScorePlayback({
 
           if (nextCount <= 0) {
             activeVisualCounts.delete(visual.k);
-            toggleKeyDOM(visual.k, false);
+            onKeyVisualRelease(visual.k);
           } else {
             activeVisualCounts.set(visual.k, nextCount);
           }
@@ -197,7 +209,7 @@ export function useScorePlayback({
       stopAll();
       showToast('播放失敗，請檢查琴譜內容', 'error');
     }
-  }, [audioCtx, setupAudio, showToast, stopAll, triggerNote]);
+  }, [audioCtx, onKeyVisualAttack, onKeyVisualRelease, setupAudio, showToast, stopAll, triggerNote]);
 
   return {
     isPlaying,

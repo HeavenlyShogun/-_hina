@@ -8,6 +8,7 @@ export function useAudioEngine() {
   const masterGain = useRef(null);
   const reverbBus = useRef(null);
   const activeVoices = useRef(new Set());
+  const activeLiveVoices = useRef(new Map());
   const noiseBufferRef = useRef(null);
   const shortNoiseBufferRef = useRef(null);
   const settingsRef = useRef({ vol: 0.65, reverb: true, globalOffset: 0, accidentals: {}, tone: 'piano' });
@@ -27,10 +28,14 @@ export function useAudioEngine() {
 
   const releaseVoice = useCallback((voice, releaseStartTime, stopAtTime) => {
     if (!voice || voice.cleaned) return;
+    if (voice.releasing) return;
+    voice.releasing = true;
 
     try {
       voice.gain.gain.cancelScheduledValues(releaseStartTime);
-      voice.gain.gain.setTargetAtTime(0, releaseStartTime, 0.01);
+      const currentGain = Math.max(voice.gain.gain.value, 0.0001);
+      voice.gain.gain.setValueAtTime(currentGain, releaseStartTime);
+      voice.gain.gain.exponentialRampToValueAtTime(0.0001, stopAtTime);
     } catch {}
 
     try {
@@ -136,31 +141,9 @@ export function useAudioEngine() {
     }
   }, []);
 
-  const triggerNote = useCallback((keyInfo, velocity = 0.8, absoluteTime = null, durationSec = null) => {
+  const createVoice = useCallback((keyInfo, velocity = 0.8, startTime, durationSec = null, sustain = false) => {
     const ctx = audioCtx.current;
-    if (!ctx || ctx.state !== 'running') return;
-
-    const now = ctx.currentTime;
-    let startTime = absoluteTime !== null ? absoluteTime : now;
-    if (startTime < now) startTime = now + 0.005;
-
-    activeVoices.current.forEach((voice) => {
-      if (voice.key === keyInfo.k && voice.endTime > startTime) {
-        const fadeStart = Math.max(now, startTime - 0.03);
-        releaseVoice(voice, fadeStart, fadeStart + 0.05);
-      }
-    });
-
-    if (activeVoices.current.size > 48) {
-      const oldestVoices = Array.from(activeVoices.current)
-        .sort((left, right) => left.endTime - right.endTime)
-        .slice(0, activeVoices.current.size - 48);
-
-      oldestVoices.forEach((voice) => {
-        const killTime = now + 0.015;
-        releaseVoice(voice, killTime, killTime + 0.05);
-      });
-    }
+    if (!ctx || ctx.state !== 'running') return null;
 
     const { globalOffset, accidentals, tone } = settingsRef.current;
     const freqRatio = SEMITONE_RATIOS[globalOffset + (accidentals[keyInfo.k] || 0) + 30];
@@ -175,8 +158,11 @@ export function useAudioEngine() {
     osc.type = config.type;
     gain.gain.setValueAtTime(0, startTime);
     gain.gain.linearRampToValueAtTime(finalPeak, startTime + config.atk);
-    gain.gain.exponentialRampToValueAtTime(Math.max(finalPeak * config.sus, 0.001), startTime + config.dec);
-    gain.gain.exponentialRampToValueAtTime(0.001, startTime + config.dur);
+    const sustainGain = Math.max(finalPeak * config.sus, 0.001);
+    gain.gain.exponentialRampToValueAtTime(sustainGain, startTime + config.dec);
+    if (!sustain) {
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + config.dur);
+    }
     osc.frequency.setValueAtTime(freq, startTime);
 
     let filter = null;
@@ -209,9 +195,11 @@ export function useAudioEngine() {
 
     gain.connect(masterGain.current);
 
-    const endTime = startTime + config.dur;
+    const endTime = sustain ? Number.POSITIVE_INFINITY : startTime + config.dur;
     const voice = {
       key: keyInfo.k,
+      noteName: keyInfo.n,
+      frequency: freq,
       osc,
       gain,
       filter,
@@ -219,6 +207,7 @@ export function useAudioEngine() {
       noiseGain,
       endTime,
       cleaned: false,
+      releasing: false,
     };
 
     osc.onended = () => cleanupVoice(voice);
@@ -231,18 +220,75 @@ export function useAudioEngine() {
         noise.stop(Math.min(endTime, startTime + config.nDur + 0.02));
       } catch {}
     }
-    osc.stop(endTime);
-  }, [cleanupVoice, getToneConfig, releaseVoice]);
+    if (!sustain) osc.stop(endTime);
+
+    return voice;
+  }, [cleanupVoice, getToneConfig]);
+
+  const triggerNote = useCallback((keyInfo, velocity = 0.8, absoluteTime = null, durationSec = null) => {
+    const ctx = audioCtx.current;
+    if (!ctx || ctx.state !== 'running') return;
+
+    const now = ctx.currentTime;
+    let startTime = absoluteTime !== null ? absoluteTime : now;
+    if (startTime < now) startTime = now + 0.005;
+
+    activeVoices.current.forEach((voice) => {
+      if (voice.key === keyInfo.k && voice.endTime > startTime) {
+        const fadeStart = Math.max(now, startTime - 0.03);
+        releaseVoice(voice, fadeStart, fadeStart + 0.05);
+      }
+    });
+
+    if (activeVoices.current.size > 48) {
+      const oldestVoices = Array.from(activeVoices.current)
+        .sort((left, right) => left.endTime - right.endTime)
+        .slice(0, activeVoices.current.size - 48);
+
+      oldestVoices.forEach((voice) => {
+        const killTime = now + 0.015;
+        releaseVoice(voice, killTime, killTime + 0.05);
+      });
+    }
+
+    createVoice(keyInfo, velocity, startTime, durationSec, false);
+  }, [createVoice, releaseVoice]);
+
+  const playLiveNote = useCallback((keyInfo, velocity = 0.9) => {
+    const ctx = audioCtx.current;
+    if (!ctx || ctx.state !== 'running') return null;
+    if (activeLiveVoices.current.has(keyInfo.k)) return activeLiveVoices.current.get(keyInfo.k);
+
+    const startTime = ctx.currentTime + 0.005;
+    const voice = createVoice(keyInfo, velocity, startTime, null, true);
+    if (!voice) return null;
+
+    activeLiveVoices.current.set(keyInfo.k, voice);
+    return voice;
+  }, [createVoice]);
+
+  const releaseLiveNote = useCallback((keyK) => {
+    const ctx = audioCtx.current;
+    const voice = activeLiveVoices.current.get(keyK);
+    if (!ctx || !voice) return;
+
+    activeLiveVoices.current.delete(keyK);
+    const releaseStartTime = ctx.currentTime;
+    const stopAtTime = releaseStartTime + 0.08;
+    voice.endTime = stopAtTime;
+    releaseVoice(voice, releaseStartTime, stopAtTime);
+  }, [releaseVoice]);
 
   const stopAllNodes = useCallback(() => {
     const ctx = audioCtx.current;
     if (!ctx) return;
 
     const stopTime = ctx.currentTime + 0.08;
+    activeLiveVoices.current.clear();
     activeVoices.current.forEach((voice) => {
       releaseVoice(voice, ctx.currentTime, stopTime);
     });
   }, [releaseVoice]);
 
-  return { audioCtx, setupAudio, triggerNote, stopAllNodes, updateSettings };
+  return { audioCtx, setupAudio, triggerNote, playLiveNote, releaseLiveNote, stopAllNodes, updateSettings };
 }

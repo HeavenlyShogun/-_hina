@@ -93,17 +93,45 @@ export default function App() {
   } = useCloudScores();
 
   const [playHotkey, setPlayHotkey] = useState('Space');
+  const [activeKeys, setActiveKeys] = useState(() => new Set());
+  const [keyPulseTokens, setKeyPulseTokens] = useState({});
   const [toast, setToast] = useState(null);
   const toastTimerRef = useRef(null);
   const hotkeyRef = useRef(playHotkey);
   const playActionRef = useRef(null);
 
-  const { audioCtx, setupAudio, triggerNote, stopAllNodes, updateSettings } = useAudioEngine();
+  const { audioCtx, setupAudio, triggerNote, playLiveNote, releaseLiveNote, stopAllNodes, updateSettings } = useAudioEngine();
 
   const showToast = useCallback((msg, type = 'info') => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToast({ msg, type });
     toastTimerRef.current = setTimeout(() => setToast(null), 3000);
+  }, []);
+
+  const markKeyActive = useCallback((keyK) => {
+    setActiveKeys((prev) => {
+      if (prev.has(keyK)) return prev;
+      const next = new Set(prev);
+      next.add(keyK);
+      return next;
+    });
+    setKeyPulseTokens((prev) => ({
+      ...prev,
+      [keyK]: (prev[keyK] ?? 0) + 1,
+    }));
+  }, []);
+
+  const markKeyInactive = useCallback((keyK) => {
+    setActiveKeys((prev) => {
+      if (!prev.has(keyK)) return prev;
+      const next = new Set(prev);
+      next.delete(keyK);
+      return next;
+    });
+  }, []);
+
+  const clearKeyVisuals = useCallback(() => {
+    setActiveKeys((prev) => (prev.size ? new Set() : prev));
   }, []);
 
   const {
@@ -118,6 +146,8 @@ export default function App() {
     audioCtx,
     setupAudio,
     triggerNote,
+    playLiveNote,
+    releaseLiveNote,
     stopAllNodes,
     score,
     bpm,
@@ -125,6 +155,9 @@ export default function App() {
     timeSigDen,
     charResolution,
     showToast,
+    onKeyVisualAttack: markKeyActive,
+    onKeyVisualRelease: markKeyInactive,
+    onVisualReset: clearKeyVisuals,
   });
 
   useEffect(() => {
@@ -316,8 +349,10 @@ export default function App() {
         onTogglePlay={playScoreAction}
       />
       <PianoKeys
+        activeKeys={activeKeys}
         accidentals={accidentals}
         globalKeyOffset={globalKeyOffset}
+        keyPulseTokens={keyPulseTokens}
         onKeyActivate={handleKeyActivate}
         onKeyDeactivate={handleKeyDeactivate}
         onToggleSharp={handleToggleSharp}
@@ -382,34 +417,7 @@ export default function App() {
         input[type="number"].no-spinners::-webkit-inner-spin-button, input[type="number"].no-spinners::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
         input[type="number"].no-spinners { -moz-appearance: textfield; }
         @keyframes float { 0% { transform: translateY(0); opacity: 0; } 20% { opacity: 0.15; } 100% { transform: translateY(-100vh); opacity: 0; } }
-        .key-wrapper { contain: layout style; }
         .will-change-transform { will-change: transform; }
-        .playing-active {
-          background: linear-gradient(to bottom right, #6ee7b7, #059669) !important;
-          transform: scale(0.95) translateY(0) !important;
-          box-shadow: 0 0 40px rgba(52,211,153,0.5) !important;
-          border-color: transparent !important;
-          will-change: transform, box-shadow, background;
-        }
-        .playing-active > span:first-child { color: white !important; }
-        .playing-active > span:last-child { color: rgba(255,255,255,0.9) !important; }
-        .playing-active sup { color: #d1fae5 !important; }
-        .key-ripple-layer::after {
-          content: '';
-          position: absolute;
-          inset: 0;
-          border-radius: 9999px;
-          border: 2px solid rgba(52, 211, 153, 0.6);
-          opacity: 0;
-          transform: scale(0.92);
-        }
-        .key-ripple-layer.ripple-active::after {
-          animation: key-ripple 0.8s ease-out;
-        }
-        @keyframes key-ripple {
-          0% { opacity: 0.7; transform: scale(0.92); }
-          100% { opacity: 0; transform: scale(1.28); }
-        }
       `}</style>
     </div>
   );
