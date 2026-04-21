@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>風物之詩琴 Studio</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      (function () {
+        var redirect = sessionStorage.getItem('gh-pages-spa-redirect');
+        if (!redirect) return;
+
+        sessionStorage.removeItem('gh-pages-spa-redirect');
+
+        var url = new URL(redirect, window.location.origin);
+        window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+      })();
+    </script>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+  </html>

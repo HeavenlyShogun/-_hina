@@ -1,0 +1,140 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  font-family: "Noto Serif TC", "Noto Serif", serif;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+}
+
+.key-wrapper {
+  contain: layout style;
+}
+
+.lyre-key-aura {
+  position: absolute;
+  inset: -0.7rem;
+  border-radius: 9999px;
+  background:
+    radial-gradient(circle, rgba(110, 231, 183, 0.22) 0%, rgba(16, 185, 129, 0.08) 42%, transparent 72%);
+  filter: blur(12px);
+  opacity: 0;
+  transform: scale(0.82);
+  transition: opacity 180ms ease-out, transform 240ms ease-out;
+  pointer-events: none;
+}
+
+.lyre-key-aura[data-active='true'] {
+  opacity: 1;
+  transform: scale(1.08);
+}
+
+.lyre-key-button {
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 28%, rgba(255, 255, 255, 0.16), transparent 36%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(6, 12, 18, 0.94));
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 14px 34px rgba(0, 0, 0, 0.28);
+  transform: translateY(0) scale(1);
+  transition:
+    transform 110ms ease-out,
+    box-shadow 220ms ease-out,
+    filter 220ms ease-out,
+    background 220ms ease-out,
+    border-color 220ms ease-out;
+  will-change: transform, box-shadow, filter;
+}
+
+.lyre-key-button:hover {
+  transform: translateY(-3px);
+  border-color: rgba(110, 231, 183, 0.28);
+}
+
+.lyre-key-button[data-active='true'] {
+  background:
+    radial-gradient(circle at 50% 24%, rgba(255, 255, 255, 0.28), transparent 38%),
+    linear-gradient(180deg, rgba(110, 231, 183, 0.78), rgba(5, 150, 105, 0.94));
+  border-color: rgba(167, 243, 208, 0.88);
+  box-shadow:
+    0 0 0 1px rgba(167, 243, 208, 0.28),
+    0 0 34px rgba(52, 211, 153, 0.48),
+    0 18px 40px rgba(5, 150, 105, 0.36);
+  filter: drop-shadow(0 0 16px rgba(110, 231, 183, 0.38));
+  transform: translateY(-4px) scale(1.08);
+  transition:
+    transform 70ms ease-out,
+    box-shadow 90ms ease-out,
+    filter 90ms ease-out,
+    background 90ms ease-out,
+    border-color 90ms ease-out;
+}
+
+.lyre-key-string {
+  position: absolute;
+  top: 14%;
+  bottom: 16%;
+  width: 2px;
+  border-radius: 9999px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(187, 247, 208, 0.12));
+  opacity: 0.42;
+  transition: transform 180ms ease-out, opacity 180ms ease-out;
+}
+
+.lyre-key-button[data-active='true'] .lyre-key-string {
+  opacity: 0.95;
+  transform: scaleY(1.08);
+}
+
+.lyre-key-note,
+.lyre-key-label {
+  position: relative;
+  z-index: 1;
+  transition: color 180ms ease-out, opacity 180ms ease-out;
+}
+
+.lyre-key-note {
+  color: rgba(236, 253, 245, 0.92);
+}
+
+.lyre-key-label {
+  color: rgba(110, 231, 183, 0.82);
+}
+
+.lyre-key-button[data-active='true'] .lyre-key-note,
+.lyre-key-button[data-active='true'] .lyre-key-label {
+  color: #ffffff;
+}
+
+.lyre-key-ripple {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 2px solid rgba(167, 243, 208, 0.65);
+  animation: lyre-ripple 480ms ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes lyre-ripple {
+  0% {
+    opacity: 0.72;
+    transform: scale(0.88);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.24);
+  }
+}
