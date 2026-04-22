@@ -5,6 +5,10 @@ const defaultRepo = {
   repo: '-_hina',
 };
 
+function sanitizeDomain(value) {
+  return value?.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '') || '';
+}
+
 function parseRepoName(remoteUrl) {
   const normalizedUrl = remoteUrl.trim().replace(/\.git$/, '');
   const match = normalizedUrl.match(/github\.com[:/](.+?)\/(.+)$/);
@@ -39,4 +43,12 @@ export function getGitHubRepo() {
   } catch {
     return defaultRepo;
   }
+}
+
+export function getCustomDomain() {
+  return sanitizeDomain(process.env.VITE_CUSTOM_DOMAIN || process.env.GITHUB_PAGES_CUSTOM_DOMAIN);
+}
+
+export function getPagesBasePath({ repo = getGitHubRepo().repo, customDomain = getCustomDomain() } = {}) {
+  return customDomain ? '/' : `/${repo}/`;
 }
