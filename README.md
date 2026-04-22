@@ -1,30 +1,72 @@
-# 風物之詩琴
+# Wind Poetry Lyre
 
-SPA built with Vite + React and deployed to GitHub Pages.
+這個專案使用 `Vite + React` 建立，已接上 GitHub 倉庫，並設定成推送到 `main` 後自動部署到 GitHub Pages。
 
-## Deployment context
+## 已完成項目
 
-- Repo: `https://github.com/HeavenlyShogun/-_hina/`
-- Live URL: `https://heavenlyshogun.github.io/-_hina/`
-- Base path: `/-_hina/`
-- Hosting: GitHub Pages via `.github/workflows/deploy.yml`
-- SPA refresh handling: `public/404.html` + `index.html` sessionStorage recovery
+- GitHub remote 已連線：`git@github.com:HeavenlyShogun/-_hina.git`
+- 本地開發支援即時熱更新：`Vite HMR`
+- GitHub Pages 自動部署：`.github/workflows/deploy.yml`
+- 自訂網域支援：設定 `VITE_CUSTOM_DOMAIN` 後會自動產生 `CNAME`
+- SPA 重新整理修復：`index.html` 與 `public/404.html`
 
-`vite.config.js` keeps the GitHub Pages repo name pinned to `-_hina` unless a CI env overrides it, so local builds do not fall back to an unrelated repo name.
-
-## Recommended workflow
-
-1. Start fast local iteration with `npm run dev`.
-2. When routing, assets, or refresh behavior changed, verify the deployed path with `npm run preview:pages`.
-3. Open `http://localhost:4173/-_hina/` and test at least one nested URL refresh, for example `http://localhost:4173/-_hina/about`.
-4. Push to `main`; GitHub Actions deploys automatically.
-
-## Useful commands
+## 本地開發
 
 ```bash
 npm run dev
+```
+
+如果你要在同一個區網內用其他裝置同步檢視，使用：
+
+```bash
+npm run dev:host
+```
+
+預設開發環境：
+
+- Host：`0.0.0.0`
+- Port：`5173`
+- React 程式碼修改後即時熱更新
+- 若某些磁碟同步或虛擬環境無法偵測檔案變更，可在 `.env` 設定 `VITE_USE_POLLING=true`
+
+## 環境變數
+
+請依照 `.env.example` 建立 `.env`：
+
+```bash
+VITE_APP_ID=genshin-lyre-studio
+VITE_FIREBASE_CONFIG={"apiKey":"","authDomain":"","projectId":"","storageBucket":"","messagingSenderId":"","appId":""}
+VITE_INITIAL_AUTH_TOKEN=
+VITE_CUSTOM_DOMAIN=
+VITE_DEV_HOST=0.0.0.0
+VITE_DEV_PORT=5173
+VITE_HMR_HOST=
+VITE_HMR_CLIENT_PORT=
+VITE_USE_POLLING=false
+```
+
+## 部署與網域
+
+GitHub Pages 預設網址：
+
+- `https://heavenlyshogun.github.io/-_hina/`
+
+設定自訂網域：
+
+1. 在 GitHub Repository 的 `Settings > Pages` 設定 custom domain。
+2. 在 Repository `Variables` 新增 `VITE_CUSTOM_DOMAIN`。
+3. 重新部署後，建置流程會自動輸出 `dist/CNAME`。
+
+如果部署版也要使用 Firebase 雲端同步，請在 GitHub 設定：
+
+- `Variables`：`VITE_APP_ID`、`VITE_CUSTOM_DOMAIN`
+- `Secrets`：`VITE_FIREBASE_CONFIG`、`VITE_INITIAL_AUTH_TOKEN`
+
+## 常用指令
+
+```bash
+npm run dev
+npm run dev:host
 npm run build
 npm run preview:pages
 ```
-
-`npm run build` now builds with the GitHub Pages repo context by default, which is safer for final verification before `git push`.

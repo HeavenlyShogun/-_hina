@@ -1,0 +1,79 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function hasRequiredFields() {
+      return request.resource.data.keys().hasAll(['title', 'updatedAt', 'content']);
+    }
+
+    function hasValidTitle() {
+      return request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 120;
+    }
+
+    function hasValidContent() {
+      return request.resource.data.content is string
+        || request.resource.data.content is map;
+    }
+
+    function optionalNumber(fieldName, minValue, maxValue) {
+      return !request.resource.data.keys().hasAny([fieldName])
+        || (
+          request.resource.data[fieldName] is number
+          && request.resource.data[fieldName] >= minValue
+          && request.resource.data[fieldName] <= maxValue
+        );
+    }
+
+    function optionalBool(fieldName) {
+      return !request.resource.data.keys().hasAny([fieldName])
+        || request.resource.data[fieldName] is bool;
+    }
+
+    function optionalString(fieldName, maxSize) {
+      return !request.resource.data.keys().hasAny([fieldName])
+        || (
+          request.resource.data[fieldName] is string
+          && request.resource.data[fieldName].size() <= maxSize
+        );
+    }
+
+    function optionalMap(fieldName) {
+      return !request.resource.data.keys().hasAny([fieldName])
+        || request.resource.data[fieldName] is map;
+    }
+
+    function hasValidScorePayload() {
+      return hasRequiredFields()
+        && hasValidTitle()
+        && hasValidContent()
+        && request.resource.data.updatedAt is timestamp
+        && optionalNumber('bpm', 20, 300)
+        && optionalNumber('timeSigNum', 1, 16)
+        && optionalNumber('timeSigDen', 1, 32)
+        && optionalNumber('charResolution', 1, 64)
+        && optionalNumber('globalKeyOffset', -24, 24)
+        && optionalString('tone', 32)
+        && optionalBool('reverb')
+        && optionalMap('accidentals');
+    }
+
+    match /artifacts/{appId}/users/{userId}/scores/{scoreId} {
+      allow read, delete: if isOwner(userId);
+      allow create, update: if isOwner(userId) && hasValidScorePayload();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

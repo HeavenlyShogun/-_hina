@@ -7,20 +7,19 @@
   <body>
     <script>
       (function () {
+        var basePath = '__GH_PAGES_BASE_PATH__';
         var location = window.location;
         var origin = location.origin;
         var pathname = location.pathname || '/';
         var search = location.search || '';
         var hash = location.hash || '';
-        var segments = pathname.split('/');
-        var repoBase = segments.slice(0, 2).join('/') || '';
 
         sessionStorage.setItem(
           'gh-pages-spa-redirect',
           pathname + search + hash
         );
 
-        window.location.replace(origin + repoBase + '/');
+        window.location.replace(origin + (basePath === '/' ? '/' : basePath));
       })();
     </script>
   </body>

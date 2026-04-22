@@ -3,14 +3,16 @@ import { stat } from 'node:fs/promises';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { getGitHubRepo } from './github-pages-utils.mjs';
+import { getCustomDomain, getGitHubRepo, getPagesBasePath } from './github-pages-utils.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..');
 const distRoot = path.join(projectRoot, 'dist');
 const { repo } = getGitHubRepo();
-const basePath = `/${repo}`;
+const customDomain = getCustomDomain();
+const basePath = getPagesBasePath({ repo, customDomain });
+const normalizedBasePath = basePath === '/' ? '/' : basePath.replace(/\/$/, '');
 const port = Number(process.env.PORT || 4173);
 
 const mimeTypes = {
@@ -40,18 +42,20 @@ const server = http.createServer(async (req, res) => {
   const requestUrl = new URL(req.url || '/', `http://${req.headers.host}`);
   const pathname = decodeURIComponent(requestUrl.pathname);
 
-  if (pathname === '/') {
-    res.writeHead(302, { Location: `${basePath}/` });
+  if (normalizedBasePath !== '/' && pathname === '/') {
+    res.writeHead(302, { Location: basePath });
     res.end();
     return;
   }
 
-  if (!pathname.startsWith(`${basePath}/`) && pathname !== basePath) {
+  if (normalizedBasePath !== '/' && !pathname.startsWith(`${normalizedBasePath}/`) && pathname !== normalizedBasePath) {
     sendNotFound(res);
     return;
   }
 
-  const relativePath = pathname.slice(basePath.length).replace(/^\/+/, '');
+  const relativePath = normalizedBasePath === '/'
+    ? pathname.replace(/^\/+/, '')
+    : pathname.slice(normalizedBasePath.length).replace(/^\/+/, '');
   const assetPath = relativePath || 'index.html';
   const filePath = path.join(distRoot, assetPath);
 
@@ -67,5 +71,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(port, () => {
-  console.log(`GitHub Pages preview: http://localhost:${port}${basePath}/`);
+  console.log(`GitHub Pages preview: http://localhost:${port}${basePath}`);
 });

@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:host": "vite --host 0.0.0.0 --strictPort",
     "build": "node scripts/build-github-pages.mjs",
     "build:vite": "vite build",
     "build:pages": "node scripts/build-github-pages.mjs",
@@ -15,7 +16,8 @@
     "firebase": "^12.4.0",
     "lucide-react": "^0.542.0",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.0.2",
