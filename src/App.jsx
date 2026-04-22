@@ -5,6 +5,7 @@ import ControlPanel from './components/ControlPanel';
 import PianoKeys from './components/PianoKeys';
 import WindParticles from './components/WindParticles';
 import { mapKey } from './constants/music';
+import demoJsonScore from './data/scores/demo.json';
 import { useAudioEngine } from './hooks/useAudioEngine';
 import { useCloudScores } from './hooks/useCloudScores';
 import { useScorePlayback } from './hooks/useScorePlayback';
@@ -27,7 +28,19 @@ function PanelFallback({ heightClass }) {
   );
 }
 
-function parseImportedScore(content, fallbackTitle, defaultParams) {
+function parseImportedScore(file, content, fallbackTitle, defaultParams) {
+  if (file.name.toLowerCase().endsWith('.json')) {
+    const parsedJson = JSON.parse(content);
+
+    return {
+      title: parsedJson?.meta?.title || fallbackTitle,
+      payload: {
+        content: parsedJson,
+        ...defaultParams,
+      },
+    };
+  }
+
   const [firstLine, ...restLines] = content.split('\n');
   let parsedParams = {};
   let finalContent = content;
@@ -76,6 +89,7 @@ export default function App() {
     charResolution,
     setCharResolution,
     currentScoreParams,
+    loadScoreSource,
     applySavedScore,
     resetScoreState,
   } = useScoreState();
@@ -185,7 +199,7 @@ export default function App() {
   const parseImportFile = useCallback(async (file) => {
     const content = await file.text();
     const title = file.name.replace(/\.[^/.]+$/, '');
-    return parseImportedScore(content, title, currentScoreParams);
+    return parseImportedScore(file, content, title, currentScoreParams);
   }, [currentScoreParams]);
 
   const handleImportLocal = useCallback(async (event) => {
@@ -260,14 +274,19 @@ export default function App() {
   }, [clearAllCloudScores, showToast]);
 
   const handleExportLocal = useCallback(() => {
-    if (!score.trim()) {
+    if (typeof score === 'string' && !score.trim()) {
       showToast('目前沒有可匯出的琴譜內容', 'error');
       return;
     }
 
-    const meta = JSON.stringify(currentScoreParams);
-    const exportContent = `${META_PREFIX}${meta}\n${score}`;
-    const blob = new Blob([exportContent], { type: 'text/plain;charset=utf-8' });
+    const isJsonScore = typeof score === 'object' && score !== null;
+    const exportContent = isJsonScore
+      ? JSON.stringify(score, null, 2)
+      : `${META_PREFIX}${JSON.stringify(currentScoreParams)}\n${score}`;
+    const blob = new Blob(
+      [exportContent],
+      { type: isJsonScore ? 'application/json;charset=utf-8' : 'text/plain;charset=utf-8' },
+    );
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
 
@@ -279,6 +298,15 @@ export default function App() {
     URL.revokeObjectURL(url);
     showToast('已匯出本地琴譜', 'success');
   }, [currentScoreParams, score, scoreTitle, showToast]);
+
+  const handleLoadJsonDemo = useCallback(() => {
+    loadScoreSource({
+      title: demoJsonScore.meta?.title,
+      content: demoJsonScore,
+    });
+    stopAll();
+    showToast('JSON demo 已載入', 'success');
+  }, [loadScoreSource, showToast, stopAll]);
 
   const handleResetScore = useCallback(() => {
     resetScoreState();
@@ -396,6 +424,7 @@ export default function App() {
             scoreTitle={scoreTitle}
             setScoreTitle={setScoreTitle}
             onImport={handleImportLocal}
+            onLoadJsonDemo={handleLoadJsonDemo}
             onExport={handleExportLocal}
             onSave={handleSaveScore}
             onReset={handleResetScore}

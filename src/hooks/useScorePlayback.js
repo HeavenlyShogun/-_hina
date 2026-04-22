@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { DEFAULT_SCORE_PARAMS, KEY_INFO_MAP } from '../constants/music';
-import { parseScoreData } from '../utils/score';
+import { normalizeScoreSource } from '../utils/score';
 
 function buildQueues(events, startTime) {
   const audioQueue = new Array(events.length);
@@ -124,13 +124,12 @@ export function useScorePlayback({
 
       const config = playbackConfigRef.current;
       const normalizedBpm = Number(config.bpm) || DEFAULT_SCORE_PARAMS.bpm;
-      const { events, maxTime } = parseScoreData(
-        config.score,
-        normalizedBpm,
-        config.timeSigNum,
-        config.timeSigDen,
-        config.charResolution,
-      );
+      const { events, maxTime } = normalizeScoreSource(config.score, {
+        bpm: normalizedBpm,
+        timeSigNum: config.timeSigNum,
+        timeSigDen: config.timeSigDen,
+        charResolution: config.charResolution,
+      });
 
       if (!events.length) {
         stopAll();

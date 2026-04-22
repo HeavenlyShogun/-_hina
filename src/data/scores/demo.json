@@ -1,0 +1,36 @@
+{
+  "version": "1.0",
+  "meta": {
+    "id": "hina-demo-001",
+    "title": "風物之詩琴測試曲",
+    "artist": "Hina",
+    "author": "project",
+    "description": "Demo score for JSON playback integration."
+  },
+  "transport": {
+    "bpm": 108,
+    "timeSigNum": 4,
+    "timeSigDen": 4,
+    "resolution": 480
+  },
+  "playback": {
+    "tone": "lyre-short",
+    "globalKeyOffset": 2,
+    "reverb": true
+  },
+  "tracks": [
+    {
+      "id": "main",
+      "name": "Main Melody",
+      "mute": false,
+      "events": [
+        { "type": "note", "tick": 0, "duration": 480, "key": "a", "velocity": 0.88 },
+        { "type": "note", "tick": 480, "duration": 480, "key": "s", "velocity": 0.84 },
+        { "type": "note", "tick": 960, "duration": 480, "key": "d", "velocity": 0.84 },
+        { "type": "chord", "tick": 1440, "duration": 720, "keys": ["f", "h", "j"], "velocity": 0.9, "strumMs": 14 },
+        { "type": "note", "tick": 2400, "duration": 480, "key": "g", "velocity": 0.82 },
+        { "type": "chord", "tick": 2880, "duration": 960, "keys": ["q", "e", "t"], "velocity": 0.86, "strumMs": 10 }
+      ]
+    }
+  ]
+}

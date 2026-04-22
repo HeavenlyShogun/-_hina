@@ -63,7 +63,8 @@ body {
   border-color: rgba(110, 231, 183, 0.28);
 }
 
-.lyre-key-button[data-active='true'] {
+.lyre-key-button[data-active='true'],
+.lyre-key-button.playing-active {
   background:
     radial-gradient(circle at 50% 24%, rgba(255, 255, 255, 0.28), transparent 38%),
     linear-gradient(180deg, rgba(110, 231, 183, 0.78), rgba(5, 150, 105, 0.94));
@@ -93,7 +94,8 @@ body {
   transition: transform 180ms ease-out, opacity 180ms ease-out;
 }
 
-.lyre-key-button[data-active='true'] .lyre-key-string {
+.lyre-key-button[data-active='true'] .lyre-key-string,
+.lyre-key-button.playing-active .lyre-key-string {
   opacity: 0.95;
   transform: scaleY(1.08);
 }
@@ -114,7 +116,9 @@ body {
 }
 
 .lyre-key-button[data-active='true'] .lyre-key-note,
-.lyre-key-button[data-active='true'] .lyre-key-label {
+.lyre-key-button[data-active='true'] .lyre-key-label,
+.lyre-key-button.playing-active .lyre-key-note,
+.lyre-key-button.playing-active .lyre-key-label {
   color: #ffffff;
 }
 
