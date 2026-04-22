@@ -45,7 +45,7 @@ const PianoKey = memo(({
         onPointerLeave={handleUp}
         onPointerCancel={handleUp}
         data-active={isActive}
-        className="lyre-key-button aspect-square w-full rounded-full flex flex-col items-center justify-center relative touch-none border"
+        className={`lyre-key-button aspect-square w-full rounded-full flex flex-col items-center justify-center relative touch-none border ${isActive ? 'playing-active' : ''}`}
       >
         <span className="lyre-key-string" aria-hidden="true" />
         <span className="lyre-key-note text-lg sm:text-xl md:text-2xl font-black tracking-tighter flex items-start">
