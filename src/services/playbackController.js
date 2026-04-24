@@ -2,7 +2,7 @@ import audioEngine from './audioEngine';
 import { KEY_INFO_MAP } from '../constants/music';
 
 const LOOKAHEAD_INTERVAL_MS = 25;
-const SCHEDULE_AHEAD_TIME_SEC = 0.12;
+const SCHEDULE_AHEAD_TIME_SEC = 0.5;
 const NOTE_NAME_TO_SEMITONE = {
   C: 0,
   'C#': 1,
@@ -99,7 +99,7 @@ class PlaybackController {
       (maxDuration, event) => Math.max(maxDuration, event.time + event.duration),
       0,
     );
-    this.playStartTime = this.audioEngine.getCurrentTime() + 0.02;
+    this.playStartTime = this.audioEngine.getCurrentTime() + 0.3;
     this.isPlaying = true;
     this.isPaused = false;
     this.notify();
@@ -224,7 +224,7 @@ class PlaybackController {
       .map((event) => {
         const time = Number(event.time);
         const duration = Math.max(Number(event.duration) || 0.1, 0.02);
-        const frequency = this.resolveFrequency(event.note ?? event.frequency ?? event.key);
+        const frequency = this.resolveFrequency(event.frequency ?? event.note ?? event.key);
 
         if (!Number.isFinite(time) || time < 0 || !Number.isFinite(frequency) || frequency <= 0) {
           return null;

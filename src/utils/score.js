@@ -11,7 +11,7 @@ function stripScoreComments(text) {
 
 function createLegacyTiming(bpmVal, sigNum, sigDen, charRes) {
   const beatDuration = 60 / bpmVal;
-  const tickDuration = beatDuration * (sigDen / charRes) * (4 / sigNum);
+  const tickDuration = beatDuration * (sigDen / charRes);
   return { beatDuration, tickDuration };
 }
 
