@@ -26,6 +26,7 @@ const NOTE_NAME_TO_SEMITONE = {
 class PlaybackController {
   constructor(engine = audioEngine) {
     this.audioEngine = engine;
+    this.listeners = new Set();
     this.intervalId = null;
     this.events = [];
     this.nextEventIndex = 0;
@@ -34,6 +35,55 @@ class PlaybackController {
     this.totalDuration = 0;
     this.isPlaying = false;
     this.isPaused = false;
+  }
+
+  subscribe(listener) {
+    if (typeof listener !== 'function') {
+      return () => {};
+    }
+
+    this.listeners.add(listener);
+    listener(this.getSnapshot());
+
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  notify() {
+    const snapshot = this.getSnapshot();
+    this.listeners.forEach((listener) => {
+      listener(snapshot);
+    });
+  }
+
+  getPlaybackTime() {
+    if (this.isPlaying) {
+      return Math.max(0, this.audioEngine.getCurrentTime() - this.playStartTime);
+    }
+
+    if (this.isPaused) {
+      return this.pauseOffset;
+    }
+
+    return 0;
+  }
+
+  getSnapshot() {
+    const currentTime = this.getPlaybackTime();
+    const progress =
+      this.totalDuration > 0
+        ? Math.min(1, Math.max(0, currentTime / this.totalDuration))
+        : 0;
+
+    return {
+      isPlaying: this.isPlaying,
+      isPaused: this.isPaused,
+      currentTime,
+      totalDuration: this.totalDuration,
+      progress,
+      eventsCount: this.events.length,
+    };
   }
 
   async play(score) {
@@ -52,6 +102,7 @@ class PlaybackController {
     this.playStartTime = this.audioEngine.getCurrentTime() + 0.02;
     this.isPlaying = true;
     this.isPaused = false;
+    this.notify();
 
     this.startSchedulerLoop();
   }
@@ -67,6 +118,7 @@ class PlaybackController {
 
     this.stopSchedulerLoop();
     this.audioEngine.stopAll();
+    this.notify();
   }
 
   async resume() {
@@ -80,6 +132,7 @@ class PlaybackController {
     this.isPaused = false;
     this.playStartTime = this.audioEngine.getCurrentTime() - this.pauseOffset + 0.02;
     this.nextEventIndex = this.findNextEventIndex(this.pauseOffset);
+    this.notify();
 
     this.startSchedulerLoop();
   }
@@ -100,6 +153,8 @@ class PlaybackController {
       this.totalDuration = 0;
       this.playStartTime = 0;
     }
+
+    this.notify();
   }
 
   startSchedulerLoop() {
@@ -119,6 +174,7 @@ class PlaybackController {
 
   schedulerTick() {
     if (!this.isPlaying || !this.events.length) {
+      this.notify();
       return;
     }
 
@@ -151,7 +207,11 @@ class PlaybackController {
       this.isPlaying = false;
       this.isPaused = false;
       this.pauseOffset = 0;
+      this.notify();
+      return;
     }
+
+    this.notify();
   }
 
   normalizeScore(score) {

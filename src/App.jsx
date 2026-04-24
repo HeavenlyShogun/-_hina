@@ -1,18 +1,19 @@
-import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle } from 'lucide-react';
-import AppHeader from './components/AppHeader';
-import ControlPanel from './components/ControlPanel';
-import PianoKeys from './components/PianoKeys';
-import WindParticles from './components/WindParticles';
-import { mapKey } from './constants/music';
 import demoJsonScore from './data/scores/demo.json';
-import { useAudioEngine } from './hooks/useAudioEngine';
+import ScoreEditor from './components/ScoreEditor';
+import PianoRoom from './pages/PianoRoom';
+import WindParticles from './components/WindParticles';
+import { DEFAULT_SCORE_PARAMS, KEY_INFO_MAP } from './constants/music';
 import { useCloudScores } from './hooks/useCloudScores';
-import { useScorePlayback } from './hooks/useScorePlayback';
+import { useKeyboardHandler } from './hooks/useKeyboardHandler';
 import { useScoreState } from './hooks/useScoreState';
+import audioEngine from './services/audioEngine';
+import playbackController from './services/playbackController';
+import { SCORE_COMPILER_VERSION, normalizeLoadedScore } from './services/firebase';
+import { normalizeScoreSource } from './utils/score';
 
 const ScoreLibrary = lazy(() => import('./components/ScoreLibrary'));
-const SheetDisplay = lazy(() => import('./components/SheetDisplay'));
 const META_PREFIX = '// [META] ';
 
 function PanelFallback({ heightClass }) {
@@ -64,6 +65,53 @@ function parseImportedScore(file, content, fallbackTitle, defaultParams) {
   };
 }
 
+function transposeFrequency(baseFrequency, semitoneOffset) {
+  return baseFrequency * 2 ** (semitoneOffset / 12);
+}
+
+function areSetsEqual(left, right) {
+  if (left.size !== right.size) {
+    return false;
+  }
+
+  for (const value of left) {
+    if (!right.has(value)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function buildPlaybackPayload(score, params) {
+  const normalized = normalizeScoreSource(score, params);
+
+  return {
+    compilerVersion: SCORE_COMPILER_VERSION,
+    toneConfig: {
+      tone: params.tone ?? DEFAULT_SCORE_PARAMS.tone,
+    },
+    compiledEvents: normalized.events.map((event) => ({
+      key: event.k,
+      note: KEY_INFO_MAP[event.k]?.n || event.k,
+      frequency: KEY_INFO_MAP[event.k]
+        ? transposeFrequency(
+          KEY_INFO_MAP[event.k].f,
+          Number(params.globalKeyOffset) + (params.accidentals?.[event.k] ? 1 : 0),
+        )
+        : undefined,
+      time: Number(event.time.toFixed(6)),
+      duration: Number((event.durationSec ?? 0.1).toFixed(6)),
+      velocity: Number((event.v ?? 0.85).toFixed(4)),
+      trackId: event.trackId || 'main',
+      toneConfig: {
+        tone: params.tone ?? DEFAULT_SCORE_PARAMS.tone,
+        velocity: event.v ?? 0.85,
+      },
+    })),
+  };
+}
+
 export default function App() {
   const {
     score,
@@ -90,7 +138,6 @@ export default function App() {
     setCharResolution,
     currentScoreParams,
     loadScoreSource,
-    applySavedScore,
     resetScoreState,
   } = useScoreState();
 
@@ -107,94 +154,227 @@ export default function App() {
   } = useCloudScores();
 
   const [playHotkey, setPlayHotkey] = useState('Space');
-  const [activeKeys, setActiveKeys] = useState(() => new Set());
+  const [pressedKeys, setPressedKeys] = useState(() => new Set());
+  const [playbackActiveKeys, setPlaybackActiveKeys] = useState(() => new Set());
   const [keyPulseTokens, setKeyPulseTokens] = useState({});
   const [toast, setToast] = useState(null);
-  const toastTimerRef = useRef(null);
-  const hotkeyRef = useRef(playHotkey);
-  const playActionRef = useRef(null);
+  const [playbackState, setPlaybackState] = useState(() => playbackController.getSnapshot());
 
-  const { audioCtx, setupAudio, triggerNote, playLiveNote, releaseLiveNote, stopAllNodes, updateSettings } = useAudioEngine();
+  const toastTimerRef = useRef(null);
+  const progressBarRef = useRef(null);
+  const didWakeAudioRef = useRef(false);
+  const playbackEventsRef = useRef([]);
+  const previousPlaybackKeysRef = useRef(new Set());
 
   const showToast = useCallback((msg, type = 'info') => {
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
+
     setToast({ msg, type });
-    toastTimerRef.current = setTimeout(() => setToast(null), 3000);
+    toastTimerRef.current = window.setTimeout(() => {
+      setToast(null);
+    }, 3000);
   }, []);
 
-  const markKeyActive = useCallback((keyK) => {
-    setActiveKeys((prev) => {
-      if (prev.has(keyK)) return prev;
-      const next = new Set(prev);
-      next.add(keyK);
-      return next;
-    });
+  const bumpKeyPulse = useCallback((keyK) => {
     setKeyPulseTokens((prev) => ({
       ...prev,
       [keyK]: (prev[keyK] ?? 0) + 1,
     }));
   }, []);
 
-  const markKeyInactive = useCallback((keyK) => {
-    setActiveKeys((prev) => {
-      if (!prev.has(keyK)) return prev;
+  const markPressedKey = useCallback((keyK) => {
+    setPressedKeys((prev) => {
+      if (prev.has(keyK)) {
+        return prev;
+      }
+
+      const next = new Set(prev);
+      next.add(keyK);
+      return next;
+    });
+    bumpKeyPulse(keyK);
+  }, [bumpKeyPulse]);
+
+  const releasePressedKey = useCallback((keyK) => {
+    setPressedKeys((prev) => {
+      if (!prev.has(keyK)) {
+        return prev;
+      }
+
       const next = new Set(prev);
       next.delete(keyK);
       return next;
     });
   }, []);
 
-  const clearKeyVisuals = useCallback(() => {
-    setActiveKeys((prev) => (prev.size ? new Set() : prev));
+  const clearPlaybackVisuals = useCallback(() => {
+    previousPlaybackKeysRef.current = new Set();
+    setPlaybackActiveKeys((prev) => (prev.size ? new Set() : prev));
   }, []);
 
-  const {
-    isPlaying,
-    progressBarRef,
-    isPlayingRef,
-    playScoreAction,
-    stopAll,
-    handleKeyActivate,
-    handleKeyDeactivate,
-  } = useScorePlayback({
-    audioCtx,
-    setupAudio,
-    triggerNote,
-    playLiveNote,
-    releaseLiveNote,
-    stopAllNodes,
-    score,
-    bpm,
-    timeSigNum,
-    timeSigDen,
-    charResolution,
-    showToast,
-    onKeyVisualAttack: markKeyActive,
-    onKeyVisualRelease: markKeyInactive,
-    onVisualReset: clearKeyVisuals,
-  });
+  const ensureAudioReady = useCallback(async () => {
+    if (didWakeAudioRef.current) {
+      return audioEngine.init();
+    }
+
+    didWakeAudioRef.current = true;
+    return audioEngine.resume();
+  }, []);
+
+  const stopPlayback = useCallback(() => {
+    playbackController.stop();
+    audioEngine.stopAll();
+    playbackEventsRef.current = [];
+    clearPlaybackVisuals();
+  }, [clearPlaybackVisuals]);
 
   useEffect(() => {
-    hotkeyRef.current = playHotkey;
-  }, [playHotkey]);
+    audioEngine.setVolume(vol);
+    audioEngine.setReverbEnabled(reverb);
+    audioEngine.setTone(tone);
+  }, [reverb, tone, vol]);
 
   useEffect(() => {
-    playActionRef.current = playScoreAction;
-  }, [playScoreAction]);
+    const unsubscribe = playbackController.subscribe(setPlaybackState);
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (progressBarRef.current) {
+      progressBarRef.current.style.width = `${(playbackState.progress || 0) * 100}%`;
+    }
+  }, [playbackState.progress]);
+
+  useEffect(() => {
+    if (!playbackState.isPlaying) {
+      clearPlaybackVisuals();
+      return;
+    }
+
+    const activeKeys = new Set();
+    const currentTime = playbackState.currentTime;
+
+    playbackEventsRef.current.forEach((event) => {
+      const eventKey = event.key;
+      const releaseTime = event.time + Math.max(Math.min(event.duration ?? 0.2, 0.2), 0.08);
+
+      if (eventKey && event.time <= currentTime && releaseTime > currentTime) {
+        activeKeys.add(eventKey);
+      }
+    });
+
+    const previousKeys = previousPlaybackKeysRef.current;
+    activeKeys.forEach((keyK) => {
+      if (!previousKeys.has(keyK)) {
+        bumpKeyPulse(keyK);
+      }
+    });
+
+    previousPlaybackKeysRef.current = activeKeys;
+    setPlaybackActiveKeys((prev) => (areSetsEqual(prev, activeKeys) ? prev : activeKeys));
+  }, [bumpKeyPulse, clearPlaybackVisuals, playbackState.currentTime, playbackState.isPlaying]);
 
   useEffect(() => () => {
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
+
+    playbackController.stop();
+    audioEngine.stopAll();
   }, []);
 
-  useEffect(() => {
-    updateSettings({ vol, reverb, globalOffset: globalKeyOffset, accidentals, tone });
-  }, [accidentals, globalKeyOffset, reverb, tone, updateSettings, vol]);
+  const getNotePlayback = useCallback((keyK) => {
+    const keyInfo = KEY_INFO_MAP[keyK];
+    if (!keyInfo) {
+      return null;
+    }
 
-  const loadScore = useCallback((saved) => {
-    applySavedScore(saved);
-    stopAll();
-    showToast(`已載入琴譜：${saved.title}`, 'success');
-  }, [applySavedScore, showToast, stopAll]);
+    const semitoneOffset = Number(globalKeyOffset) + (accidentals[keyK] ? 1 : 0);
+
+    return {
+      frequency: transposeFrequency(keyInfo.f, semitoneOffset),
+      duration: tone === 'flute' ? 0.55 : 0.35,
+      toneConfig: {
+        tone,
+        velocity: 0.9,
+      },
+    };
+  }, [accidentals, globalKeyOffset, tone]);
+
+  const handleLiveKeyActivate = useCallback((keyK) => {
+    markPressedKey(keyK);
+    const notePlayback = getNotePlayback(keyK);
+
+    if (!notePlayback?.frequency) {
+      return;
+    }
+
+    void ensureAudioReady().then(() => {
+      audioEngine.scheduleNote(
+        notePlayback.frequency,
+        audioEngine.getCurrentTime() + 0.01,
+        notePlayback.duration ?? 0.35,
+        notePlayback.toneConfig ?? {},
+      );
+    });
+  }, [ensureAudioReady, getNotePlayback, markPressedKey]);
+
+  const handleTogglePlay = useCallback(async () => {
+    if (playbackState.isPlaying) {
+      stopPlayback();
+      return;
+    }
+
+    try {
+      await ensureAudioReady();
+      const playableScore = buildPlaybackPayload(score, currentScoreParams);
+
+      if (!playableScore.compiledEvents.length) {
+        showToast('沒有可播放的音符。', 'error');
+        return;
+      }
+
+      playbackEventsRef.current = playableScore.compiledEvents;
+      await playbackController.play(playableScore);
+    } catch (error) {
+      console.error(error);
+      stopPlayback();
+      showToast('播放失敗，請檢查樂譜格式。', 'error');
+    }
+  }, [currentScoreParams, ensureAudioReady, playbackState.isPlaying, score, showToast, stopPlayback]);
+
+  useKeyboardHandler({
+    playHotkey,
+    isPlaying: playbackState.isPlaying,
+    onTogglePlay: handleTogglePlay,
+    onKeyDown: markPressedKey,
+    onKeyUp: releasePressedKey,
+    getNotePlayback,
+  });
+
+  const activeKeys = useMemo(() => {
+    const merged = new Set(pressedKeys);
+    playbackActiveKeys.forEach((keyK) => merged.add(keyK));
+    return merged;
+  }, [playbackActiveKeys, pressedKeys]);
+
+  const loadScore = useCallback((source) => {
+    const versionMatched = source?.compilerVersion === SCORE_COMPILER_VERSION;
+    const normalized = normalizeLoadedScore(source);
+
+    loadScoreSource(normalized);
+    stopPlayback();
+    showToast(
+      versionMatched
+        ? `已載入 ${normalized.title || '樂譜'}`
+        : `已重新編譯並載入 ${normalized.title || '樂譜'}`,
+      'success',
+    );
+  }, [loadScoreSource, showToast, stopPlayback]);
 
   const parseImportFile = useCallback(async (file) => {
     const content = await file.text();
@@ -204,7 +384,9 @@ export default function App() {
 
   const handleImportLocal = useCallback(async (event) => {
     const files = Array.from(event.target.files || []);
-    if (!files.length) return;
+    if (!files.length) {
+      return;
+    }
 
     try {
       const parsedFiles = await Promise.all(files.map(parseImportFile));
@@ -215,13 +397,10 @@ export default function App() {
       }
 
       const uploaded = await uploadCloudScores(parsedFiles);
-      showToast(
-        uploaded ? `已匯入 ${parsedFiles.length} 份雲端琴譜` : '雲端未連線，無法批次匯入',
-        uploaded ? 'success' : 'error',
-      );
+      showToast(uploaded ? `已上傳 ${parsedFiles.length} 份樂譜。` : '雲端上傳失敗。', uploaded ? 'success' : 'error');
     } catch (error) {
       console.error(error);
-      showToast('匯入失敗，請檢查檔案格式', 'error');
+      showToast('匯入失敗，請檢查檔案格式。', 'error');
     } finally {
       event.target.value = '';
     }
@@ -230,52 +409,54 @@ export default function App() {
   const handleSaveScore = useCallback(async () => {
     const trimmedTitle = scoreTitle.trim();
     if (!trimmedTitle) {
-      showToast('請先輸入琴譜名稱', 'error');
+      showToast('請先輸入樂譜名稱。', 'error');
       return;
     }
 
     try {
+      await ensureAudioReady();
       const saved = await saveCloudScore(trimmedTitle, {
         content: score,
         ...currentScoreParams,
       });
-
-      showToast(saved ? '已儲存到雲端' : '雲端未連線，無法儲存', saved ? 'success' : 'error');
+      showToast(saved ? '已同步到雲端。' : '雲端同步失敗。', saved ? 'success' : 'error');
     } catch (error) {
       console.error(error);
-      showToast('儲存失敗', 'error');
+      showToast('儲存失敗。', 'error');
     }
-  }, [currentScoreParams, saveCloudScore, score, scoreTitle, showToast]);
+  }, [currentScoreParams, ensureAudioReady, saveCloudScore, score, scoreTitle, showToast]);
 
   const handleDeleteScore = useCallback(async (id) => {
-    if (!window.confirm('確定要刪除這份琴譜嗎？')) return;
+    if (!window.confirm('要刪除這份雲端樂譜嗎？')) {
+      return;
+    }
 
     try {
       const deleted = await deleteCloudScore(id);
-      if (deleted) showToast('已刪除琴譜', 'success');
-      else showToast('雲端未連線，無法刪除', 'error');
+      showToast(deleted ? '已刪除樂譜。' : '刪除失敗。', deleted ? 'success' : 'error');
     } catch (error) {
       console.error(error);
-      showToast('刪除失敗', 'error');
+      showToast('刪除失敗。', 'error');
     }
   }, [deleteCloudScore, showToast]);
 
   const handleClearAllScores = useCallback(async () => {
-    if (!window.confirm('確定要清空所有雲端琴譜嗎？這個動作無法復原。')) return;
+    if (!window.confirm('要清空所有雲端樂譜嗎？此操作無法復原。')) {
+      return;
+    }
 
     try {
       const cleared = await clearAllCloudScores();
-      if (cleared) showToast('已清空所有雲端琴譜', 'success');
-      else showToast('雲端未連線，無法清空', 'error');
+      showToast(cleared ? '雲端樂譜已清空。' : '清空失敗。', cleared ? 'success' : 'error');
     } catch (error) {
       console.error(error);
-      showToast('清空失敗', 'error');
+      showToast('清空失敗。', 'error');
     }
   }, [clearAllCloudScores, showToast]);
 
   const handleExportLocal = useCallback(() => {
     if (typeof score === 'string' && !score.trim()) {
-      showToast('目前沒有可匯出的琴譜內容', 'error');
+      showToast('目前沒有可匯出的內容。', 'error');
       return;
     }
 
@@ -291,74 +472,42 @@ export default function App() {
     const link = document.createElement('a');
 
     link.href = url;
-    link.download = `${scoreTitle.trim() || '未命名琴譜'}.txt`;
+    link.download = `${scoreTitle.trim() || 'score'}.${isJsonScore ? 'json' : 'txt'}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    showToast('已匯出本地琴譜', 'success');
+    showToast('已匯出到本機。', 'success');
   }, [currentScoreParams, score, scoreTitle, showToast]);
 
   const handleLoadJsonDemo = useCallback(() => {
-    loadScoreSource({
-      title: demoJsonScore.meta?.title,
+    loadScore({
+      title: demoJsonScore.meta?.title || 'Demo',
       content: demoJsonScore,
     });
-    stopAll();
-    showToast('JSON demo 已載入', 'success');
-  }, [loadScoreSource, showToast, stopAll]);
+  }, [loadScore]);
 
   const handleResetScore = useCallback(() => {
     resetScoreState();
-    stopAll();
-    showToast('已重設目前琴譜', 'success');
-  }, [resetScoreState, showToast, stopAll]);
+    stopPlayback();
+    showToast('已重設編輯器。', 'success');
+  }, [resetScoreState, showToast, stopPlayback]);
 
-  const handleToggleSharp = useCallback((key) => {
-    setAccidentals((prev) => ({ ...prev, [key]: prev[key] ? 0 : 1 }));
+  const handleToggleSharp = useCallback((keyK) => {
+    setAccidentals((prev) => ({ ...prev, [keyK]: prev[keyK] ? 0 : 1 }));
   }, [setAccidentals]);
 
   const handleToggleReverb = useCallback(() => {
-    setupAudio();
     setReverb((value) => !value);
-  }, [setReverb, setupAudio]);
-
-  useEffect(() => {
-    const down = (event) => {
-      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) return;
-
-      if (hotkeyRef.current !== 'None' && event.code === hotkeyRef.current) {
-        event.preventDefault();
-        playActionRef.current?.();
-        return;
-      }
-
-      if (event.repeat || isPlayingRef.current) return;
-
-      const mappedKey = mapKey(event.key);
-      if (!mappedKey) return;
-
-      event.preventDefault();
-      handleKeyActivate(mappedKey);
-    };
-
-    const up = (event) => {
-      const mappedKey = mapKey(event.key);
-      if (mappedKey) handleKeyDeactivate(mappedKey);
-    };
-
-    window.addEventListener('keydown', down);
-    window.addEventListener('keyup', up);
-    return () => {
-      window.removeEventListener('keydown', down);
-      window.removeEventListener('keyup', up);
-    };
-  }, [handleKeyActivate, handleKeyDeactivate, isPlayingRef]);
+  }, [setReverb]);
 
   return (
     <div
       className="min-h-screen bg-[#060a12] text-emerald-50 flex flex-col items-center font-serif relative overflow-hidden select-none pb-20 touch-manipulation"
       onContextMenu={(event) => event.preventDefault()}
+      onPointerDownCapture={() => {
+        void ensureAudioReady();
+      }}
     >
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(16,185,129,0.08),transparent_70%)] pointer-events-none" />
       <WindParticles />
@@ -370,23 +519,19 @@ export default function App() {
         </div>
       )}
 
-      <AppHeader
+      <PianoRoom
         playHotkey={playHotkey}
         setPlayHotkey={setPlayHotkey}
-        isPlaying={isPlaying}
-        onTogglePlay={playScoreAction}
-      />
-      <PianoKeys
+        isPlaying={playbackState.isPlaying}
+        onTogglePlay={handleTogglePlay}
         activeKeys={activeKeys}
         accidentals={accidentals}
         globalKeyOffset={globalKeyOffset}
         keyPulseTokens={keyPulseTokens}
-        onKeyActivate={handleKeyActivate}
-        onKeyDeactivate={handleKeyDeactivate}
+        onKeyActivate={handleLiveKeyActivate}
+        onKeyDeactivate={releasePressedKey}
         onToggleSharp={handleToggleSharp}
         progressBarRef={progressBarRef}
-      />
-      <ControlPanel
         bpm={bpm}
         setBpm={setBpm}
         timeSigNum={timeSigNum}
@@ -401,7 +546,6 @@ export default function App() {
         setTone={setTone}
         reverb={reverb}
         onToggleReverb={handleToggleReverb}
-        globalKeyOffset={globalKeyOffset}
         setGlobalKeyOffset={setGlobalKeyOffset}
       />
 
@@ -418,7 +562,7 @@ export default function App() {
           />
         </Suspense>
         <Suspense fallback={<PanelFallback heightClass="min-h-[520px]" />}>
-          <SheetDisplay
+          <ScoreEditor
             score={score}
             setScore={setScore}
             scoreTitle={scoreTitle}
