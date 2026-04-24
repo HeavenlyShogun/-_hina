@@ -134,7 +134,7 @@ async function createScoreDocumentData(ctx, uid, title, payload) {
   };
 }
 
-function normalizeLoadedScore(record) {
+export function normalizeLoadedScore(record) {
   const content = record.content ?? record.rawText ?? '';
   const needsRecompile =
     record.compilerVersion !== SCORE_COMPILER_VERSION ||
