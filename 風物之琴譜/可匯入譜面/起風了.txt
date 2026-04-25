@@ -1,0 +1,11 @@
+// [META] {"title":"起風了","bpm":90,"timeSigNum":4,"timeSigDen":4,"charResolution":8,"globalKeyOffset":0,"accidentals":{},"scaleMode":"major","tone":"piano","reverb":true,"storageFormat":"legacy-text@1"}
+
+(VJ)Q(AW)ED TE B S G /
+(CJ)Q(MW)ED TE (NW)E(AQ)W(DJ)QG /
+(VJ)Q(AW)ED TE B S G /
+(CJ)Q(MW)ED TE (NDW)EQW(BSJ)QG /
+
+(VJ)Q(AW)ED (AT)EB S G S /
+(CJ)Q(MW)ED (MT)E (NW)E(AQ)W(DJ)QG /
+(VJ)Q(AW)ED (AT)EB S G /
+(NDWY)EWH DNSDN /

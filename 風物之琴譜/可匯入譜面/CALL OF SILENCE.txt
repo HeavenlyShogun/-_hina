@@ -1,0 +1,63 @@
+// [META] {"title":"CALL OF SILENCE","bpm":90,"timeSigNum":4,"timeSigDen":4,"charResolution":8,"globalKeyOffset":0,"accidentals":{},"scaleMode":"major","tone":"piano","reverb":true,"storageFormat":"legacy-text@1"}
+HQ /
+(ZVE) / /(XB) /J Q /
+(CNW) / / /(XBQT) J /
+(ZVH) / /(XB) /W /
+(CNQ) / / /(XBH) Q /
+
+(ZVE) N /(AD) /(XB) M /(SGJ) Q /
+(CNW) A /(DHQ) A /(AD) /(XBQT) W /
+(ZV) (NQ) /(AD) /(XB) M /(SGH) W /
+(CN) (AQ) /(DH) /(AD) / /
+
+(CNAG) / / /N D /
+
+
+(ZVND) / DM/(XB) / NA/
+(ZCN) / / /N D /
+(ZVND) / DJ/(XB) / QD/
+(ZCN) / / /H E /
+
+(ZVE) N /(AD) EJ/(XB) M /(SG) QG/
+(CN) A /(DH) A /(AD) /(XBG) DG/
+(ZV) N /(AD) /(XB) M /(SGW) QW/
+(CN) A /(DH) (AQ)H/(AD) / /
+
+
+(ZVNJ)MSJ / MDJ / ADQ /(XN)ADQ /
+(ZB)SDW / SDW / DGE /(CBA)DGE /
+(XVNH) EY / HEY / HET /(VN)REW /
+(ZB)SDW / SDW / DGE /(CBA)ADQ /
+
+(ZVN)NSH / ADQ / ADQ /(XN) ADQ /
+(ZB)SDW / DGE / DGE /(CBA)DGE /
+(ZVNG) WT / GWT / GWT /(XN)GWT /
+(XB)GWT / GWT / GWT /(XBM)GWT /
+
+G(AW)(ST) / (MG)(AW)(ST) /BG(AW)(ST) / (MG)(AW)(ST) /
+
+
+E W /
+(ZVW) (NQ) /(ADQ) TV/(XBQ) M /(SGJ) Q /
+(CN) A /(DH) A /(AD) AN/(XBE) W /
+(ZVW) (NQ) /(ADG) (AE)V/(XBW) M /(SGE) Q /
+(CN) A /(DH) A /(AD) AN/(XBE) W /
+
+(ZVW) (NQ) /(ADQ) TV/(XBT) (MT) /(SGW) Q /
+(CN) A /(DH) A /(AD) AN/(XBH) Q /
+(ZVW) N /(ADW) (AQ)V/(XBW) (ME) /(SGW) W /
+(CN) (AQ) /(DH) A /(AD) (AQ)N/(XBJ) DH/
+
+
+(ZV) N /(AD) /(XB) (MQ) /(SGJ) DA/
+(CN) Z /(NA) Z /(AD) Q /(XBJ) DH/
+(ZV) N /(AD) HJ/(XB) M /(SG) WQ/
+(CN) A /(DH) A /(AD) Q /(XBJ) DH /
+
+(ZV) N /(AD) /(XB) (MQ) /(SGJ) DA/
+(CN) Z /(NA) Z /(AD) Q /(XBJ) QW/
+(ZV) N /(AD) EE/(XB) M /(SG) QJ/
+(CN) M /A (DGJ) / / /
+
+(CN) M /A (DGJ) / / /
+(ZCN) / / / /

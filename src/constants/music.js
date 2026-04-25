@@ -57,6 +57,12 @@ export const KEY_OPTIONS = [
   { name: 'B', offset: 11 },
 ];
 
+export const SCALE_MODE_OPTIONS = [
+  { value: 'major', label: 'Major' },
+  { value: 'minor', label: 'Minor' },
+  { value: 'custom', label: 'Custom' },
+];
+
 export const CHAR_TO_KEY_MAP = {
   q: 'q',
   w: 'w',
@@ -222,6 +228,7 @@ export const DEFAULT_SCORE_PARAMS = {
   charResolution: 8,
   globalKeyOffset: 0,
   accidentals: {},
+  scaleMode: 'major',
   tone: 'piano',
   reverb: true,
 };

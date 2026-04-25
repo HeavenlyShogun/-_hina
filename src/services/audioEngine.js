@@ -1,17 +1,18 @@
+const DEFAULT_RENDER_CONFIG = {
+  tone: 'piano',
+  velocity: 0.85,
+  outputGain: 0.65,
+  reverbAmount: 0.45,
+};
+
 class AudioEngine {
   constructor() {
     this.audioContext = null;
-    this.masterGain = null;
-    this.reverbBus = null;
     this.compressor = null;
+    this.reverbBus = null;
     this.noiseBuffer = null;
     this.shortNoiseBuffer = null;
     this.activeVoices = new Set();
-    this.settings = {
-      volume: 0.65,
-      reverb: true,
-      tone: 'piano',
-    };
   }
 
   init() {
@@ -25,9 +26,6 @@ class AudioEngine {
     }
 
     const context = new AudioContextClass();
-    const masterGain = context.createGain();
-    masterGain.gain.value = this.settings.volume;
-
     const compressor = context.createDynamicsCompressor();
     compressor.threshold.value = -6;
     compressor.knee.value = 5;
@@ -36,7 +34,7 @@ class AudioEngine {
     compressor.release.value = 0.1;
 
     const reverbBus = context.createGain();
-    reverbBus.gain.value = this.settings.reverb ? 0.45 : 0;
+    reverbBus.gain.value = 1;
 
     const delay = context.createDelay();
     delay.delayTime.value = 0.15;
@@ -52,16 +50,11 @@ class AudioEngine {
     feedback.connect(lowpass);
     lowpass.connect(delay);
     lowpass.connect(compressor);
-
-    masterGain.connect(compressor);
-    masterGain.connect(reverbBus);
     compressor.connect(context.destination);
 
     this.audioContext = context;
-    this.masterGain = masterGain;
-    this.reverbBus = reverbBus;
     this.compressor = compressor;
-
+    this.reverbBus = reverbBus;
     this.noiseBuffer = this.createNoiseBuffer(context, 0.06, true);
     this.shortNoiseBuffer = this.createNoiseBuffer(context, 0.015, false);
 
@@ -82,34 +75,7 @@ class AudioEngine {
     return this.audioContext ? this.audioContext.currentTime : 0;
   }
 
-  setVolume(value) {
-    const volume = Math.max(0, Math.min(1, Number(value) || 0));
-    this.settings.volume = volume;
-
-    if (this.masterGain && this.audioContext) {
-      this.masterGain.gain.setTargetAtTime(volume, this.audioContext.currentTime, 0.05);
-    }
-  }
-
-  setReverbEnabled(enabled) {
-    this.settings.reverb = Boolean(enabled);
-
-    if (this.reverbBus && this.audioContext) {
-      this.reverbBus.gain.setTargetAtTime(
-        this.settings.reverb ? 0.45 : 0,
-        this.audioContext.currentTime,
-        0.1,
-      );
-    }
-  }
-
-  setTone(tone) {
-    if (typeof tone === 'string' && tone.trim()) {
-      this.settings.tone = tone.trim();
-    }
-  }
-
-  scheduleNote(freq, absoluteTime, duration, toneConfig = {}) {
+  scheduleNote(freq, absoluteTime, duration, renderConfig = {}) {
     const context = this.init();
     const safeFrequency = Number(freq);
     const startTime = Math.max(Number(absoluteTime) || context.currentTime, context.currentTime);
@@ -119,9 +85,11 @@ class AudioEngine {
       return null;
     }
 
-    const config = this.resolveToneConfig(toneConfig, noteDuration);
+    const config = this.resolveRenderConfig(renderConfig, noteDuration);
     const keyGainMod = Math.min(1, 800 / (safeFrequency + 200));
-    const peak = Math.max(0.0001, (config.velocity ?? 0.85) * config.pk * keyGainMod);
+    const outputGain = Math.max(Number(config.outputGain) || 0, 0);
+    const reverbAmount = Math.max(Number(config.reverbAmount) || 0, 0);
+    const peak = Math.max(0.0001, (config.velocity ?? 0.85) * config.pk * keyGainMod * outputGain);
     const sustainLevel = Math.max(peak * config.sus, 0.0001);
     const sustainUntil = Math.max(startTime + noteDuration, startTime + config.dec + 0.01);
     const releaseDuration = Math.max(config.release ?? Math.min(config.dur * 0.35, 0.45), 0.04);
@@ -131,12 +99,17 @@ class AudioEngine {
     oscillator.type = config.type;
     oscillator.frequency.setValueAtTime(safeFrequency, startTime);
 
-    const noteGain = context.createGain();
-    noteGain.gain.setValueAtTime(0.0001, startTime);
-    noteGain.gain.linearRampToValueAtTime(peak, startTime + config.atk);
-    noteGain.gain.exponentialRampToValueAtTime(sustainLevel, startTime + config.dec);
-    noteGain.gain.setValueAtTime(sustainLevel, sustainUntil);
-    noteGain.gain.exponentialRampToValueAtTime(0.0001, stopTime);
+    const envelopeGain = context.createGain();
+    envelopeGain.gain.setValueAtTime(0.0001, startTime);
+    envelopeGain.gain.linearRampToValueAtTime(peak, startTime + config.atk);
+    envelopeGain.gain.exponentialRampToValueAtTime(sustainLevel, startTime + config.dec);
+    envelopeGain.gain.setValueAtTime(sustainLevel, sustainUntil);
+    envelopeGain.gain.exponentialRampToValueAtTime(0.0001, stopTime);
+
+    const dryGain = context.createGain();
+    dryGain.gain.value = 1;
+    const wetGain = context.createGain();
+    wetGain.gain.value = reverbAmount;
 
     let filter = null;
     if (config.flt) {
@@ -158,36 +131,37 @@ class AudioEngine {
       noiseGain = context.createGain();
       noiseGain.gain.setValueAtTime(0.0001, startTime);
       noiseGain.gain.linearRampToValueAtTime(
-        Math.max(0.0001, (config.nVol ?? 0.05) * (config.velocity ?? 0.85)),
+        Math.max(0.0001, (config.nVol ?? 0.05) * (config.velocity ?? 0.85) * outputGain),
         startTime + 0.002,
       );
       noiseGain.gain.exponentialRampToValueAtTime(0.0001, startTime + (config.nDur ?? 0.05));
     }
 
-    if (filter) {
-      oscillator.connect(filter);
-      if (noiseSource && noiseGain) {
-        noiseSource.connect(noiseGain);
-        noiseGain.connect(filter);
-      }
-      filter.connect(noteGain);
-    } else {
-      oscillator.connect(noteGain);
-      if (noiseSource && noiseGain) {
-        noiseSource.connect(noiseGain);
-        noiseGain.connect(noteGain);
-      }
+    const sourceTarget = filter || envelopeGain;
+
+    oscillator.connect(filter || envelopeGain);
+    if (noiseSource && noiseGain) {
+      noiseSource.connect(noiseGain);
+      noiseGain.connect(sourceTarget);
     }
 
-    noteGain.connect(this.masterGain);
+    if (filter) {
+      filter.connect(envelopeGain);
+    }
+
+    envelopeGain.connect(dryGain);
+    envelopeGain.connect(wetGain);
+    dryGain.connect(this.compressor);
+    wetGain.connect(this.reverbBus);
 
     const voice = {
       oscillator,
-      noteGain,
+      envelopeGain,
+      dryGain,
+      wetGain,
       filter,
       noiseSource,
       noiseGain,
-      stopTime,
       released: false,
     };
 
@@ -224,10 +198,10 @@ class AudioEngine {
       voice.released = true;
 
       try {
-        voice.noteGain.gain.cancelScheduledValues(now);
-        const currentValue = Math.max(voice.noteGain.gain.value, 0.0001);
-        voice.noteGain.gain.setValueAtTime(currentValue, now);
-        voice.noteGain.gain.exponentialRampToValueAtTime(0.0001, stopAt);
+        voice.envelopeGain.gain.cancelScheduledValues(now);
+        const currentValue = Math.max(voice.envelopeGain.gain.value, 0.0001);
+        voice.envelopeGain.gain.setValueAtTime(currentValue, now);
+        voice.envelopeGain.gain.exponentialRampToValueAtTime(0.0001, stopAt);
       } catch {}
 
       try {
@@ -258,18 +232,14 @@ class AudioEngine {
     } catch {}
 
     try {
-      voice.noteGain.disconnect();
+      voice.envelopeGain.disconnect();
+      voice.dryGain.disconnect();
+      voice.wetGain.disconnect();
     } catch {}
 
     try {
       voice.filter?.disconnect();
-    } catch {}
-
-    try {
       voice.noiseSource?.disconnect();
-    } catch {}
-
-    try {
       voice.noiseGain?.disconnect();
     } catch {}
   }
@@ -287,15 +257,20 @@ class AudioEngine {
     return buffer;
   }
 
-  resolveToneConfig(toneConfig, duration) {
-    if (typeof toneConfig === 'string') {
-      return this.createTonePreset(toneConfig, duration);
+  resolveRenderConfig(renderConfig, duration) {
+    if (typeof renderConfig === 'string') {
+      return {
+        ...DEFAULT_RENDER_CONFIG,
+        ...this.createTonePreset(renderConfig, duration),
+      };
     }
 
-    const toneName = toneConfig.tone || this.settings.tone;
+    const toneName = renderConfig.tone || DEFAULT_RENDER_CONFIG.tone;
+
     return {
+      ...DEFAULT_RENDER_CONFIG,
       ...this.createTonePreset(toneName, duration),
-      ...toneConfig,
+      ...renderConfig,
     };
   }
 

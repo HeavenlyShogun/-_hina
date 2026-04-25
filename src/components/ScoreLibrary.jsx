@@ -1,5 +1,13 @@
 import React, { memo } from 'react';
 import { FolderOpen, ListX, Trash2, UploadCloud } from 'lucide-react';
+import { KEY_OPTIONS } from '../constants/music';
+
+function formatKeyLabel(offset, scaleMode) {
+  const matched = KEY_OPTIONS.find((option) => option.offset === Number(offset));
+  const tonic = matched?.name ?? 'C';
+  const modeLabel = scaleMode === 'minor' ? 'min' : scaleMode === 'custom' ? 'custom' : 'maj';
+  return `${tonic} ${modeLabel}`;
+}
 
 const ScoreLibrary = memo(({ user, savedScores, onLoadScore, onClearAll, onDeleteScore, onConnectCloud, cloudStatus }) => (
   <div className="bg-black/40 border border-white/5 rounded-[40px] p-6 flex flex-col h-fit max-h-[500px] backdrop-blur-sm shadow-inner relative">
@@ -34,6 +42,7 @@ const ScoreLibrary = memo(({ user, savedScores, onLoadScore, onClearAll, onDelet
             <div className="text-[9px] opacity-40 mt-1 flex gap-2 uppercase tracking-wider">
               <span>{new Date((saved.updatedAt?.seconds ?? Date.now() / 1000) * 1000).toLocaleDateString('zh-TW', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
               {saved.bpm && <span className="text-emerald-300">bpm:{saved.bpm}</span>}
+              <span className="text-sky-300">{formatKeyLabel(saved.globalKeyOffset, saved.scaleMode)}</span>
               {saved.tone && <span className="text-amber-300">{saved.tone}</span>}
             </div>
           </div>
