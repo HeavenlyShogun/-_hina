@@ -23,39 +23,67 @@ body {
 
 .lyre-key-aura {
   position: absolute;
-  inset: -0.7rem;
+  inset: -0.95rem;
   border-radius: 9999px;
   background:
-    radial-gradient(circle, rgba(110, 231, 183, 0.22) 0%, rgba(16, 185, 129, 0.08) 42%, transparent 72%);
-  filter: blur(12px);
+    radial-gradient(circle, rgba(110, 231, 183, 0.28) 0%, rgba(16, 185, 129, 0.12) 42%, transparent 74%);
+  filter: blur(16px);
   opacity: 0;
-  transform: scale(0.82);
+  transform: scale(0.78);
   transition: opacity 180ms ease-out, transform 240ms ease-out;
   pointer-events: none;
 }
 
 .lyre-key-aura[data-active='true'] {
   opacity: 1;
-  transform: scale(1.08);
+  transform: scale(1.14);
 }
 
 .lyre-key-button {
+  isolation: isolate;
   overflow: hidden;
   background:
-    radial-gradient(circle at 50% 28%, rgba(255, 255, 255, 0.16), transparent 36%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(6, 12, 18, 0.94));
-  border-color: rgba(255, 255, 255, 0.12);
+    radial-gradient(circle at 50% 24%, rgba(255, 255, 255, 0.18), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.11), rgba(7, 12, 19, 0.96));
+  border-color: rgba(255, 255, 255, 0.14);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    0 14px 34px rgba(0, 0, 0, 0.28);
+    0 18px 38px rgba(0, 0, 0, 0.34);
   transform: translateY(0) scale(1);
   transition:
-    transform 110ms ease-out,
+    transform 90ms ease-out,
     box-shadow 220ms ease-out,
     filter 220ms ease-out,
     background 220ms ease-out,
     border-color 220ms ease-out;
   will-change: transform, box-shadow, filter;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.lyre-key-button::before,
+.lyre-key-button::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.lyre-key-button::before {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), transparent 30%),
+    radial-gradient(circle at 50% 16%, rgba(255, 255, 255, 0.22), transparent 28%);
+  opacity: 0.7;
+}
+
+.lyre-key-button::after {
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 12px 12px;
+  mix-blend-mode: screen;
+  opacity: 0;
+  transition: opacity 120ms ease-out;
 }
 
 .lyre-key-button:hover {
@@ -66,21 +94,27 @@ body {
 .lyre-key-button[data-active='true'],
 .lyre-key-button.playing-active {
   background:
-    radial-gradient(circle at 50% 24%, rgba(255, 255, 255, 0.28), transparent 38%),
-    linear-gradient(180deg, rgba(110, 231, 183, 0.78), rgba(5, 150, 105, 0.94));
+    radial-gradient(circle at 50% 20%, rgba(236, 253, 245, 0.36), transparent 34%),
+    linear-gradient(180deg, rgba(110, 231, 183, 0.92), rgba(5, 150, 105, 0.94));
   border-color: rgba(167, 243, 208, 0.88);
   box-shadow:
     0 0 0 1px rgba(167, 243, 208, 0.28),
-    0 0 34px rgba(52, 211, 153, 0.48),
-    0 18px 40px rgba(5, 150, 105, 0.36);
-  filter: drop-shadow(0 0 16px rgba(110, 231, 183, 0.38));
-  transform: translateY(-4px) scale(1.08);
+    0 0 24px rgba(167, 243, 208, 0.28),
+    0 0 48px rgba(16, 185, 129, 0.42),
+    0 20px 42px rgba(5, 150, 105, 0.42);
+  filter: drop-shadow(0 0 18px rgba(110, 231, 183, 0.4));
+  transform: translateY(-4px) scale(1.09);
   transition:
     transform 70ms ease-out,
     box-shadow 90ms ease-out,
     filter 90ms ease-out,
     background 90ms ease-out,
     border-color 90ms ease-out;
+}
+
+.lyre-key-button[data-active='true']::after,
+.lyre-key-button.playing-active::after {
+  opacity: 0.78;
 }
 
 .lyre-key-string {
@@ -127,7 +161,10 @@ body {
   inset: 0;
   border-radius: 9999px;
   border: 2px solid rgba(167, 243, 208, 0.65);
-  animation: lyre-ripple 480ms ease-out forwards;
+  box-shadow:
+    0 0 0 1px rgba(167, 243, 208, 0.18),
+    0 0 22px rgba(52, 211, 153, 0.28);
+  animation: lyre-ripple 520ms ease-out forwards;
   pointer-events: none;
 }
 

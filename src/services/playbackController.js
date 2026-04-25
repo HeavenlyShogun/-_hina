@@ -2,309 +2,657 @@ import audioEngine from './audioEngine';
 import { KEY_INFO_MAP } from '../constants/music';
 
 const LOOKAHEAD_INTERVAL_MS = 25;
-const SCHEDULE_AHEAD_TIME_SEC = 0.5;
-const PLAY_START_DELAY_SEC = 0.15;
+const SCHEDULE_AHEAD_SEC = 0.5;
+const PLAY_START_DELAY_SEC = 0.3;
 const STOP_TAIL_SEC = 0.12;
-const NOTE_NAME_TO_SEMITONE = {
-  C: 0,
-  'C#': 1,
-  Db: 1,
-  D: 2,
-  'D#': 3,
-  Eb: 3,
-  E: 4,
-  F: 5,
-  'F#': 6,
-  Gb: 6,
-  G: 7,
-  'G#': 8,
-  Ab: 8,
-  A: 9,
-  'A#': 10,
-  Bb: 10,
-  B: 11,
-};
+const MAX_VISUAL_HOLD_SEC = 0.2;
+const DEFAULT_TICKS_PER_BEAT = 480;
+const DEFAULT_BPM = 120;
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function transposeFrequency(baseFrequency, semitoneOffset) {
+  return baseFrequency * 2 ** (semitoneOffset / 12);
+}
+
+function normalizePlaybackRate(rate) {
+  const numericRate = Number(rate);
+  if (!Number.isFinite(numericRate) || numericRate <= 0) {
+    return 1;
+  }
+
+  return clamp(numericRate, 0.25, 4);
+}
+
+function createTimingModel(playback = {}) {
+  const bpm = Math.max(Number(playback?.bpm) || DEFAULT_BPM, 1);
+  const resolution = Math.max(Number(playback?.resolution) || DEFAULT_TICKS_PER_BEAT, 1);
+  const secondsPerTick = 60 / (bpm * resolution);
+
+  return {
+    bpm,
+    resolution,
+    secondsPerTick,
+  };
+}
+
+function ticksToSeconds(ticks, timing) {
+  return Math.max(Number(ticks) || 0, 0) * timing.secondsPerTick;
+}
+
+function secondsToTicks(seconds, timing) {
+  return Math.max(Number(seconds) || 0, 0) / timing.secondsPerTick;
+}
+
+function normalizeEvents(events, timing) {
+  if (!Array.isArray(events)) {
+    return [];
+  }
+
+  return [...events]
+    .map((event, index) => {
+      const rawTick = Number(event?.tick);
+      const rawTime = Number(event?.time);
+      const tick = Number.isFinite(rawTick)
+        ? Math.max(rawTick, 0)
+        : secondsToTicks(rawTime, timing);
+      const time = Number.isFinite(rawTime)
+        ? Math.max(rawTime, 0)
+        : ticksToSeconds(tick, timing);
+      const rawDurationTicks = Number(event?.durationTicks ?? event?.duration);
+      const durationSec = Math.max(Number(event?.durationSec) || ticksToSeconds(rawDurationTicks, timing) || 0.1, 0.02);
+      const durationTicks = Math.max(
+        Number.isFinite(rawDurationTicks) ? rawDurationTicks : secondsToTicks(durationSec, timing),
+        timing.resolution * 0.02,
+      );
+
+      if (!Number.isFinite(time) || time < 0 || !Number.isFinite(tick) || tick < 0) {
+        return null;
+      }
+
+      return {
+        id: event?.id ?? `event-${index}`,
+        time,
+        tick,
+        durationSec,
+        durationTicks,
+        k: event?.k ?? event?.key ?? null,
+        v: Number.isFinite(Number(event?.v)) ? Number(event.v) : 0.85,
+        importance: Number.isFinite(Number(event?.importance)) ? Number(event.importance) : 100,
+        trackId: event?.trackId ?? 'main',
+        frequency: Number.isFinite(Number(event?.frequency)) ? Number(event.frequency) : null,
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => {
+      if (left.tick !== right.tick) {
+        return left.tick - right.tick;
+      }
+
+      return String(left.k ?? '').localeCompare(String(right.k ?? ''));
+    });
+}
 
 class PlaybackController {
   constructor(engine = audioEngine) {
     this.audioEngine = engine;
-    this.listeners = new Set();
-    this.intervalId = null;
     this.events = [];
-    this.score = null;
-    this.nextEventIndex = 0;
-    this.totalDuration = 0;
-    this.transportState = {
+    this.maxTime = 0;
+    this.maxTick = 0;
+    this.currentPointer = 0;
+    this.currentAudioTime = 0;
+    this.timing = createTimingModel();
+    this.transport = this.createTransportState();
+    this.snapshot = this.createSnapshot();
+    this.callbacks = {
+      onVisualAttack: null,
+      onVisualRelease: null,
+      onVisualReset: null,
+      onProgressUpdate: null,
+      onStateChange: null,
+    };
+    this.schedulerTimer = null;
+    this.visualFrame = null;
+    this.visualAttackIndex = 0;
+    this.visualReleaseIndex = 0;
+    this.activeVisualCounts = new Map();
+  }
+
+  createTransportState() {
+    return {
       status: 'stopped',
-      position: 0,
-      anchorContextTime: 0,
-      anchorTransportTime: 0,
-      scheduledFromTransportTime: 0,
+      currentTick: 0,
+      currentTime: 0,
+      anchorAudioTime: 0,
+      anchorTick: 0,
+      anchorScoreTime: 0,
+      playbackRate: 1,
     };
   }
 
-  subscribe(listener) {
-    if (typeof listener !== 'function') {
-      return () => {};
-    }
+  createSnapshot(overrides = {}) {
+    return {
+      tone: 'piano',
+      vol: 0.65,
+      reverb: true,
+      globalKeyOffset: 0,
+      accidentals: {},
+      ...overrides,
+    };
+  }
 
-    this.listeners.add(listener);
-    listener(this.getSnapshot());
+  updateSnapshot(snapshotPatch = {}) {
+    this.snapshot = this.createSnapshot({
+      ...this.snapshot,
+      ...snapshotPatch,
+    });
+
+    return this.snapshot;
+  }
+
+  load(events, maxTime = 0, playback = {}) {
+    this.stop({ preserveLoadedEvents: false });
+
+    this.timing = createTimingModel(playback);
+    this.events = normalizeEvents(events, this.timing);
+    this.maxTick = Math.max(
+      this.events.reduce((result, event) => Math.max(result, event.tick + event.durationTicks), 0),
+      secondsToTicks(maxTime, this.timing),
+    );
+    this.maxTime = Math.max(Number(maxTime) || 0, ticksToSeconds(this.maxTick, this.timing));
+    this.currentPointer = 0;
+    this.currentAudioTime = 0;
+    this.transport = {
+      ...this.transport,
+      status: 'stopped',
+      currentTick: 0,
+      currentTime: 0,
+      anchorAudioTime: 0,
+      anchorTick: 0,
+      anchorScoreTime: 0,
+    };
+
+    this.resetVisualState({ fromTick: 0, emitReset: true });
+    this.emitProgress();
+    this.emitState();
+
+    return this.getState();
+  }
+
+  setCallbacks(callbacks = {}) {
+    this.callbacks = {
+      ...this.callbacks,
+      ...callbacks,
+    };
 
     return () => {
-      this.listeners.delete(listener);
+      Object.keys(callbacks).forEach((key) => {
+        if (this.callbacks[key] === callbacks[key]) {
+          this.callbacks[key] = null;
+        }
+      });
     };
   }
 
-  notify() {
-    const snapshot = this.getSnapshot();
-    this.listeners.forEach((listener) => {
-      listener(snapshot);
-    });
-  }
-
-  getTransportTime() {
-    const { status, position, anchorContextTime, anchorTransportTime } = this.transportState;
-
-    if (status !== 'playing') {
-      return position;
-    }
-
-    const contextTime = this.audioEngine.getCurrentTime();
-    if (contextTime <= anchorContextTime) {
-      return anchorTransportTime;
-    }
-
-    return Math.max(0, anchorTransportTime + (contextTime - anchorContextTime));
-  }
-
-  getSnapshot() {
-    const currentTime = this.getTransportTime();
-    const progress =
-      this.totalDuration > 0
-        ? Math.min(1, Math.max(0, currentTime / this.totalDuration))
-        : 0;
+  getState() {
+    const currentTick = this.getCurrentTick();
+    const currentTime = this.getCurrentTime();
+    const progress = this.maxTime > 0 ? clamp((currentTime / this.maxTime) * 100, 0, 100) : 0;
 
     return {
-      isPlaying: this.transportState.status === 'playing',
-      isPaused: this.transportState.status === 'paused',
-      status: this.transportState.status,
+      status: this.transport.status,
+      isPlaying: this.transport.status === 'playing',
+      isPaused: this.transport.status === 'paused',
+      currentTick,
       currentTime,
-      totalDuration: this.totalDuration,
+      currentPointer: this.currentPointer,
+      currentAudioTime: this.currentAudioTime,
+      maxTick: this.maxTick,
+      maxTime: this.maxTime,
       progress,
+      playbackRate: this.transport.playbackRate,
       eventsCount: this.events.length,
-      canResume: this.transportState.status === 'paused' && this.events.length > 0,
     };
   }
 
-  async play(score, options = {}) {
-    const normalized = this.normalizeScore(score);
+  getCurrentTick() {
+    if (this.transport.status !== 'playing') {
+      return clamp(this.transport.currentTick, 0, this.maxTick);
+    }
+
+    const now = this.audioEngine.getCurrentTime();
+    const elapsedAudio = Math.max(0, now - this.transport.anchorAudioTime);
+    const elapsedTicks = secondsToTicks(elapsedAudio * this.transport.playbackRate, this.timing);
+
+    return clamp(this.transport.anchorTick + elapsedTicks, 0, this.maxTick);
+  }
+
+  getCurrentTime() {
+    return clamp(ticksToSeconds(this.getCurrentTick(), this.timing), 0, this.maxTime);
+  }
+
+  getEventEndTick(event) {
+    return event.tick + event.durationTicks;
+  }
+
+  getScheduledDurationSec(event, startTick = event.tick) {
+    const remainingTicks = Math.max(this.getEventEndTick(event) - startTick, 0);
+    if (remainingTicks <= 0) {
+      return 0;
+    }
+
+    return Math.max(
+      ticksToSeconds(remainingTicks, this.timing) / this.transport.playbackRate,
+      0.02,
+    );
+  }
+
+  getEventAbsoluteTime(scoreTick) {
+    return (
+      this.transport.anchorAudioTime +
+      ticksToSeconds(scoreTick - this.transport.anchorTick, this.timing) / this.transport.playbackRate
+    );
+  }
+
+  async play(_audioContext = null, snapshot = null) {
+    if (!this.events.length) {
+      return this.getState();
+    }
+
+    if (snapshot) {
+      this.snapshot = this.createSnapshot({
+        ...this.snapshot,
+        ...snapshot,
+      });
+    }
+
+    if (this.transport.status === 'playing') {
+      return this.getState();
+    }
+
     await this.audioEngine.resume();
 
-    this.stop({ hardReset: false });
+    const startTick = this.transport.status === 'paused' ? this.transport.currentTick : this.transport.currentTick || 0;
+    this.audioEngine.stopAll();
+    this.currentPointer = this.findNextEventIndex(startTick);
+    this.resetVisualState({ fromTick: startTick, emitReset: true });
+    this.startTransport(startTick);
+    this.startLoops();
+    this.emitProgress();
+    this.emitState();
 
-    this.score = normalized.score;
-    this.events = normalized.events;
-    this.totalDuration = normalized.totalDuration;
-
-    const startPosition = Math.max(0, Number(options.from) || 0);
-    this.transportState = {
-      status: 'playing',
-      position: startPosition,
-      anchorContextTime: this.audioEngine.getCurrentTime() + PLAY_START_DELAY_SEC,
-      anchorTransportTime: startPosition,
-      scheduledFromTransportTime: startPosition,
-    };
-    this.nextEventIndex = this.findNextEventIndex(startPosition);
-    this.notify();
-
-    this.startSchedulerLoop();
+    return this.getState();
   }
 
   pause() {
-    if (this.transportState.status !== 'playing') {
-      return;
+    if (this.transport.status !== 'playing') {
+      return this.getState();
     }
 
-    this.transportState = {
-      ...this.transportState,
-      status: 'paused',
-      position: this.getTransportTime(),
-      scheduledFromTransportTime: this.getTransportTime(),
-    };
-    this.stopSchedulerLoop();
+    const pausedTick = this.getCurrentTick();
+    const pausedTime = ticksToSeconds(pausedTick, this.timing);
+    this.stopLoops();
     this.audioEngine.stopAll();
-    this.notify();
+    this.releaseAllVisuals();
+
+    this.transport = {
+      ...this.transport,
+      status: 'paused',
+      currentTick: pausedTick,
+      currentTime: pausedTime,
+      anchorAudioTime: 0,
+      anchorTick: pausedTick,
+      anchorScoreTime: pausedTime,
+    };
+    this.currentPointer = this.findNextEventIndex(pausedTick);
+    this.currentAudioTime = 0;
+    this.resetVisualState({ fromTick: pausedTick });
+    this.emitProgress();
+    this.emitState();
+
+    return this.getState();
   }
 
-  async resume() {
-    if (this.transportState.status !== 'paused' || !this.events.length) {
-      return;
+  async resume(snapshot = null) {
+    if (snapshot) {
+      this.snapshot = this.createSnapshot({
+        ...this.snapshot,
+        ...snapshot,
+      });
     }
 
-    await this.audioEngine.resume();
+    if (this.transport.status !== 'paused') {
+      return this.getState();
+    }
 
-    const startPosition = this.transportState.position;
-    this.transportState = {
-      ...this.transportState,
-      status: 'playing',
-      anchorContextTime: this.audioEngine.getCurrentTime() + PLAY_START_DELAY_SEC,
-      anchorTransportTime: startPosition,
-      scheduledFromTransportTime: startPosition,
+    return this.play(null, this.snapshot);
+  }
+
+  async seek(targetTimeOrIndex, snapshot = null) {
+    if (snapshot) {
+      this.snapshot = this.createSnapshot({
+        ...this.snapshot,
+        ...snapshot,
+      });
+    }
+
+    const wasPlaying = this.transport.status === 'playing';
+    const targetTick = this.resolveSeekTick(targetTimeOrIndex);
+    const targetTime = ticksToSeconds(targetTick, this.timing);
+
+    this.stopLoops();
+    this.audioEngine.stopAll();
+    this.releaseAllVisuals();
+
+    this.currentPointer = this.findNextEventIndex(targetTick);
+    this.currentAudioTime = 0;
+    this.transport = {
+      ...this.transport,
+      currentTick: targetTick,
+      currentTime: targetTime,
+      anchorAudioTime: 0,
+      anchorTick: targetTick,
+      anchorScoreTime: targetTime,
+      status: this.events.length ? 'paused' : 'stopped',
     };
-    this.nextEventIndex = this.findNextEventIndex(startPosition);
-    this.notify();
+    this.resetVisualState({ fromTick: targetTick, emitReset: true });
+    this.emitProgress();
 
-    this.startSchedulerLoop();
+    if (wasPlaying && this.events.length) {
+      await this.audioEngine.resume();
+      this.startTransport(targetTick);
+      this.startLoops();
+    }
+
+    this.emitState();
+    return this.getState();
   }
 
   stop(options = {}) {
-    const { hardReset = true } = options;
+    const { preserveLoadedEvents = true } = options;
 
-    this.stopSchedulerLoop();
+    this.stopLoops();
     this.audioEngine.stopAll();
+    this.releaseAllVisuals();
 
-    this.transportState = {
+    this.transport = {
+      ...this.transport,
       status: 'stopped',
-      position: 0,
-      anchorContextTime: 0,
-      anchorTransportTime: 0,
-      scheduledFromTransportTime: 0,
+      currentTick: 0,
+      currentTime: 0,
+      anchorAudioTime: 0,
+      anchorTick: 0,
+      anchorScoreTime: 0,
     };
-    this.nextEventIndex = 0;
+    this.currentPointer = 0;
+    this.currentAudioTime = 0;
+    this.resetVisualState({ fromTick: 0, emitReset: true });
 
-    if (hardReset) {
-      this.score = null;
+    if (!preserveLoadedEvents) {
       this.events = [];
-      this.totalDuration = 0;
+      this.maxTick = 0;
+      this.maxTime = 0;
+      this.timing = createTimingModel();
     }
 
-    this.notify();
+    this.emitProgress();
+    this.emitState();
+    return this.getState();
   }
 
-  startSchedulerLoop() {
-    this.stopSchedulerLoop();
-    this.intervalId = window.setInterval(() => {
-      this.schedulerTick();
-    }, LOOKAHEAD_INTERVAL_MS);
+  async setPlaybackRate(nextRate) {
+    const playbackRate = normalizePlaybackRate(nextRate);
+    if (playbackRate === this.transport.playbackRate) {
+      return this.getState();
+    }
+
+    const currentTick = this.getCurrentTick();
+    const currentTime = ticksToSeconds(currentTick, this.timing);
+    const wasPlaying = this.transport.status === 'playing';
+
+    this.transport = {
+      ...this.transport,
+      playbackRate,
+      currentTick,
+      currentTime,
+      anchorAudioTime: 0,
+      anchorTick: currentTick,
+      anchorScoreTime: currentTime,
+      status: wasPlaying ? 'paused' : this.transport.status,
+    };
+    this.currentPointer = this.findNextEventIndex(currentTick);
+    this.currentAudioTime = 0;
+    this.resetVisualState({ fromTick: currentTick });
+
+    if (wasPlaying) {
+      await this.seek({ tick: currentTick }, this.snapshot);
+      return this.getState();
+    }
+
+    this.emitProgress();
+    this.emitState();
+    return this.getState();
+  }
+
+  startTransport(startTick) {
+    const anchorAudioTime = this.audioEngine.getCurrentTime() + PLAY_START_DELAY_SEC;
+    const anchorScoreTime = ticksToSeconds(startTick, this.timing);
+
+    this.transport = {
+      ...this.transport,
+      status: 'playing',
+      currentTick: startTick,
+      currentTime: anchorScoreTime,
+      anchorAudioTime,
+      anchorTick: startTick,
+      anchorScoreTime,
+    };
+    this.currentAudioTime = anchorAudioTime;
+  }
+
+  startLoops() {
+    this.stopLoops();
     this.schedulerTick();
+    this.visualTick();
   }
 
-  stopSchedulerLoop() {
-    if (this.intervalId !== null) {
-      window.clearInterval(this.intervalId);
-      this.intervalId = null;
+  stopLoops() {
+    if (this.schedulerTimer !== null) {
+      window.clearTimeout(this.schedulerTimer);
+      this.schedulerTimer = null;
+    }
+
+    if (this.visualFrame !== null) {
+      window.cancelAnimationFrame(this.visualFrame);
+      this.visualFrame = null;
     }
   }
 
   schedulerTick() {
-    if (this.transportState.status !== 'playing' || !this.events.length) {
-      this.notify();
+    if (this.transport.status !== 'playing') {
       return;
     }
 
-    const transportTime = this.getTransportTime();
-    const scheduleUntilTransportTime = Math.max(
-      this.transportState.scheduledFromTransportTime,
-      transportTime + SCHEDULE_AHEAD_TIME_SEC,
-    );
+    const nowAudioTime = this.audioEngine.getCurrentTime();
+    const nowTick = this.getCurrentTick();
+    const nowScoreTime = ticksToSeconds(nowTick, this.timing);
+    const lookaheadTicks = secondsToTicks(SCHEDULE_AHEAD_SEC * this.transport.playbackRate, this.timing);
+    const scheduleUntilTick = nowTick + lookaheadTicks;
 
-    while (this.nextEventIndex < this.events.length) {
-      const event = this.events[this.nextEventIndex];
-      if (event.time > scheduleUntilTransportTime) {
+    while (this.currentPointer < this.events.length) {
+      const event = this.events[this.currentPointer];
+      if (event.tick > scheduleUntilTick) {
         break;
       }
 
-      const absoluteTime =
-        this.transportState.anchorContextTime + (event.time - this.transportState.anchorTransportTime);
+      const scheduleStartTick = Math.max(event.tick, this.transport.anchorTick);
+      const absoluteTime = this.getEventAbsoluteTime(scheduleStartTick);
+      const durationSec = this.getScheduledDurationSec(event, scheduleStartTick);
 
-      this.audioEngine.scheduleNote(
-        event.frequency,
-        absoluteTime,
-        event.duration,
-        event.renderConfig,
-      );
+      if (absoluteTime >= nowAudioTime - 0.001 && durationSec > 0) {
+        this.scheduleEvent(event, absoluteTime, durationSec);
+      }
 
-      this.nextEventIndex += 1;
+      this.currentPointer += 1;
     }
 
-    this.transportState = {
-      ...this.transportState,
-      position: transportTime,
-      scheduledFromTransportTime: scheduleUntilTransportTime,
+    this.transport = {
+      ...this.transport,
+      currentTick: nowTick,
+      currentTime: nowScoreTime,
     };
+    this.currentAudioTime = nowAudioTime;
 
-    if (
-      this.nextEventIndex >= this.events.length &&
-      transportTime >= this.totalDuration + STOP_TAIL_SEC
-    ) {
-      this.stopSchedulerLoop();
-      this.transportState = {
-        status: 'stopped',
-        position: 0,
-        anchorContextTime: 0,
-        anchorTransportTime: 0,
-        scheduledFromTransportTime: 0,
-      };
-      this.notify();
+    const playbackEndAudioTime = this.getEventAbsoluteTime(this.maxTick) + STOP_TAIL_SEC;
+    if (this.currentPointer >= this.events.length && nowAudioTime >= playbackEndAudioTime) {
+      this.finishPlayback();
       return;
     }
 
-    this.notify();
+    this.emitProgress();
+    this.schedulerTimer = window.setTimeout(() => {
+      this.schedulerTick();
+    }, LOOKAHEAD_INTERVAL_MS);
   }
 
-  normalizeScore(score) {
-    const compiledEvents = Array.isArray(score) ? score : score?.compiledEvents;
-    if (!Array.isArray(compiledEvents)) {
-      return { score: null, events: [], totalDuration: 0 };
+  visualTick() {
+    if (this.transport.status !== 'playing') {
+      return;
     }
 
-    const scoreTone = score?.tone;
-    const scoreReverbAmount = score?.reverb ? 0.45 : 0;
-    const scoreOutputGain = Number(score?.outputGain);
-    const scoreEvents = compiledEvents
-      .map((event) => {
-        const time = Number(event.time);
-        const duration = Math.max(Number(event.duration) || 0.1, 0.02);
-        const frequency = this.resolveFrequency(event.frequency ?? event.note ?? event.key);
+    const nowTick = this.getCurrentTick();
 
-        if (!Number.isFinite(time) || time < 0 || !Number.isFinite(frequency) || frequency <= 0) {
-          return null;
-        }
+    while (
+      this.visualAttackIndex < this.events.length &&
+      this.events[this.visualAttackIndex].tick <= nowTick
+    ) {
+      const event = this.events[this.visualAttackIndex];
+      this.visualAttackIndex += 1;
 
-        return {
-          key: event.key,
-          note: event.note,
-          time,
-          duration,
-          frequency,
-          renderConfig: {
-            tone: event.tone ?? scoreTone,
-            velocity: event.velocity ?? 0.85,
-            outputGain: Number.isFinite(scoreOutputGain) ? scoreOutputGain : 0.65,
-            reverbAmount: Number.isFinite(Number(score?.reverbAmount))
-              ? Number(score.reverbAmount)
-              : scoreReverbAmount,
-          },
-        };
-      })
-      .filter(Boolean)
-      .sort((left, right) => left.time - right.time);
+      if (!event.k) {
+        continue;
+      }
 
-    return {
-      score,
-      events: scoreEvents,
-      totalDuration: scoreEvents.reduce(
-        (maxDuration, event) => Math.max(maxDuration, event.time + event.duration),
-        0,
-      ),
-    };
+      this.activeVisualCounts.set(event.k, (this.activeVisualCounts.get(event.k) ?? 0) + 1);
+      this.callbacks.onVisualAttack?.(event.k, event);
+    }
+
+    while (
+      this.visualReleaseIndex < this.events.length &&
+      this.getVisualOffTick(this.events[this.visualReleaseIndex]) <= nowTick
+    ) {
+      const event = this.events[this.visualReleaseIndex];
+      this.visualReleaseIndex += 1;
+
+      if (!event.k) {
+        continue;
+      }
+
+      const nextCount = (this.activeVisualCounts.get(event.k) ?? 1) - 1;
+      if (nextCount <= 0) {
+        this.activeVisualCounts.delete(event.k);
+        this.callbacks.onVisualRelease?.(event.k, event);
+      } else {
+        this.activeVisualCounts.set(event.k, nextCount);
+      }
+    }
+
+    this.emitProgress();
+    this.visualFrame = window.requestAnimationFrame(() => {
+      this.visualTick();
+    });
   }
 
-  findNextEventIndex(transportTime) {
+  finishPlayback() {
+    this.stopLoops();
+    this.audioEngine.stopAll();
+    this.releaseAllVisuals();
+
+    this.transport = {
+      ...this.transport,
+      status: 'stopped',
+      currentTick: 0,
+      currentTime: 0,
+      anchorAudioTime: 0,
+      anchorTick: 0,
+      anchorScoreTime: 0,
+    };
+    this.currentPointer = 0;
+    this.currentAudioTime = 0;
+    this.resetVisualState({ fromTick: 0, emitReset: true });
+    this.emitProgress();
+    this.emitState();
+  }
+
+  scheduleEvent(event, absoluteTime, durationSec = event.durationSec) {
+    const frequency = this.resolveEventFrequency(event);
+    if (!Number.isFinite(frequency) || frequency <= 0) {
+      return;
+    }
+
+    this.audioEngine.scheduleNote(frequency, absoluteTime, durationSec, {
+      tone: this.snapshot.tone,
+      type: 'scheduled',
+      importance: event.importance ?? 100,
+      outputGain: this.snapshot.vol,
+      reverb: this.snapshot.reverb,
+      velocity: event.v ?? 0.85,
+    });
+  }
+
+  resolveEventFrequency(event) {
+    if (Number.isFinite(event.frequency) && event.frequency > 0) {
+      return event.frequency;
+    }
+
+    const keyInfo = event.k ? KEY_INFO_MAP[event.k] : null;
+    if (!keyInfo) {
+      return NaN;
+    }
+
+    const globalOffset = Number(this.snapshot.globalKeyOffset || 0);
+    const accidentalOffset = this.snapshot.accidentals?.[event.k] ? 1 : 0;
+
+    return transposeFrequency(keyInfo.f, globalOffset + accidentalOffset);
+  }
+
+  resolveSeekTick(target) {
+    if (this.maxTick <= 0) {
+      return 0;
+    }
+
+    if (typeof target === 'number') {
+      return clamp(secondsToTicks(target, this.timing), 0, this.maxTick);
+    }
+
+    if (target && typeof target === 'object') {
+      if (Number.isFinite(Number(target.tick))) {
+        return clamp(Number(target.tick), 0, this.maxTick);
+      }
+
+      if (Number.isFinite(Number(target.time))) {
+        return clamp(secondsToTicks(Number(target.time), this.timing), 0, this.maxTick);
+      }
+
+      if (Number.isFinite(Number(target.index))) {
+        const index = clamp(Math.floor(Number(target.index)), 0, this.events.length);
+        if (index >= this.events.length) {
+          return this.maxTick;
+        }
+
+        return clamp(this.events[index].tick, 0, this.maxTick);
+      }
+    }
+
+    return 0;
+  }
+
+  findNextEventIndex(scoreTick) {
     for (let index = 0; index < this.events.length; index += 1) {
       const event = this.events[index];
-      if (event.time + event.duration > transportTime) {
+      if (this.getEventEndTick(event) > scoreTick) {
         return index;
       }
     }
@@ -312,35 +660,74 @@ class PlaybackController {
     return this.events.length;
   }
 
-  resolveFrequency(note) {
-    if (typeof note === 'number' && Number.isFinite(note)) {
-      return note;
+  findVisualAttackIndex(scoreTick) {
+    for (let index = 0; index < this.events.length; index += 1) {
+      if (this.events[index].tick >= scoreTick) {
+        return index;
+      }
     }
 
-    if (typeof note !== 'string' || !note.trim()) {
-      return NaN;
+    return this.events.length;
+  }
+
+  findVisualReleaseIndex(scoreTick) {
+    for (let index = 0; index < this.events.length; index += 1) {
+      if (this.getVisualOffTick(this.events[index]) >= scoreTick) {
+        return index;
+      }
     }
 
-    const normalized = note.trim();
+    return this.events.length;
+  }
 
-    if (KEY_INFO_MAP[normalized]) {
-      return KEY_INFO_MAP[normalized].f;
+  getVisualOffTick(event) {
+    const visualHoldTick = secondsToTicks(Math.min(event.durationSec ?? 0.2, MAX_VISUAL_HOLD_SEC), this.timing);
+    return event.tick + visualHoldTick;
+  }
+
+  resetVisualState({ fromTick = 0, emitReset = false } = {}) {
+    this.visualAttackIndex = this.findVisualAttackIndex(fromTick);
+    this.visualReleaseIndex = this.findVisualReleaseIndex(fromTick);
+    this.activeVisualCounts.clear();
+
+    if (emitReset) {
+      this.callbacks.onVisualReset?.();
     }
 
-    const match = normalized.match(/^([A-G](?:#|b)?)(-?\d)$/);
-    if (!match) {
-      return NaN;
+    this.events.forEach((event) => {
+      if (!event.k) {
+        return;
+      }
+
+      if (event.tick < fromTick && this.getVisualOffTick(event) > fromTick) {
+        this.activeVisualCounts.set(event.k, (this.activeVisualCounts.get(event.k) ?? 0) + 1);
+      }
+    });
+
+    this.activeVisualCounts.forEach((_, key) => {
+      this.callbacks.onVisualAttack?.(key, { resumed: true });
+    });
+  }
+
+  releaseAllVisuals() {
+    if (this.activeVisualCounts.size > 0) {
+      this.activeVisualCounts.forEach((_, key) => {
+        this.callbacks.onVisualRelease?.(key);
+      });
     }
 
-    const semitone = NOTE_NAME_TO_SEMITONE[match[1]];
-    const octave = Number(match[2]);
+    this.activeVisualCounts.clear();
+    this.callbacks.onVisualReset?.();
+  }
 
-    if (!Number.isFinite(semitone) || !Number.isFinite(octave)) {
-      return NaN;
-    }
+  emitProgress() {
+    const currentTime = this.getCurrentTime();
+    const progress = this.maxTime > 0 ? clamp((currentTime / this.maxTime) * 100, 0, 100) : 0;
+    this.callbacks.onProgressUpdate?.(progress, currentTime, this.maxTime);
+  }
 
-    const midi = (octave + 1) * 12 + semitone;
-    return 440 * 2 ** ((midi - 69) / 12);
+  emitState() {
+    this.callbacks.onStateChange?.(this.getState());
   }
 }
 

@@ -27,33 +27,51 @@ const PianoKey = memo(({
 
   const handleDown = useCallback((event) => {
     event.preventDefault();
+    if (event.currentTarget.setPointerCapture) {
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      } catch {}
+    }
     onActivate(keyInfo.k);
   }, [onActivate, keyInfo.k]);
 
   const handleUp = useCallback((event) => {
     event.preventDefault();
+    if (event.currentTarget.releasePointerCapture && event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      try {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      } catch {}
+    }
     onDeactivate(keyInfo.k);
   }, [onDeactivate, keyInfo.k]);
 
   return (
-    <div className="relative group key-wrapper w-full max-w-[5.5rem]">
+    <div className="key-wrapper group relative w-full max-w-[6.5rem] sm:max-w-[5.9rem] md:max-w-[5.5rem]">
       <div className="lyre-key-aura" data-active={isActive} />
       {pulseToken > 0 ? <div key={pulseToken} className="lyre-key-ripple" aria-hidden="true" /> : null}
-      <button onClick={handleToggle} className={`absolute -top-1 -right-1 md:-top-2 md:-right-2 w-5 h-5 md:w-6 md:h-6 rounded-full text-[8px] md:text-[9px] font-black z-30 transition-all border flex items-center justify-center ${isSharp ? 'bg-amber-400 text-amber-950 border-amber-200 shadow-[0_0_10px_rgba(251,191,36,0.4)] scale-110' : 'bg-white/5 text-white/20 border-white/5 hover:bg-white/10 group-hover:text-white/40'}`}>#</button>
       <button
+        type="button"
+        onClick={handleToggle}
+        className={`absolute -right-1 -top-1 z-30 flex h-6 w-6 items-center justify-center rounded-full border text-[9px] font-black transition-all backdrop-blur-lg md:-right-2 md:-top-2 md:h-7 md:w-7 ${isSharp ? 'scale-110 border-amber-200 bg-amber-400 text-amber-950 shadow-[0_0_14px_rgba(251,191,36,0.42)]' : 'border-white/10 bg-black/55 text-white/30 hover:bg-white/10 group-hover:text-white/50'}`}
+      >
+        #
+      </button>
+      <button
+        type="button"
         onPointerDown={handleDown}
         onPointerUp={handleUp}
         onPointerLeave={handleUp}
         onPointerCancel={handleUp}
+        onLostPointerCapture={handleUp}
         data-active={isActive}
-        className={`lyre-key-button aspect-square w-full rounded-full flex flex-col items-center justify-center relative touch-none border ${isActive ? 'playing-active' : ''}`}
+        className={`lyre-key-button relative flex aspect-square min-h-[5.4rem] w-full touch-none select-none flex-col items-center justify-center rounded-full border ${isActive ? 'playing-active' : ''}`}
       >
         <span className="lyre-key-string" aria-hidden="true" />
-        <span className="lyre-key-note text-lg sm:text-xl md:text-2xl font-black tracking-tighter flex items-start">
+        <span className="lyre-key-note flex items-start text-[1.35rem] font-black tracking-tighter sm:text-xl md:text-2xl">
           {getSolfege(keyInfo.n)}
-          {displayOffset && <sup className="text-[9px] sm:text-[10px] ml-0.5 text-amber-400">{displayOffset}</sup>}
+          {displayOffset && <sup className="ml-0.5 text-[9px] text-amber-400 sm:text-[10px]">{displayOffset}</sup>}
         </span>
-        <span className="lyre-key-label text-[10px] md:text-[11px] font-mono font-bold mt-1 uppercase tracking-widest">{keyInfo.k}</span>
+        <span className="lyre-key-label mt-1 font-mono text-[10px] font-bold uppercase tracking-[0.24em] md:text-[11px]">{keyInfo.k}</span>
       </button>
     </div>
   );
@@ -71,18 +89,19 @@ const PianoKeys = memo(({
   const { globalKeyOffset } = useAudioConfig();
 
   return (
-    <main className="z-20 w-full max-w-6xl mt-10 relative px-4">
-      <div className="bg-gradient-to-br from-emerald-950/30 to-black/80 backdrop-blur-3xl border border-white/5 rounded-[40px] md:rounded-[60px] p-6 md:p-14 shadow-2xl relative overflow-hidden group">
-        <div className="absolute top-0 left-0 w-full h-1 bg-white/5 overflow-hidden">
+    <main className="relative z-20 mt-8 w-full max-w-6xl px-4 sm:mt-10">
+      <div className="group relative overflow-hidden rounded-[36px] border border-white/10 bg-black/60 p-5 shadow-[0_35px_120px_rgba(0,0,0,0.5)] backdrop-blur-xl sm:p-6 md:rounded-[60px] md:p-14">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.16),transparent_30%),radial-gradient(circle_at_80%_22%,rgba(45,212,191,0.12),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))]" />
+        <div className="absolute left-0 top-0 h-1 w-full overflow-hidden bg-white/5">
           <div ref={progressBarRef} className="h-full bg-gradient-to-r from-emerald-600 via-emerald-300 to-teal-400 will-change-transform" style={{ width: '0%', transition: 'width 16ms linear' }} />
         </div>
         {NOTES_MAP.map((row, rowIndex) => (
-          <div key={rowIndex} className="grid grid-cols-1 lg:grid-cols-[96px_1fr] items-center gap-4 md:gap-8 mb-8 md:mb-10 last:mb-0">
-            <div className="w-full text-center lg:text-right flex flex-col items-center lg:items-end justify-center">
-              <span className="text-[10px] text-emerald-400/80 font-black mb-1">{row.label}</span>
-              <span className="text-[8px] uppercase tracking-widest opacity-30 font-bold border border-white/10 px-2 py-0.5 rounded-full">{row.sub}</span>
+          <div key={rowIndex} className="relative mb-7 grid grid-cols-1 items-center gap-4 last:mb-0 sm:mb-8 md:mb-10 md:gap-8 lg:grid-cols-[104px_1fr]">
+            <div className="flex w-full flex-col items-center justify-center text-center lg:items-end lg:text-right">
+              <span className="mb-1 text-[10px] font-black text-emerald-400/80">{row.label}</span>
+              <span className="rounded-full border border-white/10 bg-black/40 px-2.5 py-1 text-[8px] font-bold uppercase tracking-[0.32em] text-white/35 backdrop-blur-lg">{row.sub}</span>
             </div>
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-3 md:gap-5 items-center justify-items-center">
+            <div className="grid grid-cols-3 items-center justify-items-center gap-3 sm:grid-cols-4 sm:gap-4 md:grid-cols-7 md:gap-5">
               {row.keys.map((key) => (
                 <PianoKey
                   key={key.k}
