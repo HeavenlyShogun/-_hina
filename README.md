@@ -9,6 +9,7 @@
 - GitHub Pages 自動部署：`.github/workflows/deploy.yml`
 - 自訂網域支援：設定 `VITE_CUSTOM_DOMAIN` 後會自動產生 `CNAME`
 - SPA 重新整理修復：`index.html` 與 `public/404.html`
+- 專案內含 `風物之琴譜/` 譜面整理資料夾，供匯入譜面與素材歸檔使用
 
 ## 本地開發
 
@@ -69,4 +70,18 @@ npm run dev
 npm run dev:host
 npm run build
 npm run preview:pages
+```
+
+## 譜面資料夾
+
+`風物之琴譜/` 是專案內的譜面素材工作區，目前結構如下：
+
+- `可匯入譜面/`：可直接匯入網站的文字譜，第一行使用 `// [META]` 保存參數
+- `待整理/`：尚未符合目前譜面格式或保留中的原始備份
+- `工具與參考/`：外掛、捷徑、圖片等非譜面檔案
+
+若要批次整理這個資料夾內的檔案，可執行：
+
+```bash
+node scripts/normalize-score-files.mjs
 ```

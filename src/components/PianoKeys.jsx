@@ -1,5 +1,6 @@
 import React, { memo, useCallback } from 'react';
 import { NOTES_MAP, getSolfege } from '../constants/music';
+import { useAudioConfig } from '../contexts/AudioConfigContext';
 
 const PianoKey = memo(({
   keyInfo,
@@ -60,44 +61,47 @@ const PianoKey = memo(({
 
 const PianoKeys = memo(({
   accidentals,
-  globalKeyOffset,
   activeKeys,
   keyPulseTokens,
   onKeyActivate,
   onKeyDeactivate,
   onToggleSharp,
   progressBarRef,
-}) => (
-  <main className="z-20 w-full max-w-6xl mt-10 relative px-4">
-    <div className="bg-gradient-to-br from-emerald-950/30 to-black/80 backdrop-blur-3xl border border-white/5 rounded-[40px] md:rounded-[60px] p-6 md:p-14 shadow-2xl relative overflow-hidden group">
-      <div className="absolute top-0 left-0 w-full h-1 bg-white/5 overflow-hidden">
-        <div ref={progressBarRef} className="h-full bg-gradient-to-r from-emerald-600 via-emerald-300 to-teal-400 will-change-transform" style={{ width: '0%', transition: 'width 16ms linear' }} />
-      </div>
-      {NOTES_MAP.map((row, rowIndex) => (
-        <div key={rowIndex} className="grid grid-cols-1 lg:grid-cols-[96px_1fr] items-center gap-4 md:gap-8 mb-8 md:mb-10 last:mb-0">
-          <div className="w-full text-center lg:text-right flex flex-col items-center lg:items-end justify-center">
-            <span className="text-[10px] text-emerald-400/80 font-black mb-1">{row.label}</span>
-            <span className="text-[8px] uppercase tracking-widest opacity-30 font-bold border border-white/10 px-2 py-0.5 rounded-full">{row.sub}</span>
-          </div>
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-3 md:gap-5 items-center justify-items-center">
-            {row.keys.map((key) => (
-              <PianoKey
-                key={key.k}
-                keyInfo={key}
-                isSharp={!!accidentals[key.k]}
-                globalOffset={globalKeyOffset}
-                isActive={activeKeys.has(key.k)}
-                pulseToken={keyPulseTokens[key.k] ?? 0}
-                onActivate={onKeyActivate}
-                onDeactivate={onKeyDeactivate}
-                onToggleSharp={onToggleSharp}
-              />
-            ))}
-          </div>
+}) => {
+  const { globalKeyOffset } = useAudioConfig();
+
+  return (
+    <main className="z-20 w-full max-w-6xl mt-10 relative px-4">
+      <div className="bg-gradient-to-br from-emerald-950/30 to-black/80 backdrop-blur-3xl border border-white/5 rounded-[40px] md:rounded-[60px] p-6 md:p-14 shadow-2xl relative overflow-hidden group">
+        <div className="absolute top-0 left-0 w-full h-1 bg-white/5 overflow-hidden">
+          <div ref={progressBarRef} className="h-full bg-gradient-to-r from-emerald-600 via-emerald-300 to-teal-400 will-change-transform" style={{ width: '0%', transition: 'width 16ms linear' }} />
         </div>
-      ))}
-    </div>
-  </main>
-));
+        {NOTES_MAP.map((row, rowIndex) => (
+          <div key={rowIndex} className="grid grid-cols-1 lg:grid-cols-[96px_1fr] items-center gap-4 md:gap-8 mb-8 md:mb-10 last:mb-0">
+            <div className="w-full text-center lg:text-right flex flex-col items-center lg:items-end justify-center">
+              <span className="text-[10px] text-emerald-400/80 font-black mb-1">{row.label}</span>
+              <span className="text-[8px] uppercase tracking-widest opacity-30 font-bold border border-white/10 px-2 py-0.5 rounded-full">{row.sub}</span>
+            </div>
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-3 md:gap-5 items-center justify-items-center">
+              {row.keys.map((key) => (
+                <PianoKey
+                  key={key.k}
+                  keyInfo={key}
+                  isSharp={!!accidentals[key.k]}
+                  globalOffset={globalKeyOffset}
+                  isActive={activeKeys.has(key.k)}
+                  pulseToken={keyPulseTokens[key.k] ?? 0}
+                  onActivate={onKeyActivate}
+                  onDeactivate={onKeyDeactivate}
+                  onToggleSharp={onToggleSharp}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </main>
+  );
+});
 
 export default PianoKeys;
