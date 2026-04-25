@@ -788,7 +788,7 @@ export default function App() {
     const tickDuration = beatDuration * (sigDen / charRes);
 
     let currentTime = 0;
-    const cleanTxt = txt.replace(/\/\/.*$/gm, '').replace(/[ \t]+$/gm, '');
+    const cleanTxt = txt.replace(/\/\/.*$/gm, '');
 
     let i = 0;
     const len = cleanTxt.length;

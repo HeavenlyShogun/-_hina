@@ -1,28 +1,32 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { DEFAULT_SCORE_PARAMS, KEY_INFO_MAP } from '../constants/music';
 import audioEngine from '../services/audioEngine';
+import playbackController from '../services/playbackController';
 import { normalizeScoreSource } from '../utils/score';
 
 function transposeFrequency(baseFrequency, semitoneOffset) {
   return baseFrequency * 2 ** (semitoneOffset / 12);
 }
 
-function buildQueues(events, startTime) {
-  const audioQueue = new Array(events.length);
-  const visualQueue = new Array(events.length);
-
-  for (let index = 0; index < events.length; index += 1) {
-    const event = events[index];
-    const on = startTime + event.time;
-    audioQueue[index] = { ...event, time: on };
-    visualQueue[index] = {
-      k: event.k,
-      on,
-      off: on + Math.min(event.durationSec ?? 0.2, 0.2),
-    };
+function cloneValue(value) {
+  if (typeof structuredClone === 'function') {
+    return structuredClone(value);
   }
 
-  return { audioQueue, visualQueue };
+  return JSON.parse(JSON.stringify(value));
+}
+
+function deepFreeze(value) {
+  if (!value || typeof value !== 'object' || Object.isFrozen(value)) {
+    return value;
+  }
+
+  Object.freeze(value);
+  Object.values(value).forEach((child) => {
+    deepFreeze(child);
+  });
+
+  return value;
 }
 
 export function useScorePlayback({
@@ -38,10 +42,8 @@ export function useScorePlayback({
   onKeyVisualRelease,
   onVisualReset,
 }) {
-  const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackState, setPlaybackState] = useState(() => playbackController.getState());
   const progressBarRef = useRef(null);
-  const schedulerTimerRef = useRef(null);
-  const visualTimerRef = useRef(null);
   const isPlayingRef = useRef(false);
   const activeLiveVoicesRef = useRef(new Map());
   const playbackConfigRef = useRef({
@@ -66,30 +68,145 @@ export function useScorePlayback({
     };
   }, [accidentals, audioConfig, bpm, charResolution, score, timeSigDen, timeSigNum]);
 
-  const clearPlaybackTimers = useCallback(() => {
-    if (schedulerTimerRef.current) clearTimeout(schedulerTimerRef.current);
-    if (visualTimerRef.current) cancelAnimationFrame(visualTimerRef.current);
-    schedulerTimerRef.current = null;
-    visualTimerRef.current = null;
-  }, []);
+  useEffect(() => {
+    isPlayingRef.current = playbackState.isPlaying;
+  }, [playbackState.isPlaying]);
 
-  const resetPlaybackVisuals = useCallback(() => {
-    onVisualReset();
-    if (progressBarRef.current) progressBarRef.current.style.width = '0%';
-  }, [onVisualReset]);
+  useEffect(() => {
+    const unregister = playbackController.setCallbacks({
+      onVisualAttack: onKeyVisualAttack,
+      onVisualRelease: onKeyVisualRelease,
+      onVisualReset,
+      onProgressUpdate: (progress) => {
+        if (progressBarRef.current) {
+          progressBarRef.current.style.width = `${progress}%`;
+        }
+      },
+      onStateChange: (nextState) => {
+        setPlaybackState(nextState);
+      },
+    });
 
-  const stopAll = useCallback(() => {
-    clearPlaybackTimers();
-    activeLiveVoicesRef.current.clear();
-    audioEngine.stopAll();
-    isPlayingRef.current = false;
-    setIsPlaying(false);
-    resetPlaybackVisuals();
-  }, [clearPlaybackTimers, resetPlaybackVisuals]);
+    setPlaybackState(playbackController.getState());
+
+    return unregister;
+  }, [onKeyVisualAttack, onKeyVisualRelease, onVisualReset]);
 
   useEffect(() => () => {
-    stopAll();
-  }, [stopAll]);
+    playbackController.stop();
+    activeLiveVoicesRef.current.clear();
+    audioEngine.stopAll();
+  }, []);
+
+  const buildSnapshot = useCallback(() => {
+    const current = playbackConfigRef.current;
+
+    return deepFreeze(cloneValue({
+      tone: current.audioConfig?.tone,
+      vol: current.audioConfig?.vol,
+      reverb: current.audioConfig?.reverb,
+      globalKeyOffset: current.audioConfig?.globalKeyOffset,
+      accidentals: current.accidentals,
+    }));
+  }, []);
+
+  useEffect(() => {
+    playbackController.updateSnapshot(buildSnapshot());
+    audioEngine.setReverbEnabled(audioConfig?.reverb);
+  }, [accidentals, audioConfig?.globalKeyOffset, audioConfig?.reverb, audioConfig?.tone, audioConfig?.vol, buildSnapshot]);
+
+  const loadCurrentScore = useCallback(() => {
+    const current = playbackConfigRef.current;
+    const normalizedBpm = Number(current.bpm) || DEFAULT_SCORE_PARAMS.bpm;
+    const { events, maxTime, playback } = normalizeScoreSource(current.score, {
+      bpm: normalizedBpm,
+      timeSigNum: current.timeSigNum,
+      timeSigDen: current.timeSigDen,
+      charResolution: current.charResolution,
+    });
+
+    playbackController.load(events, maxTime, playback);
+    return { events, maxTime, playback };
+  }, []);
+
+  const stopAll = useCallback(() => {
+    playbackController.stop();
+    activeLiveVoicesRef.current.clear();
+    audioEngine.stopAll();
+  }, []);
+
+  const playFromStart = useCallback(async () => {
+    const { events } = loadCurrentScore();
+
+    if (!events.length) {
+      stopAll();
+      showToast('沒有可播放的音符事件', 'error');
+      return;
+    }
+
+    await playbackController.play(audioEngine.audioContext, buildSnapshot());
+  }, [buildSnapshot, loadCurrentScore, showToast, stopAll]);
+
+  const playScoreAction = useCallback(async () => {
+    try {
+      if (playbackState.isPlaying) {
+        stopAll();
+        return;
+      }
+
+      if (playbackState.isPaused) {
+        await playbackController.resume(buildSnapshot());
+        return;
+      }
+
+      await playFromStart();
+    } catch (error) {
+      console.error(error);
+      stopAll();
+      showToast('播放失敗', 'error');
+    }
+  }, [playFromStart, playbackState.isPaused, playbackState.isPlaying, showToast, stopAll]);
+
+  const pauseScoreAction = useCallback(() => {
+    playbackController.pause();
+  }, []);
+
+  const resumeScoreAction = useCallback(async () => {
+    try {
+      await playbackController.resume(buildSnapshot());
+    } catch (error) {
+      console.error(error);
+      stopAll();
+      showToast('恢復播放失敗', 'error');
+    }
+  }, [buildSnapshot, showToast, stopAll]);
+
+  const seekToTime = useCallback(async (seconds) => {
+    try {
+      await playbackController.seek({ time: seconds }, buildSnapshot());
+    } catch (error) {
+      console.error(error);
+      showToast('跳轉失敗', 'error');
+    }
+  }, [buildSnapshot, showToast]);
+
+  const seekToIndex = useCallback(async (index) => {
+    try {
+      await playbackController.seek({ index }, buildSnapshot());
+    } catch (error) {
+      console.error(error);
+      showToast('跳轉失敗', 'error');
+    }
+  }, [buildSnapshot, showToast]);
+
+  const setPlaybackRate = useCallback(async (rate) => {
+    try {
+      await playbackController.setPlaybackRate(rate);
+    } catch (error) {
+      console.error(error);
+      showToast('變速失敗', 'error');
+    }
+  }, [showToast]);
 
   const handleKeyActivate = useCallback((keyK) => {
     const activate = async () => {
@@ -108,10 +225,12 @@ export function useScorePlayback({
           velocity: 0.9,
           voiceId: keyK,
         });
+
         if (voice) {
           activeLiveVoicesRef.current.set(keyK, voice);
         }
       }
+
       onKeyVisualAttack(keyK);
     };
 
@@ -125,125 +244,18 @@ export function useScorePlayback({
     onKeyVisualRelease(keyK);
   }, [onKeyVisualRelease]);
 
-  const playScoreAction = useCallback(async () => {
-    if (isPlayingRef.current) {
-      stopAll();
-      return;
-    }
-
-    try {
-      await audioEngine.resume();
-
-      const config = playbackConfigRef.current;
-      const normalizedBpm = Number(config.bpm) || DEFAULT_SCORE_PARAMS.bpm;
-      const { events, maxTime } = normalizeScoreSource(config.score, {
-        bpm: normalizedBpm,
-        timeSigNum: config.timeSigNum,
-        timeSigDen: config.timeSigDen,
-        charResolution: config.charResolution,
-      });
-
-      if (!events.length) {
-        stopAll();
-        showToast('琴譜內容無法解析出任何音符', 'error');
-        return;
-      }
-
-      isPlayingRef.current = true;
-      setIsPlaying(true);
-
-      const startTime = audioEngine.getCurrentTime() + 0.3;
-      const { audioQueue, visualQueue } = buildQueues(events, startTime);
-      const activeVisualCounts = new Map();
-
-      let noteIndex = 0;
-      let visualIndex = 0;
-      let deactivateIndex = 0;
-
-      const scheduleAudio = () => {
-        if (!isPlayingRef.current) return;
-
-        const currentTime = audioEngine.getCurrentTime();
-        while (noteIndex < audioQueue.length && audioQueue[noteIndex].time < currentTime + 0.5) {
-          const event = audioQueue[noteIndex];
-          noteIndex += 1;
-          const info = KEY_INFO_MAP[event.k];
-          if (!info) {
-            continue;
-          }
-
-          const semitoneOffset =
-            Number(config.audioConfig?.globalKeyOffset || 0) + (config.accidentals?.[event.k] ? 1 : 0);
-
-          audioEngine.scheduleNote(
-            transposeFrequency(info.f, semitoneOffset),
-            event.time,
-            event.durationSec,
-            {
-              tone: config.audioConfig?.tone,
-              outputGain: config.audioConfig?.vol,
-              reverb: config.audioConfig?.reverb,
-              velocity: event.v,
-            },
-          );
-        }
-
-        if (noteIndex < audioQueue.length) {
-          schedulerTimerRef.current = setTimeout(scheduleAudio, 25);
-        }
-      };
-
-      const syncVisuals = () => {
-        if (!isPlayingRef.current) return;
-
-        const currentTime = audioEngine.getCurrentTime();
-        if (progressBarRef.current && maxTime > 0) {
-          const progress = ((currentTime - startTime) / maxTime) * 100;
-          progressBarRef.current.style.width = `${Math.min(100, Math.max(0, progress))}%`;
-        }
-
-        while (visualIndex < visualQueue.length && visualQueue[visualIndex].on <= currentTime) {
-          const visual = visualQueue[visualIndex];
-          visualIndex += 1;
-          activeVisualCounts.set(visual.k, (activeVisualCounts.get(visual.k) ?? 0) + 1);
-          onKeyVisualAttack(visual.k);
-        }
-
-        while (deactivateIndex < visualQueue.length && visualQueue[deactivateIndex].off <= currentTime) {
-          const visual = visualQueue[deactivateIndex];
-          deactivateIndex += 1;
-          const nextCount = (activeVisualCounts.get(visual.k) ?? 1) - 1;
-
-          if (nextCount <= 0) {
-            activeVisualCounts.delete(visual.k);
-            onKeyVisualRelease(visual.k);
-          } else {
-            activeVisualCounts.set(visual.k, nextCount);
-          }
-        }
-
-        if (currentTime - startTime >= maxTime + 0.4) {
-          stopAll();
-          return;
-        }
-
-        visualTimerRef.current = requestAnimationFrame(syncVisuals);
-      };
-
-      scheduleAudio();
-      visualTimerRef.current = requestAnimationFrame(syncVisuals);
-    } catch (error) {
-      console.error(error);
-      stopAll();
-      showToast('播放失敗，請檢查琴譜內容', 'error');
-    }
-  }, [showToast, stopAll]);
-
   return {
-    isPlaying,
+    isPlaying: playbackState.isPlaying,
+    isPaused: playbackState.isPaused,
+    playbackState,
     progressBarRef,
     isPlayingRef,
     playScoreAction,
+    pauseScoreAction,
+    resumeScoreAction,
+    seekToTime,
+    seekToIndex,
+    setPlaybackRate,
     stopAll,
     handleKeyActivate,
     handleKeyDeactivate,

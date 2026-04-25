@@ -6,7 +6,8 @@ const DEFAULT_NOTE_VELOCITY = 0.85;
 const DEFAULT_CHORD_STRUM_MS = 12;
 
 function stripScoreComments(text) {
-  return text.replace(/\/\/.*$/gm, '').replace(/[ \t]+$/gm, '');
+  // Score spacing carries timing data, so only strip inline comments.
+  return text.replace(/\/\/.*$/gm, '');
 }
 
 function createLegacyTiming(bpmVal, sigNum, sigDen, charRes) {
@@ -43,10 +44,16 @@ function sortEvents(events) {
 }
 
 function createPlaybackState(overrides = {}) {
+  const timeSigDen = Number(overrides.timeSigDen) || DEFAULT_SCORE_PARAMS.timeSigDen;
+  const charResolution = Number(overrides.charResolution) || DEFAULT_SCORE_PARAMS.charResolution;
+  const resolution = Math.max(1, Number(overrides.resolution) || (charResolution / timeSigDen));
+
   return {
     bpm: Number(overrides.bpm) || DEFAULT_SCORE_PARAMS.bpm,
     timeSigNum: Number(overrides.timeSigNum) || DEFAULT_SCORE_PARAMS.timeSigNum,
-    timeSigDen: Number(overrides.timeSigDen) || DEFAULT_SCORE_PARAMS.timeSigDen,
+    timeSigDen,
+    charResolution,
+    resolution,
     tone: overrides.tone ?? DEFAULT_SCORE_PARAMS.tone,
     globalKeyOffset: Number(overrides.globalKeyOffset) || DEFAULT_SCORE_PARAMS.globalKeyOffset,
     reverb: overrides.reverb ?? DEFAULT_SCORE_PARAMS.reverb,
@@ -69,15 +76,21 @@ function buildNormalizedResult(events, playback) {
 
 function createNormalizedNoteEvent({
   time,
+  tick,
   key,
   durationSec,
+  durationTicks,
   velocity,
+  resolution,
   trackId = DEFAULT_TRACK_ID,
 }) {
   return {
     time,
+    tick,
     k: key,
     durationSec,
+    durationTicks,
+    resolution,
     v: clampVelocity(velocity),
     trackId,
   };
@@ -95,6 +108,9 @@ export function parseLegacyScoreText(text, config = {}) {
   );
   const cleanText = stripScoreComments(String(text ?? ''));
   let currentTime = 0;
+  let currentTick = 0;
+  const ticksPerStep = Math.max(1, Number(playback.resolution) || 1);
+  const defaultDurationTicks = ticksPerStep * 4;
   let index = 0;
 
   while (index < cleanText.length) {
@@ -107,6 +123,7 @@ export function parseLegacyScoreText(text, config = {}) {
 
     if (char === ' ' || char === '\t' || char === '\u3000') {
       currentTime += tickDuration;
+      currentTick += ticksPerStep;
       index += 1;
       continue;
     }
@@ -132,14 +149,20 @@ export function parseLegacyScoreText(text, config = {}) {
 
       if (chordKeys.length > 0) {
         chordKeys.forEach((key, chordIndex) => {
+          const strumOffsetSec = (DEFAULT_CHORD_STRUM_MS * chordIndex) / 1000;
+          const strumOffsetTicks = (strumOffsetSec * playback.bpm * playback.resolution) / 60;
           events.push(createNormalizedNoteEvent({
-            time: currentTime + chordIndex * (DEFAULT_CHORD_STRUM_MS / 1000),
+            time: currentTime + strumOffsetSec,
+            tick: currentTick + strumOffsetTicks,
             key,
             durationSec: tickDuration * 4,
+            durationTicks: defaultDurationTicks,
+            resolution: playback.resolution,
             velocity: DEFAULT_NOTE_VELOCITY,
           }));
         });
         currentTime += tickDuration;
+        currentTick += ticksPerStep;
       }
 
       continue;
@@ -149,6 +172,7 @@ export function parseLegacyScoreText(text, config = {}) {
       const beats = currentTime / beatDuration;
       if (Math.abs(beats - Math.round(beats)) > 0.01) {
         currentTime = Math.ceil(beats - 0.01) * beatDuration;
+        currentTick = Math.ceil(beats - 0.01) * playback.resolution;
       }
       index += 1;
       continue;
@@ -159,11 +183,15 @@ export function parseLegacyScoreText(text, config = {}) {
     if (mappedKey) {
       events.push(createNormalizedNoteEvent({
         time: currentTime,
+        tick: currentTick,
         key: mappedKey,
         durationSec: tickDuration * 4,
+        durationTicks: defaultDurationTicks,
+        resolution: playback.resolution,
         velocity: DEFAULT_NOTE_VELOCITY,
       }));
       currentTime += tickDuration;
+      currentTick += ticksPerStep;
     }
     index = nextIndex;
   }
@@ -194,11 +222,16 @@ function normalizeJsonEvent(event, context) {
       .map((rawKey, chordIndex) => {
         const mappedKey = mapKey(rawKey);
         if (!mappedKey) return null;
+        const strumOffsetSec = (strumMs * chordIndex) / 1000;
+        const strumOffsetTicks = (strumOffsetSec * context.bpm * context.resolution) / 60;
 
         return createNormalizedNoteEvent({
-          time: baseTime + (strumMs * chordIndex) / 1000,
+          time: baseTime + strumOffsetSec,
+          tick: tick + strumOffsetTicks,
           key: mappedKey,
           durationSec,
+          durationTicks,
+          resolution: context.resolution,
           velocity,
           trackId,
         });
@@ -211,8 +244,11 @@ function normalizeJsonEvent(event, context) {
 
   return [createNormalizedNoteEvent({
     time: baseTime,
+    tick,
     key: mappedKey,
     durationSec,
+    durationTicks,
+    resolution: context.resolution,
     velocity,
     trackId,
   })];
@@ -226,6 +262,7 @@ export function parseScoreJson(scoreJson) {
   const transport = scoreJson.transport ?? {};
   const playback = createPlaybackState({
     ...transport,
+    resolution: transport.resolution,
     ...(scoreJson.playback ?? {}),
   });
   const resolution = Math.max(1, Number(transport.resolution) || 480);

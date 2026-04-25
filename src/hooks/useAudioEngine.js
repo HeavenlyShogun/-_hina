@@ -3,6 +3,24 @@ import { useCallback, useEffect, useRef } from 'react';
 const SEMITONE_RATIOS = new Float32Array(61);
 for (let i = -30; i <= 30; i += 1) SEMITONE_RATIOS[i + 30] = 2 ** (i / 12);
 
+function createImpulseResponse(context, duration = 2.6, decay = 2.4) {
+  const safeDuration = Math.max(Number(duration) || 0, 0.2);
+  const safeDecay = Math.max(Number(decay) || 0, 0.1);
+  const frameCount = Math.floor(context.sampleRate * safeDuration);
+  const impulse = context.createBuffer(2, frameCount, context.sampleRate);
+
+  for (let channel = 0; channel < impulse.numberOfChannels; channel += 1) {
+    const data = impulse.getChannelData(channel);
+    for (let index = 0; index < frameCount; index += 1) {
+      const decayPosition = 1 - index / frameCount;
+      const stereoSkew = channel === 0 ? 0.92 : 1;
+      data[index] = (Math.random() * 2 - 1) * (decayPosition ** safeDecay) * stereoSkew;
+    }
+  }
+
+  return impulse;
+}
+
 export function useAudioEngine() {
   const audioCtx = useRef(null);
   const masterGain = useRef(null);
@@ -62,7 +80,7 @@ export function useAudioEngine() {
       masterGain.current.gain.setTargetAtTime(settingsRef.current.vol, audioCtx.current.currentTime, 0.05);
     }
     if (reverbBus.current && audioCtx.current) {
-      reverbBus.current.gain.setTargetAtTime(settingsRef.current.reverb ? 0.45 : 0, audioCtx.current.currentTime, 0.1);
+      reverbBus.current.gain.setTargetAtTime(settingsRef.current.reverb ? 1 : 0, audioCtx.current.currentTime, 0.1);
     }
   }, []);
 
@@ -83,24 +101,27 @@ export function useAudioEngine() {
       comp.attack.value = 0.005;
       comp.release.value = 0.1;
 
-      const rev = ac.createGain();
-      rev.gain.value = settingsRef.current.reverb ? 0.45 : 0;
-      reverbBus.current = rev;
+      const reverbInput = ac.createGain();
+      reverbInput.gain.value = 1;
 
-      const delay = ac.createDelay();
-      delay.delayTime.value = 0.15;
-      const feedback = ac.createGain();
-      feedback.gain.value = 0.15;
-      const filter = ac.createBiquadFilter();
-      filter.frequency.value = 1500;
+      const convolver = ac.createConvolver();
+      convolver.buffer = createImpulseResponse(ac, 2.8, 2.6);
 
-      rev.connect(delay);
-      delay.connect(feedback);
-      feedback.connect(filter);
-      filter.connect(delay);
-      filter.connect(comp);
+      const reverbTone = ac.createBiquadFilter();
+      reverbTone.type = 'lowpass';
+      reverbTone.frequency.value = 4600;
+      reverbTone.Q.value = 0.4;
+
+      const reverbOutput = ac.createGain();
+      reverbOutput.gain.value = settingsRef.current.reverb ? 1 : 0;
+      reverbBus.current = reverbOutput;
+
+      reverbInput.connect(convolver);
+      convolver.connect(reverbTone);
+      reverbTone.connect(reverbOutput);
+      reverbOutput.connect(comp);
       gain.connect(comp);
-      gain.connect(rev);
+      gain.connect(reverbInput);
       comp.connect(ac.destination);
 
       const buffer1 = ac.createBuffer(1, Math.floor(ac.sampleRate * 0.06), ac.sampleRate);

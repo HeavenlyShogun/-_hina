@@ -6,38 +6,41 @@ const AppHeader = memo(({ playHotkey, setPlayHotkey }) => {
   const { isPlaying, onTogglePlay } = usePlayback();
 
   return (
-    <header className="z-30 w-full max-w-6xl mt-8 px-6 flex flex-col md:flex-row items-center justify-between gap-6 bg-white/[0.02] backdrop-blur-sm p-6 rounded-[30px] border border-white/5 shadow-xl">
-      <div className="flex items-center gap-5">
-        <div className="bg-emerald-500/20 p-3 rounded-2xl border border-emerald-500/20 shadow-[0_0_20px_rgba(16,185,129,0.2)]">
+    <header className="relative z-30 mt-6 sm:mt-8 flex w-full max-w-6xl flex-col gap-5 overflow-hidden rounded-[28px] border border-white/10 bg-black/60 px-4 py-5 shadow-[0_30px_90px_rgba(0,0,0,0.45)] backdrop-blur-xl sm:px-6 sm:py-6 lg:flex-row lg:items-center lg:justify-between">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.18),transparent_34%),radial-gradient(circle_at_85%_25%,rgba(20,184,166,0.14),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.01))]" />
+      <div className="relative flex items-center gap-4 sm:gap-5">
+        <div className="rounded-[1.35rem] border border-emerald-400/25 bg-emerald-500/18 p-3 shadow-[0_0_28px_rgba(16,185,129,0.22)] backdrop-blur-xl sm:p-3.5">
           <Music2 className="text-emerald-400" size={28} />
         </div>
         <div>
-          <h1 className="text-2xl md:text-3xl font-black tracking-tight text-emerald-100">
+          <h1 className="text-[1.75rem] font-black tracking-tight text-emerald-50 sm:text-3xl">
             Wind Poetry
-            <span className="text-emerald-500 italic ml-1">Studio</span>
+            <span className="ml-1 text-emerald-500 italic">Studio</span>
           </h1>
-          <p className="text-[9px] tracking-[0.4em] uppercase opacity-30 font-sans mt-0.5">
+          <p className="mt-1 font-sans text-[9px] uppercase tracking-[0.38em] text-emerald-100/35">
             Teyvat Lyre Practice Suite v25.0
           </p>
         </div>
       </div>
-      <div className="flex flex-col md:flex-row gap-4 items-center w-full md:w-auto">
-        <div className="flex items-center gap-2 bg-black/40 px-4 py-2 rounded-full border border-white/5">
-          <Keyboard size={14} className="text-emerald-400/50" />
+
+      <div className="relative flex w-full flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:gap-4 lg:w-auto">
+        <div className="flex w-full items-center gap-2 rounded-full border border-white/10 bg-black/60 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl sm:w-auto">
+          <Keyboard size={14} className="shrink-0 text-emerald-300/60" />
           <select
             value={playHotkey}
             onChange={(event) => setPlayHotkey(event.target.value)}
-            className="bg-transparent outline-none text-xs text-emerald-100/70 cursor-pointer"
+            className="w-full cursor-pointer bg-transparent text-xs uppercase tracking-[0.2em] text-emerald-100/75 outline-none"
           >
             <option value="Space" className="bg-[#0f172a]">Play key: Space</option>
             <option value="Enter" className="bg-[#0f172a]">Play key: Enter</option>
             <option value="None" className="bg-[#0f172a]">Disable hotkey</option>
           </select>
         </div>
+
         <button
           type="button"
           onClick={onTogglePlay}
-          className={`flex items-center justify-center gap-4 px-10 py-3.5 rounded-full font-black text-sm tracking-[0.2em] transition-all transform active:scale-95 shadow-2xl w-full md:w-auto ${isPlaying ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40' : 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-emerald-900/40'}`}
+          className={`flex w-full min-w-[12rem] items-center justify-center gap-4 rounded-full border px-6 py-3.5 text-sm font-black tracking-[0.22em] shadow-2xl transition-all active:scale-[0.98] sm:w-auto sm:px-10 ${isPlaying ? 'border-rose-400/35 bg-rose-500/18 text-rose-100 shadow-[0_16px_40px_rgba(244,63,94,0.18)]' : 'border-emerald-300/20 bg-[linear-gradient(135deg,rgba(5,150,105,0.95),rgba(13,148,136,0.9))] text-white shadow-[0_18px_45px_rgba(4,120,87,0.35)]'}`}
         >
           {isPlaying ? <Square size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
           {isPlaying ? 'STOP' : 'PLAY'}
