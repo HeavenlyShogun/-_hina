@@ -3,7 +3,6 @@ import { DEFAULT_SCORE, DEFAULT_SCORE_PARAMS } from '../constants/music';
 import { createScoreDocument, SCORE_SOURCE_TYPES } from '../utils/scoreDocument';
 
 const DEFAULT_SCORE_TITLE = '未命名琴譜';
-const DEFAULT_VOLUME = 0.6;
 
 function createDefaultState() {
   return createScoreDocument({
@@ -16,7 +15,6 @@ function createDefaultState() {
 
 export function useScoreState() {
   const [scoreDocument, setScoreDocument] = useState(createDefaultState);
-  const [vol, setVol] = useState(DEFAULT_VOLUME);
 
   const updateScoreDocument = useCallback((updater) => {
     setScoreDocument((prev) => {
@@ -26,31 +24,60 @@ export function useScoreState() {
   }, []);
 
   const setScore = useCallback((rawText) => {
-    updateScoreDocument((prev) => ({ ...prev, rawText }));
+    updateScoreDocument((prev) => ({
+      ...prev,
+      rawText: typeof rawText === 'function' ? rawText(prev.rawText) : rawText,
+    }));
   }, [updateScoreDocument]);
 
   const setScoreTitle = useCallback((title) => {
-    updateScoreDocument((prev) => ({ ...prev, title }));
+    updateScoreDocument((prev) => ({
+      ...prev,
+      title: typeof title === 'function' ? title(prev.title) : title,
+    }));
   }, [updateScoreDocument]);
 
-  const setBpm = useCallback((bpm) => {
-    updateScoreDocument((prev) => ({ ...prev, bpm }));
+  const setBpm = useCallback((valueOrUpdater) => {
+    updateScoreDocument((prev) => ({
+      ...prev,
+      bpm: typeof valueOrUpdater === 'function' ? valueOrUpdater(prev.bpm) : valueOrUpdater,
+    }));
   }, [updateScoreDocument]);
 
-  const setTimeSigNum = useCallback((timeSigNum) => {
-    updateScoreDocument((prev) => ({ ...prev, timeSigNum }));
+  const setTimeSigNum = useCallback((valueOrUpdater) => {
+    updateScoreDocument((prev) => ({
+      ...prev,
+      timeSigNum:
+        typeof valueOrUpdater === 'function' ? valueOrUpdater(prev.timeSigNum) : valueOrUpdater,
+    }));
   }, [updateScoreDocument]);
 
-  const setTimeSigDen = useCallback((timeSigDen) => {
-    updateScoreDocument((prev) => ({ ...prev, timeSigDen }));
+  const setTimeSigDen = useCallback((valueOrUpdater) => {
+    updateScoreDocument((prev) => ({
+      ...prev,
+      timeSigDen:
+        typeof valueOrUpdater === 'function' ? valueOrUpdater(prev.timeSigDen) : valueOrUpdater,
+    }));
   }, [updateScoreDocument]);
 
-  const setCharResolution = useCallback((charResolution) => {
-    updateScoreDocument((prev) => ({ ...prev, charResolution }));
+  const setCharResolution = useCallback((valueOrUpdater) => {
+    updateScoreDocument((prev) => ({
+      ...prev,
+      charResolution:
+        typeof valueOrUpdater === 'function'
+          ? valueOrUpdater(prev.charResolution)
+          : valueOrUpdater,
+    }));
   }, [updateScoreDocument]);
 
-  const setGlobalKeyOffset = useCallback((globalKeyOffset) => {
-    updateScoreDocument((prev) => ({ ...prev, globalKeyOffset }));
+  const setGlobalKeyOffset = useCallback((valueOrUpdater) => {
+    updateScoreDocument((prev) => ({
+      ...prev,
+      globalKeyOffset:
+        typeof valueOrUpdater === 'function'
+          ? valueOrUpdater(prev.globalKeyOffset)
+          : valueOrUpdater,
+    }));
   }, [updateScoreDocument]);
 
   const setAccidentals = useCallback((nextValue) => {
@@ -60,12 +87,19 @@ export function useScoreState() {
     }));
   }, [updateScoreDocument]);
 
-  const setScaleMode = useCallback((scaleMode) => {
-    updateScoreDocument((prev) => ({ ...prev, scaleMode }));
+  const setScaleMode = useCallback((valueOrUpdater) => {
+    updateScoreDocument((prev) => ({
+      ...prev,
+      scaleMode:
+        typeof valueOrUpdater === 'function' ? valueOrUpdater(prev.scaleMode) : valueOrUpdater,
+    }));
   }, [updateScoreDocument]);
 
-  const setTone = useCallback((tone) => {
-    updateScoreDocument((prev) => ({ ...prev, tone }));
+  const setTone = useCallback((valueOrUpdater) => {
+    updateScoreDocument((prev) => ({
+      ...prev,
+      tone: typeof valueOrUpdater === 'function' ? valueOrUpdater(prev.tone) : valueOrUpdater,
+    }));
   }, [updateScoreDocument]);
 
   const setReverb = useCallback((nextValue) => {
@@ -107,8 +141,6 @@ export function useScoreState() {
     setScoreTitle,
     scoreDocument,
     updateScoreDocument,
-    vol,
-    setVol,
     reverb: scoreDocument.reverb,
     setReverb,
     globalKeyOffset: scoreDocument.globalKeyOffset,
