@@ -3,6 +3,8 @@ import { KEY_INFO_MAP } from '../constants/music';
 
 const LOOKAHEAD_INTERVAL_MS = 25;
 const SCHEDULE_AHEAD_TIME_SEC = 0.5;
+const PLAY_START_DELAY_SEC = 0.15;
+const STOP_TAIL_SEC = 0.12;
 const NOTE_NAME_TO_SEMITONE = {
   C: 0,
   'C#': 1,
@@ -29,12 +31,16 @@ class PlaybackController {
     this.listeners = new Set();
     this.intervalId = null;
     this.events = [];
+    this.score = null;
     this.nextEventIndex = 0;
-    this.playStartTime = 0;
-    this.pauseOffset = 0;
     this.totalDuration = 0;
-    this.isPlaying = false;
-    this.isPaused = false;
+    this.transportState = {
+      status: 'stopped',
+      position: 0,
+      anchorContextTime: 0,
+      anchorTransportTime: 0,
+      scheduledFromTransportTime: 0,
+    };
   }
 
   subscribe(listener) {
@@ -57,81 +63,96 @@ class PlaybackController {
     });
   }
 
-  getPlaybackTime() {
-    if (this.isPlaying) {
-      return Math.max(0, this.audioEngine.getCurrentTime() - this.playStartTime);
+  getTransportTime() {
+    const { status, position, anchorContextTime, anchorTransportTime } = this.transportState;
+
+    if (status !== 'playing') {
+      return position;
     }
 
-    if (this.isPaused) {
-      return this.pauseOffset;
+    const contextTime = this.audioEngine.getCurrentTime();
+    if (contextTime <= anchorContextTime) {
+      return anchorTransportTime;
     }
 
-    return 0;
+    return Math.max(0, anchorTransportTime + (contextTime - anchorContextTime));
   }
 
   getSnapshot() {
-    const currentTime = this.getPlaybackTime();
+    const currentTime = this.getTransportTime();
     const progress =
       this.totalDuration > 0
         ? Math.min(1, Math.max(0, currentTime / this.totalDuration))
         : 0;
 
     return {
-      isPlaying: this.isPlaying,
-      isPaused: this.isPaused,
+      isPlaying: this.transportState.status === 'playing',
+      isPaused: this.transportState.status === 'paused',
+      status: this.transportState.status,
       currentTime,
       totalDuration: this.totalDuration,
       progress,
       eventsCount: this.events.length,
+      canResume: this.transportState.status === 'paused' && this.events.length > 0,
     };
   }
 
-  async play(score) {
-    const normalizedEvents = this.normalizeScore(score);
+  async play(score, options = {}) {
+    const normalized = this.normalizeScore(score);
     await this.audioEngine.resume();
 
     this.stop({ hardReset: false });
 
-    this.events = normalizedEvents;
-    this.nextEventIndex = 0;
-    this.pauseOffset = 0;
-    this.totalDuration = this.events.reduce(
-      (maxDuration, event) => Math.max(maxDuration, event.time + event.duration),
-      0,
-    );
-    this.playStartTime = this.audioEngine.getCurrentTime() + 0.3;
-    this.isPlaying = true;
-    this.isPaused = false;
+    this.score = normalized.score;
+    this.events = normalized.events;
+    this.totalDuration = normalized.totalDuration;
+
+    const startPosition = Math.max(0, Number(options.from) || 0);
+    this.transportState = {
+      status: 'playing',
+      position: startPosition,
+      anchorContextTime: this.audioEngine.getCurrentTime() + PLAY_START_DELAY_SEC,
+      anchorTransportTime: startPosition,
+      scheduledFromTransportTime: startPosition,
+    };
+    this.nextEventIndex = this.findNextEventIndex(startPosition);
     this.notify();
 
     this.startSchedulerLoop();
   }
 
   pause() {
-    if (!this.isPlaying) {
+    if (this.transportState.status !== 'playing') {
       return;
     }
 
-    this.pauseOffset = Math.max(0, this.audioEngine.getCurrentTime() - this.playStartTime);
-    this.isPlaying = false;
-    this.isPaused = true;
-
+    this.transportState = {
+      ...this.transportState,
+      status: 'paused',
+      position: this.getTransportTime(),
+      scheduledFromTransportTime: this.getTransportTime(),
+    };
     this.stopSchedulerLoop();
     this.audioEngine.stopAll();
     this.notify();
   }
 
   async resume() {
-    if (!this.isPaused || !this.events.length) {
+    if (this.transportState.status !== 'paused' || !this.events.length) {
       return;
     }
 
     await this.audioEngine.resume();
 
-    this.isPlaying = true;
-    this.isPaused = false;
-    this.playStartTime = this.audioEngine.getCurrentTime() - this.pauseOffset + 0.02;
-    this.nextEventIndex = this.findNextEventIndex(this.pauseOffset);
+    const startPosition = this.transportState.position;
+    this.transportState = {
+      ...this.transportState,
+      status: 'playing',
+      anchorContextTime: this.audioEngine.getCurrentTime() + PLAY_START_DELAY_SEC,
+      anchorTransportTime: startPosition,
+      scheduledFromTransportTime: startPosition,
+    };
+    this.nextEventIndex = this.findNextEventIndex(startPosition);
     this.notify();
 
     this.startSchedulerLoop();
@@ -143,15 +164,19 @@ class PlaybackController {
     this.stopSchedulerLoop();
     this.audioEngine.stopAll();
 
-    this.isPlaying = false;
-    this.isPaused = false;
-    this.pauseOffset = 0;
+    this.transportState = {
+      status: 'stopped',
+      position: 0,
+      anchorContextTime: 0,
+      anchorTransportTime: 0,
+      scheduledFromTransportTime: 0,
+    };
     this.nextEventIndex = 0;
 
     if (hardReset) {
+      this.score = null;
       this.events = [];
       this.totalDuration = 0;
-      this.playStartTime = 0;
     }
 
     this.notify();
@@ -173,40 +198,54 @@ class PlaybackController {
   }
 
   schedulerTick() {
-    if (!this.isPlaying || !this.events.length) {
+    if (this.transportState.status !== 'playing' || !this.events.length) {
       this.notify();
       return;
     }
 
-    const now = this.audioEngine.getCurrentTime();
-    const scheduleWindowEnd = now + SCHEDULE_AHEAD_TIME_SEC;
+    const transportTime = this.getTransportTime();
+    const scheduleUntilTransportTime = Math.max(
+      this.transportState.scheduledFromTransportTime,
+      transportTime + SCHEDULE_AHEAD_TIME_SEC,
+    );
 
     while (this.nextEventIndex < this.events.length) {
       const event = this.events[this.nextEventIndex];
-      const absoluteTime = this.playStartTime + event.time;
-
-      if (absoluteTime > scheduleWindowEnd) {
+      if (event.time > scheduleUntilTransportTime) {
         break;
       }
+
+      const absoluteTime =
+        this.transportState.anchorContextTime + (event.time - this.transportState.anchorTransportTime);
 
       this.audioEngine.scheduleNote(
         event.frequency,
         absoluteTime,
         event.duration,
-        event.toneConfig,
+        event.renderConfig,
       );
 
       this.nextEventIndex += 1;
     }
 
+    this.transportState = {
+      ...this.transportState,
+      position: transportTime,
+      scheduledFromTransportTime: scheduleUntilTransportTime,
+    };
+
     if (
       this.nextEventIndex >= this.events.length &&
-      now >= this.playStartTime + this.totalDuration + 0.1
+      transportTime >= this.totalDuration + STOP_TAIL_SEC
     ) {
       this.stopSchedulerLoop();
-      this.isPlaying = false;
-      this.isPaused = false;
-      this.pauseOffset = 0;
+      this.transportState = {
+        status: 'stopped',
+        position: 0,
+        anchorContextTime: 0,
+        anchorTransportTime: 0,
+        scheduledFromTransportTime: 0,
+      };
       this.notify();
       return;
     }
@@ -217,10 +256,13 @@ class PlaybackController {
   normalizeScore(score) {
     const compiledEvents = Array.isArray(score) ? score : score?.compiledEvents;
     if (!Array.isArray(compiledEvents)) {
-      return [];
+      return { score: null, events: [], totalDuration: 0 };
     }
 
-    return compiledEvents
+    const scoreTone = score?.tone;
+    const scoreReverbAmount = score?.reverb ? 0.45 : 0;
+    const scoreOutputGain = Number(score?.outputGain);
+    const scoreEvents = compiledEvents
       .map((event) => {
         const time = Number(event.time);
         const duration = Math.max(Number(event.duration) || 0.1, 0.02);
@@ -231,21 +273,38 @@ class PlaybackController {
         }
 
         return {
+          key: event.key,
           note: event.note,
           time,
           duration,
           frequency,
-          toneConfig: event.toneConfig || score?.toneConfig || {},
+          renderConfig: {
+            tone: event.tone ?? scoreTone,
+            velocity: event.velocity ?? 0.85,
+            outputGain: Number.isFinite(scoreOutputGain) ? scoreOutputGain : 0.65,
+            reverbAmount: Number.isFinite(Number(score?.reverbAmount))
+              ? Number(score.reverbAmount)
+              : scoreReverbAmount,
+          },
         };
       })
       .filter(Boolean)
       .sort((left, right) => left.time - right.time);
+
+    return {
+      score,
+      events: scoreEvents,
+      totalDuration: scoreEvents.reduce(
+        (maxDuration, event) => Math.max(maxDuration, event.time + event.duration),
+        0,
+      ),
+    };
   }
 
-  findNextEventIndex(playbackOffset) {
+  findNextEventIndex(transportTime) {
     for (let index = 0; index < this.events.length; index += 1) {
       const event = this.events[index];
-      if (event.time + event.duration > playbackOffset) {
+      if (event.time + event.duration > transportTime) {
         return index;
       }
     }

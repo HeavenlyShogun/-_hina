@@ -1,0 +1,129 @@
+// [META] {"title":"未聞花名","bpm":90,"timeSigNum":4,"timeSigDen":4,"charResolution":8,"globalKeyOffset":0,"accidentals":{},"scaleMode":"major","tone":"piano","reverb":true,"storageFormat":"legacy-text@1"}
+(VADQ) QQ Q QQ Q QJ G
+(BMS) G(NADQ) QQ Q QQ Q QJ G
+(BMS) G(VADQ) QQ Q QQ W(BMS) GG
+G GD (NADG) HH A M B
+
+(VQ) QQ (NAD)Q QQ (NAD)Q QJ G
+(BMS) G(NQ) QQ (AD)Q QQ (AD)Q QJ G
+(BMS) G(VQ) QQ (NAD)Q QQ WB GG (MS)G
+GD (NG) H (ADH) A M S
+
+(VH) A D H G(BH) JS JG
+J H(NJ) QA QD G D(CG) HB HS
+(VH) A D H G(BH) JS JG
+J H(ZJ)QB QS B (AD)
+
+(BS) W E(VW) QA HD
+S D(BS) AX NB
+W E(NW) QA GD
+G D(CG) HB HS
+E (VW) QA HD
+W E(BW) QS HG HW
+(ZQ) B S B (AD)
+
+
+(BS) HQ W(VW) EE E(NADE) E
+EB WW W(MSGW) W
+WN QQ Q(ADQ) Q
+QC GG G(BS) HQ W
+(VW) EE E(NADE) EE TB EE
+(MSGE) EW Q (ZW) E E (BS) B (AD)
+
+(BS) HQ W(VW) EE E(NADE) EE
+EB WW W(MSGW) WW
+WN QQ Q(ADQ) QQ QC GG G(BS) HQ W
+(VW) EE E(NADE) EE TB EE
+(MSGE) EW Q (ZW) E E (BS) B (AD)
+(BS) W E(VW) Q Q(NAD)
+B S G W E(ZW) Q Q(BS) B (AD)(FQY) Y T(GWY) U U
+J H(NDJ) Q Q G D(CMG) H H
+G (VAH) H G(BSH) J J
+J H(ZJ) QB QS B (AD)
+
+B W E(VW) QA HD
+S D(BS) AX NB
+W E(NW) QA GD
+G D(CG) HB HS
+E (VW) QA HD
+W E(BW) QS HG HW
+(ZQ) BAB SAB FAB (BAD)
+
+
+(BS) HQ W(VW) EE E(NADE) E
+EB WW W(MSGW) W
+WN QQ Q(ADQ) Q
+QC GG G(BS) HQ W
+(VW) EE E(NADE) EE TB EE
+(MSGE) EW Q (ZW) E E (BS) B (AD)
+
+(BS) HQ W(VW) E(NE) E(ADE) EN
+EB W(MW) W(SGW) WM
+WN Q(AQ) Q(DQ) QA
+QC G(BG) G(SG) H(BQ) W
+
+(VW) E(NE) E(ADE) EN
+TB E(ME) (SGE) E(MW) Q
+(ZW) EB ES B (AD)
+(BS) W E(VW) QN Q(AD) N
+B S G W E(ZW) QB QS (AD)(VW) NAD(GQ) V
+(BJ) M (SH) JH(ZG)
+(ZB)AG(ZF) (ZB)AF(ZD) (ZB)AD(ZS) A
+(VH) A D H (BJ) S G J
+(NQ) CNCM CMCA CACS D Q
+(VW) NAD(GQ) V
+(BJ) M (SH) JH(ZG)
+(BT)GT(BMR) GRG(VNE) GEG(CBW)
+GG D(VG) HA HD
+H G(BH) JS JG
+J H(NJ) QA QD EW Q(CW) WB ES
+
+
+W E(VW) EV HV (VW)E
+(BW) QB HB H(BW)
+(ZQ) BB S B (AD)
+
+HQ W(VW) EE E(AE) E
+EB WW W(SW) W
+WN QQ Q(DQ) Q
+QC GG GS HQ W
+(VW) EE E(AE) EE
+TB EE (SE) EW Q
+(ZW) E ES D
+
+HQ W(VW) EE E(ADE) EE
+EB WW W(MSW) WW
+WN QQ Q(ADQ) QQ QC GG G(BS) HQ W
+(VW) EE E(ADE) EE TB EE
+(MSE) EW Q (ZW) E E (BS) (AD)
+
+(BS) HQ W(VW) EE E(NADE) E
+EB WW W(MSGW) W
+WN QQ Q(ADQ) Q
+QC GG G(BS) HQ W
+(VW) EE E(NADE) EE TB EE
+(MSGE) EW Q (ZW) E E (BS) B (AD)
+
+
+(BS) HQ W(VW) E(NE) E(ADE) EN
+EB W(MW) W(SGW) WM
+WN Q(AQ) Q(DQ) QA
+QC G(BG) G(SG) H(BQ) W
+
+(VW) E(NE) E(ADE) E(NE)
+TB E(ME) (SGE) E(MW) Q
+(ZW) EB ES B (AD)
+(BS) W E(VW) Q Q(AD) B (MS)
+W E(NW) Q Q(AD) B (MS)
+W E(VW) Q Q(AD) B (MS)
+W E(ZW) Q Q(BS) B (AD)
+
+W E(VW) QN Q(AD) B (MS)
+W E(NW) QA QD C (BS)
+W E(VW) QN Q(AD) B (MS)
+W E(ZW) QB QS D
+
+W E(FW) Q Q G
+W E(HW) Q Q D
+W E(FW) Q Q G
+W (AQ) S G Q W T

@@ -1,0 +1,86 @@
+// [META] {"title":"千本櫻","bpm":90,"timeSigNum":4,"timeSigDen":4,"charResolution":8,"globalKeyOffset":0,"accidentals":{},"scaleMode":"major","tone":"piano","reverb":true,"storageFormat":"legacy-text@1"}
+(NDH)(NDH)(BSG) (NDH)(NDH)(BSG)
+(NDH)(NDH)(BSG) (NDH)(ND) Q(ND)
+(NDH)(NDH)(BSG) (NDH)(NDH)(BSG)
+(NDH) (NDQ) (BSW) (BSE)(VW)(AE) (VH)G(AH)G (BW)(SE) (BH)G(SH)G
+(NW)(DE) (NH)G(DH)G (NQ) (DJ)QJ (NH) (DG)
+(VW)(AE) (VH)G(AH)G (BW)(SE) (BH)G(SH)G
+(NW)(DE)(NT)(DQ) (NJ)Q(DJ)H (NG) D
+
+(VW)(AE) (VH)G(AH)G (BW)(SE) (BH)G(SH)G
+(NW)(DE) (NH)G(DH)G (NQ) (DJ)QJ (NH) (DG)
+(VH) (AG)H(VQ) (AH)Q(BW) (SW)E(BT)Q(SD)G
+(NQ) (DJ)QJ(NH)(DG) (NH)D (NH)(DQ)
+
+(VW)(AE) (VH)G(AH)G (BW)(SE) (BH)G(SH)G
+(NW)(DE) (NH)G(DH)G (NQ) (DJ)QJ (NH) (DG)
+(VW)(AE) (VH)G(AH)G (BW)(SE) (BH)G(SH)G
+(NW)(DE)(NT)(DQ) (NJ)Q(DJ)H (NG) D
+
+(VW)(AE) (VH)G(AH)G (BW)(SE) (BH)G(SH)G
+(NW)(DE) (NH)G(DH)G (NQ) (DJ)QJ (NH) (DG)
+(VW) (AE)T(VY)T(AE)W (BH)(SQ)(BW)(SE)
+(NH)DH N (DG) (NH)D ND
+
+
+(NH)D(NH)DG (NH)(DQ)(NQ)(DW)
+(VH)A(VH)AG (BH)(SG)(BD)(SG)
+(NH)D(NH)DG (NH)(DQ)(NW)(DE)
+(VE)A(VW) (AE)W (BQ)S(BH)S
+
+(NH)D(NH)DG (NH)(DQ)(NQ)(DW)
+(VH)A(VH)AG (BH)(SG)(BD)(SG)
+(NH)D(NH)DG (NH)(DQ)(NW)(DE)
+(VE)A(VW) (AE)W (BQ)S(BH)S
+
+(VQ)A(VJ)A(BH)S(BG)S
+(ZG) (BG)HG(ZD)(BS) (ZD)B ZB
+(VD)(AG)(VH)A (BW)S(BJ)S
+(NQ)D(NJ)(DG) (NH)D ND
+
+(VQ)A(VJ)A(BH)S(BG)S
+(ZG) (BG)HG(ZD)(BS) (ZD)B (ZD)(BG)
+(XNH)(XNH) (XNH)(XNQ) (XNW)
+(CMJ)(CMJ) (CMJ)(CMJ) HQ
+
+(VW)AWV (AE) (BE)SB(SE)
+(ZT)(BY)(ZW)(BQ)(ZE)B (ZH)(BQ)
+(VW)AWV (AE) (BE)SB(SE)
+(NR)(DE)(NW)(DQ)(NQ)D (NH)(DQ)
+
+(VW)AWV (AE) (BE)SB(SE)
+(ZT)(BY)(ZW)(BQ)(ZE)B (ZH)(BQ)
+(VR)A(VE)A(BW)S(BQ)S
+(NW)(DE)(NJ)(DG)(NH)D (NH)(DQ)
+
+(VW)AWV (AE) (BE)SB(SE)
+(ZT)(BY)(ZW)(BQ)(ZE)B (ZH)(BQ)
+(VW)AWV (AE) (BE)SB(SE)
+(NR)(DE)(NW)(DQ)(NQ)D (NH)(DQ)
+
+(VW)AWV (AE) (BE)SB(SE)
+(ZT)(BY)(ZW)(BQ)(ZE)B (ZH)(BQ)
+(VR)A(VE)A(BW)S(BQ)S
+(NW)(DQ)(NE)(DT) (NY)D ND
+
+
+(VW)(AE) (VH)G(AH)G (BW)(SE) (BH)G(SH)G
+(NW)(DE) (NH)G(DH)G (NQ) (DJ)QJ (NH) (DG)
+(VW)(AE) (VH)G(AH)G (BW)(SE) (BH)G(SH)G
+(NW)(DE)(NT)(DQ) (NJ)Q(DJ)H (NG) D
+
+(VW)(AE) (VH)G(AH)G (BW)(SE) (BH)G(SH)G
+(NW)(DE) (NH)G(DH)G (NQ) (DJ)QJ (NH) (DG)
+(VH) (AG)H(VQ) (AH)Q(BW) (SW)E(BT)Q(SD)G
+(NQ) (DJ)QJ(NH)(DG) (NH)D (NH)(DQ)
+
+(VW)(AE) (VH)G(AH)G (BW)(SE) (BH)G(SH)G
+(NW)(DE) (NH)G(DH)G (NQ) (DJ)QJ (NH) (DG)
+(VW)(AE) (VH)G(AH)G (BW)(SE) (BH)G(SH)G
+(NW)(DE)(NT)(DQ) (NJ)Q(DJ)H (NG) D
+
+(VW)(AE) (VH)G(AH)G (BW)(SE) (BH)G(SH)G
+(NW)(DE) (NH)G(DH)G (NQ) (DJ)QJ (NH) (DG)
+(VW) (AE)T(VY)T(AE)W (BH)(SQ)(BW)(SE)
+(NH)DH N (DG) (NH)D (CD)D
+(NDH)(NDH) (BSG)(NDH)

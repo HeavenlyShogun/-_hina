@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { Clock, Globe, Music, Volume2, Zap } from 'lucide-react';
-import { KEY_OPTIONS } from '../constants/music';
+import { KEY_OPTIONS, SCALE_MODE_OPTIONS } from '../constants/music';
 
 const ControlPanel = memo(({
   bpm,
@@ -19,6 +19,8 @@ const ControlPanel = memo(({
   onToggleReverb,
   globalKeyOffset,
   setGlobalKeyOffset,
+  scaleMode,
+  setScaleMode,
 }) => (
   <section className="z-30 w-full max-w-6xl my-10 flex flex-col gap-4 px-6">
     <div className="flex flex-wrap justify-center items-center gap-4">
@@ -73,6 +75,10 @@ const ControlPanel = memo(({
         <Globe size={15} className="text-indigo-400" />
         <select value={globalKeyOffset} onChange={(event) => setGlobalKeyOffset(Number(event.target.value))} className="bg-transparent outline-none text-[11px] font-black text-emerald-100 uppercase">
           {KEY_OPTIONS.map((option) => <option key={option.offset} value={option.offset} className="bg-[#0f172a]">{option.name} Key</option>)}
+        </select>
+        <div className="w-px h-4 bg-white/10" />
+        <select value={scaleMode} onChange={(event) => setScaleMode(event.target.value)} className="bg-transparent outline-none text-[11px] font-black text-emerald-100 uppercase">
+          {SCALE_MODE_OPTIONS.map((option) => <option key={option.value} value={option.value} className="bg-[#0f172a]">{option.label}</option>)}
         </select>
       </div>
     </div>

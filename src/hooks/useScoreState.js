@@ -1,127 +1,131 @@
 import { useCallback, useMemo, useState } from 'react';
 import { DEFAULT_SCORE, DEFAULT_SCORE_PARAMS } from '../constants/music';
+import { createScoreDocument, SCORE_SOURCE_TYPES } from '../utils/scoreDocument';
 
 const DEFAULT_SCORE_TITLE = '未命名琴譜';
 const DEFAULT_VOLUME = 0.6;
 
-function parseNumber(value, fallback) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-function normalizeAccidentals(value) {
-  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
-}
-
-function extractScoreParams(content) {
-  if (!content || typeof content !== 'object' || Array.isArray(content)) {
-    return {};
-  }
-
-  return {
-    bpm: content.transport?.bpm,
-    timeSigNum: content.transport?.timeSigNum,
-    timeSigDen: content.transport?.timeSigDen,
-    tone: content.playback?.tone,
-    globalKeyOffset: content.playback?.globalKeyOffset,
-    reverb: content.playback?.reverb,
-  };
-}
-
-function resolveScoreState(source = {}) {
-  const score = source.content ?? DEFAULT_SCORE;
-  const extracted = extractScoreParams(score);
-  const title =
-    String(source.title ?? score?.meta?.title ?? DEFAULT_SCORE_TITLE).trim() || DEFAULT_SCORE_TITLE;
-
-  return {
-    score,
-    scoreTitle: title,
-    bpm: parseNumber(source.bpm ?? extracted.bpm, DEFAULT_SCORE_PARAMS.bpm),
-    timeSigNum: parseNumber(source.timeSigNum ?? extracted.timeSigNum, DEFAULT_SCORE_PARAMS.timeSigNum),
-    timeSigDen: parseNumber(source.timeSigDen ?? extracted.timeSigDen, DEFAULT_SCORE_PARAMS.timeSigDen),
-    charResolution: parseNumber(source.charResolution, DEFAULT_SCORE_PARAMS.charResolution),
-    globalKeyOffset: parseNumber(
-      source.globalKeyOffset ?? extracted.globalKeyOffset,
-      DEFAULT_SCORE_PARAMS.globalKeyOffset,
-    ),
-    accidentals: normalizeAccidentals(source.accidentals),
-    tone: source.tone ?? extracted.tone ?? DEFAULT_SCORE_PARAMS.tone,
-    reverb: source.reverb ?? extracted.reverb ?? DEFAULT_SCORE_PARAMS.reverb,
-  };
+function createDefaultState() {
+  return createScoreDocument({
+    title: DEFAULT_SCORE_TITLE,
+    rawText: DEFAULT_SCORE,
+    sourceType: SCORE_SOURCE_TYPES.TEXT,
+    ...DEFAULT_SCORE_PARAMS,
+  });
 }
 
 export function useScoreState() {
-  const [score, setScore] = useState(DEFAULT_SCORE);
-  const [scoreTitle, setScoreTitle] = useState(DEFAULT_SCORE_TITLE);
+  const [scoreDocument, setScoreDocument] = useState(createDefaultState);
   const [vol, setVol] = useState(DEFAULT_VOLUME);
-  const [bpm, setBpm] = useState(DEFAULT_SCORE_PARAMS.bpm);
-  const [timeSigNum, setTimeSigNum] = useState(DEFAULT_SCORE_PARAMS.timeSigNum);
-  const [timeSigDen, setTimeSigDen] = useState(DEFAULT_SCORE_PARAMS.timeSigDen);
-  const [charResolution, setCharResolution] = useState(DEFAULT_SCORE_PARAMS.charResolution);
-  const [globalKeyOffset, setGlobalKeyOffset] = useState(DEFAULT_SCORE_PARAMS.globalKeyOffset);
-  const [accidentals, setAccidentals] = useState(DEFAULT_SCORE_PARAMS.accidentals);
-  const [tone, setTone] = useState(DEFAULT_SCORE_PARAMS.tone);
-  const [reverb, setReverb] = useState(DEFAULT_SCORE_PARAMS.reverb);
 
-  const applyResolvedState = useCallback((nextState) => {
-    setScore(nextState.score);
-    setScoreTitle(nextState.scoreTitle);
-    setBpm(nextState.bpm);
-    setTimeSigNum(nextState.timeSigNum);
-    setTimeSigDen(nextState.timeSigDen);
-    setCharResolution(nextState.charResolution);
-    setGlobalKeyOffset(nextState.globalKeyOffset);
-    setAccidentals(nextState.accidentals);
-    setTone(nextState.tone);
-    setReverb(nextState.reverb);
+  const updateScoreDocument = useCallback((updater) => {
+    setScoreDocument((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : { ...prev, ...updater };
+      return createScoreDocument(next);
+    });
   }, []);
 
+  const setScore = useCallback((rawText) => {
+    updateScoreDocument((prev) => ({ ...prev, rawText }));
+  }, [updateScoreDocument]);
+
+  const setScoreTitle = useCallback((title) => {
+    updateScoreDocument((prev) => ({ ...prev, title }));
+  }, [updateScoreDocument]);
+
+  const setBpm = useCallback((bpm) => {
+    updateScoreDocument((prev) => ({ ...prev, bpm }));
+  }, [updateScoreDocument]);
+
+  const setTimeSigNum = useCallback((timeSigNum) => {
+    updateScoreDocument((prev) => ({ ...prev, timeSigNum }));
+  }, [updateScoreDocument]);
+
+  const setTimeSigDen = useCallback((timeSigDen) => {
+    updateScoreDocument((prev) => ({ ...prev, timeSigDen }));
+  }, [updateScoreDocument]);
+
+  const setCharResolution = useCallback((charResolution) => {
+    updateScoreDocument((prev) => ({ ...prev, charResolution }));
+  }, [updateScoreDocument]);
+
+  const setGlobalKeyOffset = useCallback((globalKeyOffset) => {
+    updateScoreDocument((prev) => ({ ...prev, globalKeyOffset }));
+  }, [updateScoreDocument]);
+
+  const setAccidentals = useCallback((nextValue) => {
+    updateScoreDocument((prev) => ({
+      ...prev,
+      accidentals: typeof nextValue === 'function' ? nextValue(prev.accidentals) : nextValue,
+    }));
+  }, [updateScoreDocument]);
+
+  const setScaleMode = useCallback((scaleMode) => {
+    updateScoreDocument((prev) => ({ ...prev, scaleMode }));
+  }, [updateScoreDocument]);
+
+  const setTone = useCallback((tone) => {
+    updateScoreDocument((prev) => ({ ...prev, tone }));
+  }, [updateScoreDocument]);
+
+  const setReverb = useCallback((nextValue) => {
+    updateScoreDocument((prev) => ({
+      ...prev,
+      reverb: typeof nextValue === 'function' ? nextValue(prev.reverb) : nextValue,
+    }));
+  }, [updateScoreDocument]);
+
   const loadScoreSource = useCallback((source) => {
-    applyResolvedState(resolveScoreState(source));
-  }, [applyResolvedState]);
+    setScoreDocument(createScoreDocument(source));
+  }, []);
 
   const applySavedScore = useCallback((savedScore) => {
-    applyResolvedState(resolveScoreState(savedScore));
-  }, [applyResolvedState]);
+    setScoreDocument(createScoreDocument(savedScore));
+  }, []);
 
   const resetScoreState = useCallback(() => {
-    applyResolvedState(resolveScoreState());
-  }, [applyResolvedState]);
+    setScoreDocument(createDefaultState());
+  }, []);
 
   const currentScoreParams = useMemo(() => ({
-    bpm,
-    timeSigNum,
-    timeSigDen,
-    charResolution,
-    globalKeyOffset,
-    accidentals,
-    tone,
-    reverb,
-  }), [accidentals, bpm, charResolution, globalKeyOffset, reverb, timeSigDen, timeSigNum, tone]);
+    bpm: scoreDocument.bpm,
+    timeSigNum: scoreDocument.timeSigNum,
+    timeSigDen: scoreDocument.timeSigDen,
+    charResolution: scoreDocument.charResolution,
+    globalKeyOffset: scoreDocument.globalKeyOffset,
+    accidentals: scoreDocument.accidentals,
+    scaleMode: scoreDocument.scaleMode,
+    tone: scoreDocument.tone,
+    reverb: scoreDocument.reverb,
+    sourceType: scoreDocument.sourceType,
+  }), [scoreDocument]);
 
   return {
-    score,
+    score: scoreDocument.rawText,
     setScore,
-    scoreTitle,
+    scoreTitle: scoreDocument.title,
     setScoreTitle,
+    scoreDocument,
+    updateScoreDocument,
     vol,
     setVol,
-    reverb,
+    reverb: scoreDocument.reverb,
     setReverb,
-    globalKeyOffset,
+    globalKeyOffset: scoreDocument.globalKeyOffset,
     setGlobalKeyOffset,
-    accidentals,
+    accidentals: scoreDocument.accidentals,
     setAccidentals,
-    tone,
+    scaleMode: scoreDocument.scaleMode,
+    setScaleMode,
+    tone: scoreDocument.tone,
     setTone,
-    bpm,
+    bpm: scoreDocument.bpm,
     setBpm,
-    timeSigNum,
+    timeSigNum: scoreDocument.timeSigNum,
     setTimeSigNum,
-    timeSigDen,
+    timeSigDen: scoreDocument.timeSigDen,
     setTimeSigDen,
-    charResolution,
+    charResolution: scoreDocument.charResolution,
     setCharResolution,
     currentScoreParams,
     loadScoreSource,

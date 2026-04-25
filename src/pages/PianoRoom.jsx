@@ -31,6 +31,8 @@ const PianoRoom = memo(({
   reverb,
   onToggleReverb,
   setGlobalKeyOffset,
+  scaleMode,
+  setScaleMode,
 }) => (
   <>
     <AppHeader
@@ -66,6 +68,8 @@ const PianoRoom = memo(({
       onToggleReverb={onToggleReverb}
       globalKeyOffset={globalKeyOffset}
       setGlobalKeyOffset={setGlobalKeyOffset}
+      scaleMode={scaleMode}
+      setScaleMode={setScaleMode}
     />
   </>
 ));
