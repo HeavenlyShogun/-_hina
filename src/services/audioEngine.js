@@ -5,7 +5,124 @@ const DEFAULT_RENDER_CONFIG = {
   reverbAmount: 0.45,
 };
 
+const TONE_ALIASES = {
+  lyre: 'lyre-long',
+};
+
+// Pure preset data; runtime buffers and duration-derived values are resolved later.
+const TONE_PRESETS = {
+  piano: {
+    tone: 'piano',
+    type: 'sawtooth',
+    dur: 3.5,
+    atk: 0.01,
+    dec: 0.8,
+    sus: 0.1,
+    pk: 0.6,
+    flt: true,
+    fltStartMult: 5,
+    fltEndMult: 1,
+    fltDec: 0.2,
+    nBufKey: null,
+    release: 0.18,
+    velocity: 0.85,
+  },
+  flute: {
+    tone: 'flute',
+    type: 'sine',
+    dur: 2.5,
+    atk: 0.08,
+    dec: 0.2,
+    sus: 0.8,
+    pk: 0.7,
+    flt: false,
+    nBufKey: 'noise',
+    nDur: 0.8,
+    nVol: 0.015,
+    release: 0.12,
+    velocity: 0.85,
+  },
+  'lyre-long': {
+    tone: 'lyre-long',
+    type: 'sawtooth',
+    dur: 4,
+    atk: 0.015,
+    dec: 0.6,
+    sus: 0.1,
+    pk: 0.4,
+    flt: true,
+    fltStartMult: 6,
+    fltEndMult: 1.2,
+    fltDec: 0.4,
+    nBufKey: 'noise',
+    nDur: 0.05,
+    nVol: 0.08,
+    release: 0.18,
+    velocity: 0.85,
+  },
+  'lyre-short': {
+    tone: 'lyre-short',
+    type: 'sawtooth',
+    atk: 0.015,
+    dec: 0.1,
+    sus: 0.001,
+    pk: 0.4,
+    flt: true,
+    fltStartMult: 6,
+    fltEndMult: 1.2,
+    fltDec: 0.3,
+    nBufKey: 'noise',
+    nDur: 0.06,
+    nVol: 0.1,
+    release: 0.1,
+    velocity: 0.85,
+  },
+  'tongue-drum': {
+    tone: 'tongue-drum',
+    type: 'triangle',
+    dur: 3,
+    atk: 0.02,
+    dec: 0.5,
+    sus: 0.2,
+    pk: 0.6,
+    flt: true,
+    fltStartMult: 3,
+    fltEndMult: 1,
+    fltDec: 0.6,
+    nBufKey: 'noise',
+    nDur: 0.03,
+    nVol: 0.05,
+    release: 0.14,
+    velocity: 0.85,
+  },
+  classic: {
+    tone: 'classic',
+    type: 'triangle',
+    atk: 0.015,
+    dec: 0.1,
+    sus: 0.001,
+    pk: 0.4,
+    flt: false,
+    nBufKey: 'shortNoise',
+    nDur: 0.015,
+    nVol: 0.15,
+    release: 0.08,
+    velocity: 0.85,
+  },
+};
+
+const DYNAMIC_TONE_OVERRIDES = {
+  'lyre-short': (baseDuration) => ({
+    dur: Math.max(baseDuration * 2, 0.8),
+  }),
+  classic: (baseDuration) => ({
+    dur: Math.max(baseDuration * 1.5, 0.6),
+  }),
+};
+
 class AudioEngine {
+  static MAX_VOICES = 32;
+
   constructor() {
     this.audioContext = null;
     this.compressor = null;
@@ -13,6 +130,7 @@ class AudioEngine {
     this.noiseBuffer = null;
     this.shortNoiseBuffer = null;
     this.activeVoices = new Set();
+    this.activeLiveVoices = new Map();
   }
 
   init() {
@@ -85,6 +203,8 @@ class AudioEngine {
       return null;
     }
 
+    this.enforceVoiceLimit(startTime);
+
     const config = this.resolveRenderConfig(renderConfig, noteDuration);
     const keyGainMod = Math.min(1, 800 / (safeFrequency + 200));
     const outputGain = Math.max(Number(config.outputGain) || 0, 0);
@@ -155,6 +275,7 @@ class AudioEngine {
     wetGain.connect(this.reverbBus);
 
     const voice = {
+      frequency: safeFrequency,
       oscillator,
       envelopeGain,
       dryGain,
@@ -162,7 +283,12 @@ class AudioEngine {
       filter,
       noiseSource,
       noiseGain,
+      startedAt: startTime,
+      stopTime,
+      releaseAt: null,
       released: false,
+      cleaned: false,
+      isFuture: startTime > context.currentTime + 0.001,
     };
 
     this.activeVoices.add(voice);
@@ -182,6 +308,142 @@ class AudioEngine {
     return voice;
   }
 
+  playLiveNote(freq, renderConfig = {}) {
+    const context = this.init();
+    const safeFrequency = Number(freq);
+
+    if (!Number.isFinite(safeFrequency) || safeFrequency <= 0) {
+      return null;
+    }
+
+    const voiceKey = this.buildLiveVoiceKey(safeFrequency, renderConfig.voiceId);
+    const existingVoice = this.activeLiveVoices.get(voiceKey);
+    if (existingVoice && !existingVoice.cleaned) {
+      return existingVoice;
+    }
+
+    this.enforceVoiceLimit(context.currentTime);
+
+    const config = this.resolveRenderConfig({
+      ...renderConfig,
+      sustain: true,
+    }, renderConfig.duration ?? 0.5);
+    const startTime = context.currentTime + 0.005;
+    const keyGainMod = Math.min(1, 800 / (safeFrequency + 200));
+    const outputGain = Math.max(Number(config.outputGain) || 0, 0);
+    const reverbAmount = Math.max(Number(config.reverbAmount) || 0, 0);
+    const peak = Math.max(0.0001, (config.velocity ?? 0.85) * config.pk * keyGainMod * outputGain);
+    const sustainLevel = Math.max(peak * config.sus, 0.0001);
+
+    const oscillator = context.createOscillator();
+    oscillator.type = config.type;
+    oscillator.frequency.setValueAtTime(safeFrequency, startTime);
+
+    const envelopeGain = context.createGain();
+    envelopeGain.gain.setValueAtTime(0.0001, startTime);
+    envelopeGain.gain.linearRampToValueAtTime(peak, startTime + config.atk);
+    envelopeGain.gain.exponentialRampToValueAtTime(sustainLevel, startTime + config.dec);
+    envelopeGain.gain.setValueAtTime(sustainLevel, startTime + config.dec + 0.01);
+
+    const dryGain = context.createGain();
+    dryGain.gain.value = 1;
+    const wetGain = context.createGain();
+    wetGain.gain.value = reverbAmount;
+
+    let filter = null;
+    if (config.flt) {
+      filter = context.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(Math.min(safeFrequency * config.fltStartMult, 20000), startTime);
+      filter.frequency.exponentialRampToValueAtTime(
+        Math.max(safeFrequency * config.fltEndMult, 100),
+        startTime + config.fltDec,
+      );
+    }
+
+    let noiseSource = null;
+    let noiseGain = null;
+    if (config.nBuf) {
+      noiseSource = context.createBufferSource();
+      noiseSource.buffer = config.nBuf;
+
+      noiseGain = context.createGain();
+      noiseGain.gain.setValueAtTime(0.0001, startTime);
+      noiseGain.gain.linearRampToValueAtTime(
+        Math.max(0.0001, (config.nVol ?? 0.05) * (config.velocity ?? 0.85) * outputGain),
+        startTime + 0.002,
+      );
+      noiseGain.gain.exponentialRampToValueAtTime(0.0001, startTime + (config.nDur ?? 0.05));
+    }
+
+    const sourceTarget = filter || envelopeGain;
+
+    oscillator.connect(filter || envelopeGain);
+    if (noiseSource && noiseGain) {
+      noiseSource.connect(noiseGain);
+      noiseGain.connect(sourceTarget);
+    }
+
+    if (filter) {
+      filter.connect(envelopeGain);
+    }
+
+    envelopeGain.connect(dryGain);
+    envelopeGain.connect(wetGain);
+    dryGain.connect(this.compressor);
+    wetGain.connect(this.reverbBus);
+
+    const voice = {
+      frequency: safeFrequency,
+      oscillator,
+      envelopeGain,
+      dryGain,
+      wetGain,
+      filter,
+      noiseSource,
+      noiseGain,
+      startedAt: startTime,
+      stopTime: Number.POSITIVE_INFINITY,
+      releaseAt: null,
+      released: false,
+      cleaned: false,
+      isFuture: startTime > context.currentTime + 0.001,
+      isLive: true,
+      liveVoiceKey: voiceKey,
+    };
+
+    this.activeVoices.add(voice);
+    this.activeLiveVoices.set(voiceKey, voice);
+
+    oscillator.onended = () => {
+      this.cleanupVoice(voice);
+    };
+
+    oscillator.start(startTime);
+
+    if (noiseSource) {
+      noiseSource.start(startTime);
+      noiseSource.stop(startTime + (config.nDur ?? 0.05) + 0.02);
+    }
+
+    return voice;
+  }
+
+  releaseLiveVoice(voiceOrKey, releaseTime = 0.08) {
+    const voice =
+      typeof voiceOrKey === 'object' && voiceOrKey
+        ? voiceOrKey
+        : this.activeLiveVoices.get(voiceOrKey);
+
+    if (!voice || !this.audioContext) {
+      return;
+    }
+
+    const now = this.audioContext.currentTime;
+    const stopAt = now + Math.max(releaseTime, 0.02);
+    this.releaseVoice(voice, now, stopAt, true);
+  }
+
   stopAll(releaseTime = 0.08) {
     if (!this.audioContext || this.activeVoices.size === 0) {
       return;
@@ -191,37 +453,20 @@ class AudioEngine {
     const stopAt = now + Math.max(releaseTime, 0.02);
 
     this.activeVoices.forEach((voice) => {
-      if (voice.released) {
-        return;
-      }
-
-      voice.released = true;
-
-      try {
-        voice.envelopeGain.gain.cancelScheduledValues(now);
-        const currentValue = Math.max(voice.envelopeGain.gain.value, 0.0001);
-        voice.envelopeGain.gain.setValueAtTime(currentValue, now);
-        voice.envelopeGain.gain.exponentialRampToValueAtTime(0.0001, stopAt);
-      } catch {}
-
-      try {
-        voice.oscillator.stop(stopAt);
-      } catch {}
-
-      if (voice.noiseSource) {
-        try {
-          voice.noiseSource.stop(stopAt);
-        } catch {}
-      }
+      this.releaseVoice(voice, now, stopAt, true);
     });
   }
 
   cleanupVoice(voice) {
-    if (!voice || !this.activeVoices.has(voice)) {
+    if (!voice || voice.cleaned) {
       return;
     }
 
+    voice.cleaned = true;
     this.activeVoices.delete(voice);
+    if (voice.liveVoiceKey) {
+      this.activeLiveVoices.delete(voice.liveVoiceKey);
+    }
 
     try {
       voice.oscillator.onended = null;
@@ -258,134 +503,154 @@ class AudioEngine {
   }
 
   resolveRenderConfig(renderConfig, duration) {
-    if (typeof renderConfig === 'string') {
-      return {
-        ...DEFAULT_RENDER_CONFIG,
-        ...this.createTonePreset(renderConfig, duration),
-      };
+    const baseDuration = duration ?? 0.5;
+    const normalizedRenderConfig = typeof renderConfig === 'string' ? { tone: renderConfig } : renderConfig;
+    const toneName = this.normalizeToneName(normalizedRenderConfig.tone || DEFAULT_RENDER_CONFIG.tone);
+    const preset = this.getTonePreset(toneName);
+    const dynamicOverrides = this.getDynamicToneOverrides(toneName, baseDuration);
+
+    const resolvedConfig = {
+      ...DEFAULT_RENDER_CONFIG,
+      ...preset,
+      ...dynamicOverrides,
+      ...normalizedRenderConfig,
+      tone: toneName,
+    };
+
+    if (normalizedRenderConfig.reverbAmount === undefined && normalizedRenderConfig.reverb !== undefined) {
+      resolvedConfig.reverbAmount = normalizedRenderConfig.reverb ? DEFAULT_RENDER_CONFIG.reverbAmount : 0;
     }
 
-    const toneName = renderConfig.tone || DEFAULT_RENDER_CONFIG.tone;
+    if (normalizedRenderConfig.nBuf === undefined) {
+      const bufferKey = normalizedRenderConfig.nBufKey ?? resolvedConfig.nBufKey ?? null;
+      resolvedConfig.nBuf = this.resolveNoiseBuffer(bufferKey);
+    }
 
-    return {
-      ...DEFAULT_RENDER_CONFIG,
-      ...this.createTonePreset(toneName, duration),
-      ...renderConfig,
-    };
+    delete resolvedConfig.nBufKey;
+
+    return resolvedConfig;
   }
 
-  createTonePreset(tone, duration) {
-    const baseDuration = duration !== null ? duration : 0.5;
+  normalizeToneName(tone) {
+    return TONE_ALIASES[tone] || tone || 'classic';
+  }
 
-    switch (tone) {
-      case 'piano':
-        return {
-          tone: 'piano',
-          type: 'sawtooth',
-          dur: 3.5,
-          atk: 0.01,
-          dec: 0.8,
-          sus: 0.1,
-          pk: 0.6,
-          flt: true,
-          fltStartMult: 5,
-          fltEndMult: 1,
-          fltDec: 0.2,
-          nBuf: null,
-          release: 0.18,
-          velocity: 0.85,
-        };
-      case 'flute':
-        return {
-          tone: 'flute',
-          type: 'sine',
-          dur: 2.5,
-          atk: 0.08,
-          dec: 0.2,
-          sus: 0.8,
-          pk: 0.7,
-          flt: false,
-          nBuf: this.noiseBuffer,
-          nDur: 0.8,
-          nVol: 0.015,
-          release: 0.12,
-          velocity: 0.85,
-        };
-      case 'lyre':
-      case 'lyre-long':
-        return {
-          tone: 'lyre-long',
-          type: 'sawtooth',
-          dur: 4,
-          atk: 0.015,
-          dec: 0.6,
-          sus: 0.1,
-          pk: 0.4,
-          flt: true,
-          fltStartMult: 6,
-          fltEndMult: 1.2,
-          fltDec: 0.4,
-          nBuf: this.noiseBuffer,
-          nDur: 0.05,
-          nVol: 0.08,
-          release: 0.18,
-          velocity: 0.85,
-        };
-      case 'lyre-short':
-        return {
-          tone: 'lyre-short',
-          type: 'sawtooth',
-          dur: Math.max(baseDuration * 2, 0.8),
-          atk: 0.015,
-          dec: 0.1,
-          sus: 0.001,
-          pk: 0.4,
-          flt: true,
-          fltStartMult: 6,
-          fltEndMult: 1.2,
-          fltDec: 0.3,
-          nBuf: this.noiseBuffer,
-          nDur: 0.06,
-          nVol: 0.1,
-          release: 0.1,
-          velocity: 0.85,
-        };
-      case 'tongue-drum':
-        return {
-          tone: 'tongue-drum',
-          type: 'triangle',
-          dur: 3,
-          atk: 0.02,
-          dec: 0.5,
-          sus: 0.2,
-          pk: 0.6,
-          flt: true,
-          fltStartMult: 3,
-          fltEndMult: 1,
-          fltDec: 0.6,
-          nBuf: this.noiseBuffer,
-          nDur: 0.03,
-          nVol: 0.05,
-          release: 0.14,
-          velocity: 0.85,
-        };
-      default:
-        return {
-          tone: 'classic',
-          type: 'triangle',
-          dur: Math.max(baseDuration * 1.5, 0.6),
-          atk: 0.015,
-          dec: 0.1,
-          sus: 0.001,
-          pk: 0.4,
-          flt: false,
-          nBuf: this.shortNoiseBuffer,
-          nDur: 0.015,
-          nVol: 0.15,
-          release: 0.08,
-          velocity: 0.85,
-        };
+  getTonePreset(tone) {
+    return TONE_PRESETS[tone] || TONE_PRESETS.classic;
+  }
+
+  getDynamicToneOverrides(tone, duration) {
+    const resolveOverrides = DYNAMIC_TONE_OVERRIDES[tone];
+    return resolveOverrides ? resolveOverrides(duration) : {};
+  }
+
+  resolveNoiseBuffer(bufferKey) {
+    if (bufferKey === 'noise') {
+      return this.noiseBuffer;
     }
+
+    if (bufferKey === 'shortNoise') {
+      return this.shortNoiseBuffer;
+    }
+
+    return null;
+  }
+
+  enforceVoiceLimit(time) {
+    while (this.activeVoices.size >= AudioEngine.MAX_VOICES) {
+      const voiceToSteal = this.findVoiceToSteal(time);
+      if (!voiceToSteal) {
+        return;
+      }
+
+      this.stealVoice(voiceToSteal, time);
+    }
+  }
+
+  findVoiceToSteal(time) {
+    let releasedVoice = null;
+    let oldestStartedVoice = null;
+    let latestFutureVoice = null;
+
+    for (const voice of this.activeVoices) {
+      if (voice.released) {
+        if (!releasedVoice || (voice.releaseAt ?? voice.startedAt) < (releasedVoice.releaseAt ?? releasedVoice.startedAt)) {
+          releasedVoice = voice;
+        }
+        continue;
+      }
+
+      if (voice.startedAt <= time + 0.001) {
+        if (!oldestStartedVoice || voice.startedAt < oldestStartedVoice.startedAt) {
+          oldestStartedVoice = voice;
+        }
+        continue;
+      }
+
+      if (!latestFutureVoice || voice.startedAt > latestFutureVoice.startedAt) {
+        latestFutureVoice = voice;
+      }
+    }
+
+    return releasedVoice || oldestStartedVoice || latestFutureVoice || null;
+  }
+
+  stealVoice(voice, time) {
+    if (!voice || voice.cleaned) {
+      return;
+    }
+
+    this.activeVoices.delete(voice);
+
+    const releaseStart = voice.startedAt > time ? voice.startedAt : time;
+    const stopAt = releaseStart + 0.03;
+
+    this.releaseVoice(voice, releaseStart, stopAt, true);
+  }
+
+  releaseVoice(voice, releaseStartTime, stopAtTime, force = false) {
+    if (!voice || voice.cleaned) {
+      return;
+    }
+
+    if (voice.released && !force) {
+      return;
+    }
+
+    const now = this.audioContext?.currentTime ?? 0;
+    const safeReleaseStart = Math.max(releaseStartTime, now);
+    const safeStopAt = Math.max(stopAtTime, safeReleaseStart + 0.005);
+
+    voice.released = true;
+    voice.releaseAt = safeReleaseStart;
+    voice.stopTime = Math.min(voice.stopTime ?? safeStopAt, safeStopAt);
+
+    try {
+      voice.envelopeGain.gain.cancelScheduledValues(safeReleaseStart);
+      const currentValue = safeReleaseStart > now + 0.001
+        ? 0.0001
+        : Math.max(voice.envelopeGain.gain.value, 0.0001);
+      voice.envelopeGain.gain.setValueAtTime(currentValue, safeReleaseStart);
+      voice.envelopeGain.gain.exponentialRampToValueAtTime(0.0001, safeStopAt);
+    } catch {}
+
+    try {
+      voice.oscillator.stop(safeStopAt);
+    } catch {}
+
+    if (voice.noiseSource) {
+      try {
+        voice.noiseSource.stop(safeStopAt);
+      } catch {}
+    }
+  }
+
+  buildLiveVoiceKey(frequency, voiceId) {
+    if (voiceId) {
+      return `id:${voiceId}`;
+    }
+
+    return `freq:${Number(frequency).toFixed(4)}`;
   }
 }
 
