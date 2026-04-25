@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { DEFAULT_SCORE_PARAMS, KEY_INFO_MAP } from '../constants/music';
+import audioEngine from '../services/audioEngine';
 import { normalizeScoreSource } from '../utils/score';
+
+function transposeFrequency(baseFrequency, semitoneOffset) {
+  return baseFrequency * 2 ** (semitoneOffset / 12);
+}
 
 function buildQueues(events, startTime) {
   const audioQueue = new Array(events.length);
@@ -21,17 +26,13 @@ function buildQueues(events, startTime) {
 }
 
 export function useScorePlayback({
-  audioCtx,
-  setupAudio,
-  triggerNote,
-  playLiveNote,
-  releaseLiveNote,
-  stopAllNodes,
   score,
   bpm,
   timeSigNum,
   timeSigDen,
   charResolution,
+  audioConfig,
+  accidentals,
   showToast,
   onKeyVisualAttack,
   onKeyVisualRelease,
@@ -42,13 +43,15 @@ export function useScorePlayback({
   const schedulerTimerRef = useRef(null);
   const visualTimerRef = useRef(null);
   const isPlayingRef = useRef(false);
-  const activeLiveKeysRef = useRef(new Set());
+  const activeLiveVoicesRef = useRef(new Map());
   const playbackConfigRef = useRef({
     score,
     bpm,
     timeSigNum,
     timeSigDen,
     charResolution,
+    audioConfig,
+    accidentals,
   });
 
   useEffect(() => {
@@ -58,8 +61,10 @@ export function useScorePlayback({
       timeSigNum,
       timeSigDen,
       charResolution,
+      audioConfig,
+      accidentals,
     };
-  }, [bpm, charResolution, score, timeSigDen, timeSigNum]);
+  }, [accidentals, audioConfig, bpm, charResolution, score, timeSigDen, timeSigNum]);
 
   const clearPlaybackTimers = useCallback(() => {
     if (schedulerTimerRef.current) clearTimeout(schedulerTimerRef.current);
@@ -75,43 +80,50 @@ export function useScorePlayback({
 
   const stopAll = useCallback(() => {
     clearPlaybackTimers();
-    activeLiveKeysRef.current.clear();
-    stopAllNodes();
+    activeLiveVoicesRef.current.clear();
+    audioEngine.stopAll();
     isPlayingRef.current = false;
     setIsPlaying(false);
     resetPlaybackVisuals();
-  }, [clearPlaybackTimers, resetPlaybackVisuals, stopAllNodes]);
+  }, [clearPlaybackTimers, resetPlaybackVisuals]);
 
   useEffect(() => () => {
     stopAll();
   }, [stopAll]);
 
   const handleKeyActivate = useCallback((keyK) => {
-    const activate = () => {
+    const activate = async () => {
       const info = KEY_INFO_MAP[keyK];
-      if (info && !activeLiveKeysRef.current.has(keyK)) {
-        const voice = playLiveNote(info, 0.9);
+      const current = playbackConfigRef.current;
+      const semitoneOffset =
+        Number(current.audioConfig?.globalKeyOffset || 0) + (current.accidentals?.[keyK] ? 1 : 0);
+      const frequency = info ? transposeFrequency(info.f, semitoneOffset) : null;
+
+      if (info && frequency && !activeLiveVoicesRef.current.has(keyK)) {
+        await audioEngine.resume();
+        const voice = audioEngine.playLiveNote(frequency, {
+          tone: current.audioConfig?.tone,
+          outputGain: current.audioConfig?.vol,
+          reverb: current.audioConfig?.reverb,
+          velocity: 0.9,
+          voiceId: keyK,
+        });
         if (voice) {
-          activeLiveKeysRef.current.add(keyK);
-          console.log(`[lyre] ${voice.noteName} ${voice.frequency.toFixed(2)}Hz`);
+          activeLiveVoicesRef.current.set(keyK, voice);
         }
       }
       onKeyVisualAttack(keyK);
     };
 
-    if (!audioCtx.current || audioCtx.current.state === 'suspended') {
-      setupAudio().then(activate);
-      return;
-    }
-
-    activate();
-  }, [audioCtx, onKeyVisualAttack, playLiveNote, setupAudio]);
+    void activate();
+  }, [onKeyVisualAttack]);
 
   const handleKeyDeactivate = useCallback((keyK) => {
-    activeLiveKeysRef.current.delete(keyK);
-    releaseLiveNote(keyK);
+    const voice = activeLiveVoicesRef.current.get(keyK);
+    activeLiveVoicesRef.current.delete(keyK);
+    audioEngine.releaseLiveVoice(voice ?? keyK);
     onKeyVisualRelease(keyK);
-  }, [onKeyVisualRelease, releaseLiveNote]);
+  }, [onKeyVisualRelease]);
 
   const playScoreAction = useCallback(async () => {
     if (isPlayingRef.current) {
@@ -120,7 +132,7 @@ export function useScorePlayback({
     }
 
     try {
-      await setupAudio();
+      await audioEngine.resume();
 
       const config = playbackConfigRef.current;
       const normalizedBpm = Number(config.bpm) || DEFAULT_SCORE_PARAMS.bpm;
@@ -140,7 +152,7 @@ export function useScorePlayback({
       isPlayingRef.current = true;
       setIsPlaying(true);
 
-      const startTime = audioCtx.current.currentTime + 0.3;
+      const startTime = audioEngine.getCurrentTime() + 0.3;
       const { audioQueue, visualQueue } = buildQueues(events, startTime);
       const activeVisualCounts = new Map();
 
@@ -151,12 +163,29 @@ export function useScorePlayback({
       const scheduleAudio = () => {
         if (!isPlayingRef.current) return;
 
-        const currentTime = audioCtx.current.currentTime;
+        const currentTime = audioEngine.getCurrentTime();
         while (noteIndex < audioQueue.length && audioQueue[noteIndex].time < currentTime + 0.5) {
           const event = audioQueue[noteIndex];
           noteIndex += 1;
           const info = KEY_INFO_MAP[event.k];
-          if (info) triggerNote(info, event.v, event.time, event.durationSec);
+          if (!info) {
+            continue;
+          }
+
+          const semitoneOffset =
+            Number(config.audioConfig?.globalKeyOffset || 0) + (config.accidentals?.[event.k] ? 1 : 0);
+
+          audioEngine.scheduleNote(
+            transposeFrequency(info.f, semitoneOffset),
+            event.time,
+            event.durationSec,
+            {
+              tone: config.audioConfig?.tone,
+              outputGain: config.audioConfig?.vol,
+              reverb: config.audioConfig?.reverb,
+              velocity: event.v,
+            },
+          );
         }
 
         if (noteIndex < audioQueue.length) {
@@ -167,7 +196,7 @@ export function useScorePlayback({
       const syncVisuals = () => {
         if (!isPlayingRef.current) return;
 
-        const currentTime = audioCtx.current.currentTime;
+        const currentTime = audioEngine.getCurrentTime();
         if (progressBarRef.current && maxTime > 0) {
           const progress = ((currentTime - startTime) / maxTime) * 100;
           progressBarRef.current.style.width = `${Math.min(100, Math.max(0, progress))}%`;
@@ -208,7 +237,7 @@ export function useScorePlayback({
       stopAll();
       showToast('播放失敗，請檢查琴譜內容', 'error');
     }
-  }, [audioCtx, onKeyVisualAttack, onKeyVisualRelease, setupAudio, showToast, stopAll, triggerNote]);
+  }, [showToast, stopAll]);
 
   return {
     isPlaying,
