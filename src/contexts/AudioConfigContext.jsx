@@ -33,11 +33,11 @@ export function AudioConfigProvider({
   useEffect(() => {
     setConfig((prev) => ({
       ...prev,
-      ...(initialConfig.vol === undefined ? null : { vol: initialConfig.vol }),
-      ...(initialConfig.tone === undefined ? null : { tone: initialConfig.tone }),
-      ...(initialConfig.reverb === undefined ? null : { reverb: initialConfig.reverb }),
-      ...(initialConfig.globalKeyOffset === undefined ? null : { globalKeyOffset: initialConfig.globalKeyOffset }),
-      ...(initialConfig.scaleMode === undefined ? null : { scaleMode: initialConfig.scaleMode }),
+      ...(initialConfig.vol === undefined ? {} : { vol: initialConfig.vol }),
+      ...(initialConfig.tone === undefined ? {} : { tone: initialConfig.tone }),
+      ...(initialConfig.reverb === undefined ? {} : { reverb: initialConfig.reverb }),
+      ...(initialConfig.globalKeyOffset === undefined ? {} : { globalKeyOffset: initialConfig.globalKeyOffset }),
+      ...(initialConfig.scaleMode === undefined ? {} : { scaleMode: initialConfig.scaleMode }),
     }));
   }, [
     initialConfig.globalKeyOffset,

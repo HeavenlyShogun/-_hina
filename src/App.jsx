@@ -68,7 +68,6 @@ function AppContent({
   setCharResolution,
   accidentals,
   setAccidentals,
-  scaleMode,
   user,
   savedScores,
   cloudStatus,
@@ -526,7 +525,6 @@ export default function App() {
         setCharResolution={setCharResolution}
         accidentals={accidentals}
         setAccidentals={setAccidentals}
-        scaleMode={scoreDocument.scaleMode}
         user={user}
         savedScores={savedScores}
         cloudStatus={cloudStatus}
