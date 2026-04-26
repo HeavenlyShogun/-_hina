@@ -119,6 +119,8 @@ const DYNAMIC_TONE_OVERRIDES = {
   }),
 };
 
+const VALID_OSCILLATOR_TYPES = new Set(['sine', 'square', 'sawtooth', 'triangle']);
+
 function createImpulseResponse(context, duration = 2.6, decay = 2.4) {
   const safeDuration = Math.max(Number(duration) || 0, 0.2);
   const safeDecay = Math.max(Number(decay) || 0, 0.1);
@@ -155,6 +157,10 @@ function compareVoicePriority(a, b, now) {
   }
 
   return (a.startTime ?? 0) - (b.startTime ?? 0);
+}
+
+function normalizeOscillatorType(type, fallback = 'triangle') {
+  return VALID_OSCILLATOR_TYPES.has(type) ? type : fallback;
 }
 
 class AudioEngine {
@@ -252,7 +258,7 @@ class AudioEngine {
 
     const config = this.resolveRenderConfig(noteConfig, noteDuration);
     const voice = this._buildVoice(context, safeFreq, startTime, noteDuration, config, {
-      type: noteConfig.type ?? 'scheduled',
+      mode: noteConfig.mode ?? 'scheduled',
       importance: noteConfig.importance ?? 100,
     });
 
@@ -275,7 +281,7 @@ class AudioEngine {
 
     const config = this.resolveRenderConfig(noteConfig, 30);
     const voice = this._buildVoice(context, safeFreq, now, 30, config, {
-      type: 'live',
+      mode: 'live',
       importance: noteConfig.importance ?? 80,
       liveVoiceKey: voiceKey,
       endTime: Infinity,
@@ -331,7 +337,7 @@ class AudioEngine {
     const endTime = voiceMeta.endTime ?? stopTime;
 
     const oscillator = context.createOscillator();
-    oscillator.type = config.type;
+    oscillator.type = normalizeOscillatorType(config.type);
     oscillator.frequency.setValueAtTime(safeFrequency, startTime);
 
     const envelopeGain = context.createGain();
@@ -386,7 +392,7 @@ class AudioEngine {
     wetGain.connect(this.reverbBus);
 
     const voice = {
-      type: voiceMeta.type ?? 'scheduled',
+      mode: voiceMeta.mode ?? 'scheduled',
       importance: voiceMeta.importance ?? 0,
       liveVoiceKey: voiceMeta.liveVoiceKey ?? null,
       startTime,

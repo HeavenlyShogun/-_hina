@@ -1,14 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle } from 'lucide-react';
+import ScoreConverter from './components/ScoreConverter';
 import ScoreEditor from './components/ScoreEditor';
 import ScoreLibrary from './components/ScoreLibrary';
 import WindParticles from './components/WindParticles';
 import PianoRoom from './pages/PianoRoom';
 import { AudioConfigProvider, useAudioConfig } from './contexts/AudioConfigContext';
 import { PlaybackProvider } from './contexts/PlaybackContext';
-import { mapKey } from './constants/music';
 import demoScore from './data/scores/demo.json';
 import { useCloudScores } from './hooks/useCloudScores';
+import useKeyboardMatcher from './hooks/useKeyboardMatcher';
+import usePracticeStats from './hooks/usePracticeStats';
 import { useScorePlayback } from './hooks/useScorePlayback';
 import { useScoreState } from './hooks/useScoreState';
 import {
@@ -16,18 +18,6 @@ import {
   parseScoreContent,
   SCORE_SOURCE_TYPES,
 } from './utils/scoreDocument';
-
-function isTypingTarget(target) {
-  if (!target) {
-    return false;
-  }
-
-  if (target.isContentEditable) {
-    return true;
-  }
-
-  return ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName);
-}
 
 function getFileTitle(filename) {
   return filename.replace(/\.[^/.]+$/, '');
@@ -86,9 +76,10 @@ function AppContent({
   const [toast, setToast] = useState(null);
   const [activeKeys, setActiveKeys] = useState(() => new Set());
   const [keyPulseTokens, setKeyPulseTokens] = useState({});
+  const [practiceFeedback, setPracticeFeedback] = useState(null);
 
   const toastTimerRef = useRef(null);
-  const pressedKeysRef = useRef(new Set());
+  const lastPracticeTickRef = useRef(0);
 
   const showToast = useCallback((message, type = 'info') => {
     if (toastTimerRef.current) {
@@ -148,7 +139,6 @@ function AppContent({
     isPaused,
     playbackState,
     progressBarRef,
-    isPlayingRef,
     playScoreAction,
     pauseScoreAction,
     resumeScoreAction,
@@ -171,57 +161,59 @@ function AppContent({
     onVisualReset,
   });
 
+  const {
+    practiceStats,
+    recordJudgement,
+  } = usePracticeStats({
+    scoreDocument,
+    playbackState,
+    missWindowTicks: 120,
+  });
+
+  useEffect(() => {
+    setPracticeFeedback(null);
+  }, [scoreDocument.rawText, scoreDocument.sourceType]);
+
+  useEffect(() => {
+    const currentTick = Math.max(0, Math.round(Number(playbackState?.currentTick) || 0));
+    const lastTick = lastPracticeTickRef.current;
+    const rewound = currentTick + 120 < lastTick;
+    const restarted = playbackState?.status === 'stopped' && currentTick === 0 && lastTick > 0;
+
+    if (rewound || restarted) {
+      setPracticeFeedback(null);
+    }
+
+    lastPracticeTickRef.current = currentTick;
+  }, [playbackState?.currentTick, playbackState?.status]);
+
+  const handlePracticeJudge = useCallback((judgement) => {
+    recordJudgement(judgement);
+    setPracticeFeedback({
+      ...judgement,
+      timestamp: judgement.judgedAt ?? Date.now(),
+    });
+  }, [recordJudgement]);
+
+  // Practice mode: bind keyboard input, live note preview, hit grading, and miss detection.
+  useKeyboardMatcher({
+    scoreDocument,
+    playbackState,
+    playHotkey,
+    onTogglePlay: playScoreAction,
+    onKeyActivate: handleKeyActivate,
+    onKeyDeactivate: handleKeyDeactivate,
+    onJudge: handlePracticeJudge,
+    perfectWindowTicks: 40,
+    hitWindowTicks: 120,
+  });
+
   const handleToggleSharp = useCallback((key) => {
     setAccidentals((prev) => ({
       ...prev,
       [key]: prev[key] ? 0 : 1,
     }));
   }, [setAccidentals]);
-
-  useEffect(() => {
-    const handleKeyDown = (event) => {
-      if (isTypingTarget(event.target)) {
-        return;
-      }
-
-      if (playHotkey !== 'None' && event.code === playHotkey) {
-        event.preventDefault();
-        void playScoreAction();
-        return;
-      }
-
-      if (event.repeat || isPlayingRef.current) {
-        return;
-      }
-
-      const mappedKey = mapKey(event.key);
-      if (!mappedKey || pressedKeysRef.current.has(mappedKey)) {
-        return;
-      }
-
-      event.preventDefault();
-      pressedKeysRef.current.add(mappedKey);
-      handleKeyActivate(mappedKey);
-    };
-
-    const handleKeyUp = (event) => {
-      const mappedKey = mapKey(event.key);
-      if (!mappedKey) {
-        return;
-      }
-
-      pressedKeysRef.current.delete(mappedKey);
-      handleKeyDeactivate(mappedKey);
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-    };
-  }, [handleKeyActivate, handleKeyDeactivate, isPlayingRef, playHotkey, playScoreAction]);
 
   const handleConnectCloud = useCallback(async () => {
     const result = await ensureCloudConnection();
@@ -334,6 +326,17 @@ function AppContent({
     showToast('Loaded JSON demo', 'success');
   }, [loadScoreSource, showToast, stopAll]);
 
+  const handleLoadLocalConvertedScore = useCallback((payload) => {
+    loadScoreSource({
+      title: payload?.meta?.title ?? 'Local JSON Score',
+      content: payload,
+      sourceType: SCORE_SOURCE_TYPES.JSON,
+      ...payload?.transport,
+      ...payload?.playback,
+    });
+    stopAll();
+  }, [loadScoreSource, stopAll]);
+
   const editorScore = useMemo(() => {
     if (scoreDocument.sourceType === SCORE_SOURCE_TYPES.JSON) {
       try {
@@ -420,20 +423,36 @@ function AppContent({
             onConnectCloud={handleConnectCloud}
             cloudStatus={cloudStatus}
           />
-          <ScoreEditor
-            score={editorScore}
-            setScore={setScore}
-            scoreTitle={scoreTitle}
-            setScoreTitle={setScoreTitle}
-            onImport={handleImportLocal}
-            onLoadJsonDemo={handleLoadJsonDemo}
-            onExport={handleExportLocal}
-            onSave={handleSaveScore}
-            onReset={handleResetScore}
-            isSaving={isSaving}
-            onConnectCloud={handleConnectCloud}
-            cloudStatus={cloudStatus}
-          />
+          <div className="flex flex-col">
+            <ScoreEditor
+              score={editorScore}
+              setScore={setScore}
+              scoreTitle={scoreTitle}
+              setScoreTitle={setScoreTitle}
+              practiceFeedback={practiceFeedback}
+              practiceStats={practiceStats}
+              onImport={handleImportLocal}
+              onLoadJsonDemo={handleLoadJsonDemo}
+              onExport={handleExportLocal}
+              onSave={handleSaveScore}
+              onReset={handleResetScore}
+              isSaving={isSaving}
+              onConnectCloud={handleConnectCloud}
+              cloudStatus={cloudStatus}
+            />
+            <ScoreConverter
+              scoreTitle={scoreTitle}
+              scoreDocument={scoreDocument}
+              bpm={bpm}
+              timeSigNum={timeSigNum}
+              timeSigDen={timeSigDen}
+              charResolution={charResolution}
+              audioConfig={audioConfig}
+              accidentals={accidentals}
+              showToast={showToast}
+              onLoadLocalScore={handleLoadLocalConvertedScore}
+            />
+          </div>
         </section>
 
         <footer className="z-20 mt-16 opacity-20 text-[10px] tracking-[0.6em] uppercase">

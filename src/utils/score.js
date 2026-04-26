@@ -4,29 +4,11 @@ const OCTAVE_PREFIXES = new Set(['+', '-', '??', '??']);
 const DEFAULT_TRACK_ID = 'main';
 const DEFAULT_NOTE_VELOCITY = 0.85;
 const DEFAULT_CHORD_STRUM_MS = 12;
+export const PPQ = 96;
 
 function stripScoreComments(text) {
   // Score spacing carries timing data, so only strip inline comments.
   return text.replace(/\/\/.*$/gm, '');
-}
-
-function gcd(a, b) {
-  let x = Math.abs(Math.trunc(a));
-  let y = Math.abs(Math.trunc(b));
-
-  while (y !== 0) {
-    const next = x % y;
-    x = y;
-    y = next;
-  }
-
-  return x || 1;
-}
-
-function lcm(a, b) {
-  const safeA = Math.max(1, Math.trunc(a));
-  const safeB = Math.max(1, Math.trunc(b));
-  return Math.abs(safeA * safeB) / gcd(safeA, safeB);
 }
 
 function ticksToSeconds(ticks, bpm, resolution) {
@@ -63,10 +45,7 @@ function sortEvents(events) {
 function createPlaybackState(overrides = {}) {
   const timeSigDen = Number(overrides.timeSigDen) || DEFAULT_SCORE_PARAMS.timeSigDen;
   const charResolution = Number(overrides.charResolution) || DEFAULT_SCORE_PARAMS.charResolution;
-  const resolution = Math.max(
-    1,
-    Math.round(Number(overrides.resolution) || (charResolution / timeSigDen)),
-  );
+  const resolution = Math.max(1, Math.round(Number(overrides.resolution) || PPQ));
 
   return {
     bpm: Number(overrides.bpm) || DEFAULT_SCORE_PARAMS.bpm,
@@ -101,7 +80,13 @@ function createNormalizedNoteEvent({
   velocity,
   resolution,
   bpm,
+  isRest = false,
   trackId = DEFAULT_TRACK_ID,
+  frequency = null,
+  noteName = null,
+  midi = null,
+  pitchClass = null,
+  octave = null,
 }) {
   const safeTick = Math.max(0, Math.round(Number(tick) || 0));
   const safeDurationTicks = Math.max(1, Math.round(Number(durationTicks) || 0));
@@ -110,12 +95,18 @@ function createNormalizedNoteEvent({
     time: ticksToSeconds(safeTick, bpm, resolution),
     tick: safeTick,
     k: key,
+    isRest,
     durationSec: ticksToSeconds(safeDurationTicks, bpm, resolution),
     durationTick: safeDurationTicks,
     durationTicks: safeDurationTicks,
     resolution,
     v: clampVelocity(velocity),
     trackId,
+    frequency: Number.isFinite(Number(frequency)) ? Number(frequency) : null,
+    noteName: noteName ?? null,
+    midi: Number.isFinite(Number(midi)) ? Number(midi) : null,
+    pitchClass: pitchClass ?? null,
+    octave: Number.isFinite(Number(octave)) ? Number(octave) : null,
   };
 }
 
@@ -154,6 +145,12 @@ function parseBeatItems(segment) {
     const char = segment[index];
 
     if (char === ' ' || char === '\t' || char === '\u3000') {
+      index += 1;
+      continue;
+    }
+
+    if (char === '0') {
+      items.push({ type: 'rest' });
       index += 1;
       continue;
     }
@@ -201,19 +198,15 @@ function parseBeatItems(segment) {
 }
 
 export function parseLegacyScoreText(text, config = {}) {
-  const basePlayback = createPlaybackState(config);
+  const basePlayback = createPlaybackState({
+    ...config,
+    resolution: PPQ,
+  });
   const cleanText = stripScoreComments(String(text ?? ''));
   const parsedBeats = splitBeatSegments(cleanText).map(parseBeatItems);
-  const effectiveResolution = parsedBeats.reduce((resolution, beatItems) => {
-    if (!beatItems.length) {
-      return resolution;
-    }
-
-    return lcm(resolution, beatItems.length);
-  }, basePlayback.resolution);
   const playback = {
     ...basePlayback,
-    resolution: effectiveResolution,
+    resolution: PPQ,
   };
   const events = [];
 
@@ -222,13 +215,12 @@ export function parseLegacyScoreText(text, config = {}) {
       return;
     }
 
-    const beatStartTick = beatIndex * playback.resolution;
+    const beatStartTick = beatIndex * PPQ;
     const subdivisionCount = beatItems.length;
+    const durationTicks = PPQ / subdivisionCount;
 
     beatItems.forEach((item, subdivisionIndex) => {
-      const startTick = beatStartTick + ((subdivisionIndex * playback.resolution) / subdivisionCount);
-      const endTick = beatStartTick + (((subdivisionIndex + 1) * playback.resolution) / subdivisionCount);
-      const durationTicks = endTick - startTick;
+      const startTick = beatStartTick + (subdivisionIndex * durationTicks);
 
       if (item.type === 'chord') {
         item.keys.forEach((key) => {
@@ -236,7 +228,7 @@ export function parseLegacyScoreText(text, config = {}) {
             tick: startTick,
             key,
             durationTicks,
-            resolution: playback.resolution,
+            resolution: PPQ,
             bpm: playback.bpm,
             velocity: DEFAULT_NOTE_VELOCITY,
           }));
@@ -244,11 +236,24 @@ export function parseLegacyScoreText(text, config = {}) {
         return;
       }
 
+      if (item.type === 'rest') {
+        events.push(createNormalizedNoteEvent({
+          tick: startTick,
+          key: null,
+          durationTicks,
+          resolution: PPQ,
+          bpm: playback.bpm,
+          velocity: 0,
+          isRest: true,
+        }));
+        return;
+      }
+
       events.push(createNormalizedNoteEvent({
         tick: startTick,
         key: item.key,
         durationTicks,
-        resolution: playback.resolution,
+        resolution: PPQ,
         bpm: playback.bpm,
         velocity: DEFAULT_NOTE_VELOCITY,
       }));
@@ -260,8 +265,11 @@ export function parseLegacyScoreText(text, config = {}) {
 
 function normalizeJsonEvent(event, context) {
   const type = event?.type ?? 'note';
-  const tick = Math.max(0, Math.round(Number(event?.tick) || 0));
-  const durationTicks = Math.max(1, Math.round(Number(event?.duration) || 0));
+  const tick = Math.max(0, Math.round(Number(event?.tick ?? event?.startTick) || 0));
+  const durationTicks = Math.max(
+    1,
+    Math.round(Number(event?.durationTicks ?? event?.durationTick ?? event?.duration) || 0),
+  );
   const velocity = clampVelocity(event?.velocity);
   const trackId = context.trackId;
 
@@ -292,8 +300,22 @@ function normalizeJsonEvent(event, context) {
       .filter(Boolean);
   }
 
+  if (type === 'rest') {
+    return [createNormalizedNoteEvent({
+      tick,
+      key: null,
+      durationTicks,
+      resolution: context.resolution,
+      bpm: context.bpm,
+      velocity: 0,
+      isRest: true,
+      trackId,
+    })];
+  }
+
   const mappedKey = mapKey(event?.key);
-  if (!mappedKey) return [];
+  const frequency = Number.isFinite(Number(event?.frequency)) ? Number(event.frequency) : null;
+  if (!mappedKey && !frequency) return [];
 
   return [createNormalizedNoteEvent({
     tick,
@@ -303,6 +325,11 @@ function normalizeJsonEvent(event, context) {
     bpm: context.bpm,
     velocity,
     trackId,
+    frequency,
+    noteName: event?.noteName ?? event?.note ?? null,
+    midi: event?.midi ?? null,
+    pitchClass: event?.pitchClass ?? null,
+    octave: event?.octave ?? null,
   })];
 }
 
@@ -317,7 +344,7 @@ export function parseScoreJson(scoreJson) {
     resolution: transport.resolution,
     ...(scoreJson.playback ?? {}),
   });
-  const resolution = Math.max(1, Math.round(Number(transport.resolution) || playback.resolution || 480));
+  const resolution = Math.max(1, Math.round(Number(transport.resolution) || playback.resolution || PPQ));
   const tracks = Array.isArray(scoreJson.tracks) ? scoreJson.tracks : [];
   const events = [];
 

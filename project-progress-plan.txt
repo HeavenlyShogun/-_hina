@@ -7,6 +7,35 @@
 
 這個專案已經完成「可演奏、可播放、可切換音色、可匯入匯出、可同步 Firebase 曲庫」的主體架構；目前主軸已從「能不能跑」轉為「播放能力深化、譜面模型升級、UI/UX 細修、音色系統擴充」。
 
+## 最新同步（2026-04-26 工作區）
+
+- 目前最新進度不只在既有基底，還包含一批尚未提交但已接線完成的功能。
+- 已新增練習模式：
+  - `useKeyboardMatcher`
+  - `usePracticeStats`
+  - 支援鍵盤即時判定、PERFECT / GOOD / MISS、combo、每小節統計
+- 已新增 `SheetDisplay` 播放頭時軸：
+  - 可視化 playhead
+  - click-to-seek
+  - legacy 文字譜與 JSON section segmentation
+- 已新增 `ScoreConverter`：
+  - 文字譜轉本地 V2 JSON
+  - JSON 下載
+  - `localStorage` 暫存與重新載入
+- 已新增 MIDI 匯入流程：
+  - `@tonejs/midi`
+  - `src/utils/midiToV2.js`
+  - 轉成 V2 JSON，保留 tempo、拍號、PPQ、多 track 與 MIDI note metadata
+- `src/utils/score.js` 已補強：
+  - legacy 譜面統一 `PPQ = 96`
+  - 支援 rest event
+  - 補齊 `frequency`、`noteName`、`midi`、`pitchClass`、`octave`
+- `src/services/playbackController.js` 已補強：
+  - rest event 不發音
+  - scheduled note metadata 改用 `mode`
+- `src/services/audioEngine.js` 已補強 oscillator type 正規化與 voice metadata 命名一致性。
+- 建置驗證：`npm.cmd run build` 已於 2026-04-26 通過。
+
 ## 目前技術基底
 
 - 前端：React 19 + Vite + Tailwind CSS
@@ -125,50 +154,51 @@
 ### A. 架構穩定後的第二階段整理
 
 - 專案已從「快速做出可用功能」進入「統一資料流與整理 UI」階段。
+- 最新工作區已開始把產品重心從單純播放器延伸到「練習模式」與「格式轉換工具」，代表第二階段已不只是整理，而是進入功能深化。
 - 舊說明裡提過要移除的舊音色下拉控制，目前畫面已主要改走 `InstrumentSelector`，但仍需確認整體控制介面是否完全去重。
-- 文件內容與實際程式碼已有落差，現在需要同步補齊 README、交接說明與 AI 用摘要。
+- 文件內容與實際程式碼已有明顯落差，現在需要同步補齊 README、交接說明與 AI 用摘要，尤其是 practice mode、playhead、converter、MIDI import。
 
 ### B. 樂譜模型升級的中繼期
 
 - 現在已有 JSON score 基礎，但還沒有完整擴充到成熟 DAW 式模型。
+- converter 與 MIDI import 已經開始產出 V2 JSON，下一步應該收斂這份 schema，而不是再讓格式自由擴散。
 - 多 track 是「資料格式已留入口」，但不是完整編輯工作流。
 - chord 已支援基本展開與 strum，articulation / dynamics / section metadata 仍未正式完成。
 
 ### C. 播放系統進階能力
 
 - pause / resume / seek 已存在，但還沒做 section loop、A/B loop、段落播放等完整控制。
+- 現在已經有播放頭時軸與 click-to-seek 視覺入口，代表段落播放與 section control 的 UI 基礎已經出現。
 - playback rate 邏輯已存在，但 UI 尚未完整暴露成使用者可直覺操作的功能。
 - 長曲、複雜曲目的壓力測試與邊界驗證仍值得補。
 
 ### D. UI/UX 細修
 
 - `InstrumentSelector` 功能已可用，但視覺表現仍偏簡單，尚未完全達到主題化介面水準。
+- `SheetDisplay` 已新增練習回饋與統計面板，但仍需要實際操作驗證資訊密度、提示節奏與手機版可用性。
 - 手機版與小螢幕體驗還需要進一步檢查按鍵密度、控制面板層級與可點擊區域。
 - 樂譜編輯、曲庫、播放狀態之間的提示仍可更清楚。
 
 ## 下一階段優先順序
 
-### P1. 文件與可維護性
+### P1. 文件同步與手動驗證
 
 - 更新 README，讓它反映目前真實架構，而不是早期部署說明為主。
 - 補一份給 AI / 接手開發者看的技術摘要。
-- 明確寫出文字譜與 JSON score 的格式規格。
+- 把 practice mode、playhead timeline、converter、MIDI import 寫進文件。
+- 手動驗證 practice grading、timeline seek、MIDI import 與頻率 fallback 的實際行為。
 
-### P2. UI 控制整合
+### P2. 樂譜模型收斂
 
-- 檢查 `ControlPanel`、`InstrumentSelector`、`AppHeader` 是否有設定重複或心智模型分裂。
-- 決定播放控制、音色控制、調性控制、樂譜控制的最終分區。
-- 把 playback rate、seek 類能力決定是否升級成正式 UI。
+- 以 converter / MIDI import 的輸出為基礎，收斂正式 V2 JSON schema。
+- 補齊 `section / marker / loop / articulation / dynamics / 多 track` 的實際欄位定義。
+- 決定本地轉檔結果與雲端曲庫資料結構是否要對齊。
 
-### P3. 樂譜模型擴充
+### P3. UI 控制整合
 
-- 先擴充 JSON score schema：
-  - section / marker
-  - loop metadata
-  - articulation
-  - dynamics
-  - 多 track 更明確欄位
-- 再決定編輯器如何輸入這些資料，不要先把 UI 做重。
+- 檢查 `ControlPanel`、`InstrumentSelector`、`AppHeader`、`SheetDisplay` 是否有設定重複或心智模型分裂。
+- 決定播放控制、音色控制、調性控制、樂譜控制、練習模式控制的最終分區。
+- 把 playback rate、seek、practice 相關能力決定是否升級成正式 UI。
 
 ### P4. 播放能力深化
 

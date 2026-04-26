@@ -1,12 +1,12 @@
 import audioEngine from './audioEngine';
 import { KEY_INFO_MAP } from '../constants/music';
+import { PPQ } from '../utils/score';
 
 const LOOKAHEAD_INTERVAL_MS = 25;
 const SCHEDULE_AHEAD_SEC = 0.5;
 const PLAY_START_DELAY_SEC = 0.3;
 const STOP_TAIL_SEC = 0.12;
 const MAX_VISUAL_HOLD_SEC = 0.2;
-const DEFAULT_TICKS_PER_BEAT = 480;
 const DEFAULT_BPM = 120;
 
 function clamp(value, min, max) {
@@ -28,8 +28,8 @@ function normalizePlaybackRate(rate) {
 
 function createTimingModel(playback = {}) {
   const bpm = Math.max(Number(playback?.bpm) || DEFAULT_BPM, 1);
-  const resolution = Math.max(Number(playback?.resolution) || DEFAULT_TICKS_PER_BEAT, 1);
-  const secondsPerTick = 60 / (bpm * resolution);
+  const resolution = Math.max(Number(playback?.resolution) || PPQ, 1);
+  const secondsPerTick = (60 / bpm) / resolution;
 
   return {
     bpm,
@@ -83,6 +83,7 @@ function normalizeEvents(events, timing) {
         durationSec,
         durationTicks,
         k: event?.k ?? event?.key ?? null,
+        isRest: Boolean(event?.isRest || event?.type === 'rest'),
         v: Number.isFinite(Number(event?.v)) ? Number(event.v) : 0.85,
         importance: Number.isFinite(Number(event?.importance)) ? Number(event.importance) : 100,
         trackId: event?.trackId ?? 'main',
@@ -591,6 +592,10 @@ class PlaybackController {
   }
 
   scheduleEvent(event, absoluteTime, durationSec = event.durationSec) {
+    if (event?.isRest) {
+      return;
+    }
+
     const frequency = this.resolveEventFrequency(event);
     if (!Number.isFinite(frequency) || frequency <= 0) {
       return;
@@ -598,7 +603,7 @@ class PlaybackController {
 
     this.audioEngine.scheduleNote(frequency, absoluteTime, durationSec, {
       tone: this.snapshot.tone,
-      type: 'scheduled',
+      mode: 'scheduled',
       importance: event.importance ?? 100,
       outputGain: this.snapshot.vol,
       reverb: this.snapshot.reverb,
