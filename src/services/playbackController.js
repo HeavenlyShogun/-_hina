@@ -46,6 +46,10 @@ function secondsToTicks(seconds, timing) {
   return Math.max(Number(seconds) || 0, 0) / timing.secondsPerTick;
 }
 
+function roundTick(value) {
+  return Math.max(0, Math.round(Number(value) || 0));
+}
+
 function normalizeEvents(events, timing) {
   if (!Array.isArray(events)) {
     return [];
@@ -56,17 +60,17 @@ function normalizeEvents(events, timing) {
       const rawTick = Number(event?.tick);
       const rawTime = Number(event?.time);
       const tick = Number.isFinite(rawTick)
-        ? Math.max(rawTick, 0)
-        : secondsToTicks(rawTime, timing);
-      const time = Number.isFinite(rawTime)
-        ? Math.max(rawTime, 0)
-        : ticksToSeconds(tick, timing);
-      const rawDurationTicks = Number(event?.durationTicks ?? event?.duration);
-      const durationSec = Math.max(Number(event?.durationSec) || ticksToSeconds(rawDurationTicks, timing) || 0.1, 0.02);
+        ? roundTick(rawTick)
+        : roundTick(secondsToTicks(rawTime, timing));
+      const time = ticksToSeconds(tick, timing);
+      const rawDurationTicks = Number(event?.durationTick ?? event?.durationTicks ?? event?.duration);
       const durationTicks = Math.max(
-        Number.isFinite(rawDurationTicks) ? rawDurationTicks : secondsToTicks(durationSec, timing),
-        timing.resolution * 0.02,
+        Number.isFinite(rawDurationTicks)
+          ? roundTick(rawDurationTicks)
+          : roundTick(secondsToTicks(Number(event?.durationSec) || 0.1, timing)),
+        1,
       );
+      const durationSec = Math.max(ticksToSeconds(durationTicks, timing), 0.02);
 
       if (!Number.isFinite(time) || time < 0 || !Number.isFinite(tick) || tick < 0) {
         return null;
@@ -159,7 +163,7 @@ class PlaybackController {
     this.events = normalizeEvents(events, this.timing);
     this.maxTick = Math.max(
       this.events.reduce((result, event) => Math.max(result, event.tick + event.durationTicks), 0),
-      secondsToTicks(maxTime, this.timing),
+      roundTick(secondsToTicks(maxTime, this.timing)),
     );
     this.maxTime = Math.max(Number(maxTime) || 0, ticksToSeconds(this.maxTick, this.timing));
     this.currentPointer = 0;
@@ -624,16 +628,16 @@ class PlaybackController {
     }
 
     if (typeof target === 'number') {
-      return clamp(secondsToTicks(target, this.timing), 0, this.maxTick);
+      return clamp(roundTick(secondsToTicks(target, this.timing)), 0, this.maxTick);
     }
 
     if (target && typeof target === 'object') {
       if (Number.isFinite(Number(target.tick))) {
-        return clamp(Number(target.tick), 0, this.maxTick);
+        return clamp(roundTick(Number(target.tick)), 0, this.maxTick);
       }
 
       if (Number.isFinite(Number(target.time))) {
-        return clamp(secondsToTicks(Number(target.time), this.timing), 0, this.maxTick);
+        return clamp(roundTick(secondsToTicks(Number(target.time), this.timing)), 0, this.maxTick);
       }
 
       if (Number.isFinite(Number(target.index))) {
@@ -681,7 +685,10 @@ class PlaybackController {
   }
 
   getVisualOffTick(event) {
-    const visualHoldTick = secondsToTicks(Math.min(event.durationSec ?? 0.2, MAX_VISUAL_HOLD_SEC), this.timing);
+    const visualHoldTick = Math.max(
+      1,
+      roundTick(secondsToTicks(Math.min(event.durationSec ?? 0.2, MAX_VISUAL_HOLD_SEC), this.timing)),
+    );
     return event.tick + visualHoldTick;
   }
 

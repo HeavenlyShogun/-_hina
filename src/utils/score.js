@@ -1,6 +1,6 @@
 import { DEFAULT_SCORE_PARAMS, mapKey } from '../constants/music';
 
-const OCTAVE_PREFIXES = new Set(['+', '-', '↑', '↓']);
+const OCTAVE_PREFIXES = new Set(['+', '-', '??', '??']);
 const DEFAULT_TRACK_ID = 'main';
 const DEFAULT_NOTE_VELOCITY = 0.85;
 const DEFAULT_CHORD_STRUM_MS = 12;
@@ -10,10 +10,27 @@ function stripScoreComments(text) {
   return text.replace(/\/\/.*$/gm, '');
 }
 
-function createLegacyTiming(bpmVal, sigNum, sigDen, charRes) {
-  const beatDuration = 60 / bpmVal;
-  const tickDuration = beatDuration * (sigDen / charRes);
-  return { beatDuration, tickDuration };
+function gcd(a, b) {
+  let x = Math.abs(Math.trunc(a));
+  let y = Math.abs(Math.trunc(b));
+
+  while (y !== 0) {
+    const next = x % y;
+    x = y;
+    y = next;
+  }
+
+  return x || 1;
+}
+
+function lcm(a, b) {
+  const safeA = Math.max(1, Math.trunc(a));
+  const safeB = Math.max(1, Math.trunc(b));
+  return Math.abs(safeA * safeB) / gcd(safeA, safeB);
+}
+
+function ticksToSeconds(ticks, bpm, resolution) {
+  return (Number(ticks) || 0) * (60 / bpm) / resolution;
 }
 
 function readToken(text, startIndex) {
@@ -38,7 +55,7 @@ function clampVelocity(value, fallback = DEFAULT_NOTE_VELOCITY) {
 
 function sortEvents(events) {
   return [...events].sort((left, right) => {
-    if (left.time !== right.time) return left.time - right.time;
+    if (left.tick !== right.tick) return left.tick - right.tick;
     return left.k.localeCompare(right.k);
   });
 }
@@ -46,7 +63,10 @@ function sortEvents(events) {
 function createPlaybackState(overrides = {}) {
   const timeSigDen = Number(overrides.timeSigDen) || DEFAULT_SCORE_PARAMS.timeSigDen;
   const charResolution = Number(overrides.charResolution) || DEFAULT_SCORE_PARAMS.charResolution;
-  const resolution = Math.max(1, Number(overrides.resolution) || (charResolution / timeSigDen));
+  const resolution = Math.max(
+    1,
+    Math.round(Number(overrides.resolution) || (charResolution / timeSigDen)),
+  );
 
   return {
     bpm: Number(overrides.bpm) || DEFAULT_SCORE_PARAMS.bpm,
@@ -62,153 +82,186 @@ function createPlaybackState(overrides = {}) {
 
 function buildNormalizedResult(events, playback) {
   const sortedEvents = sortEvents(events);
-  const maxTime = sortedEvents.reduce(
-    (currentMax, event) => Math.max(currentMax, event.time + (event.durationSec ?? 0)),
+  const maxTick = sortedEvents.reduce(
+    (currentMax, event) => Math.max(currentMax, event.tick + event.durationTicks),
     0,
   );
 
   return {
     events: sortedEvents,
-    maxTime,
+    maxTime: ticksToSeconds(maxTick, playback.bpm, playback.resolution),
     playback,
   };
 }
 
 function createNormalizedNoteEvent({
-  time,
   tick,
   key,
-  durationSec,
   durationTicks,
   velocity,
   resolution,
+  bpm,
   trackId = DEFAULT_TRACK_ID,
 }) {
+  const safeTick = Math.max(0, Math.round(Number(tick) || 0));
+  const safeDurationTicks = Math.max(1, Math.round(Number(durationTicks) || 0));
+
   return {
-    time,
-    tick,
+    time: ticksToSeconds(safeTick, bpm, resolution),
+    tick: safeTick,
     k: key,
-    durationSec,
-    durationTicks,
+    durationSec: ticksToSeconds(safeDurationTicks, bpm, resolution),
+    durationTick: safeDurationTicks,
+    durationTicks: safeDurationTicks,
     resolution,
     v: clampVelocity(velocity),
     trackId,
   };
 }
 
-export function parseLegacyScoreText(text, config = {}) {
-  const playback = createPlaybackState(config);
-  const charResolution = Number(config.charResolution) || DEFAULT_SCORE_PARAMS.charResolution;
-  const events = [];
-  const { beatDuration, tickDuration } = createLegacyTiming(
-    playback.bpm,
-    playback.timeSigNum,
-    playback.timeSigDen,
-    charResolution,
-  );
-  const cleanText = stripScoreComments(String(text ?? ''));
-  let currentTime = 0;
-  let currentTick = 0;
-  const ticksPerStep = Math.max(1, Number(playback.resolution) || 1);
-  const defaultDurationTicks = ticksPerStep * 4;
-  let index = 0;
+function splitBeatSegments(text) {
+  const beatSegments = [];
+  let currentSegment = '';
 
-  while (index < cleanText.length) {
-    const char = cleanText[index];
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
 
-    if (char === '\n' || char === '\r') {
-      index += 1;
+    if (char === '/') {
+      beatSegments.push(currentSegment);
+      currentSegment = '';
       continue;
     }
 
+    if (char === '\r' || char === '\n' || char === '|') {
+      continue;
+    }
+
+    currentSegment += char;
+  }
+
+  if (currentSegment.trim().length > 0) {
+    beatSegments.push(currentSegment);
+  }
+
+  return beatSegments;
+}
+
+function parseBeatItems(segment) {
+  const items = [];
+  let index = 0;
+
+  while (index < segment.length) {
+    const char = segment[index];
+
     if (char === ' ' || char === '\t' || char === '\u3000') {
-      currentTime += tickDuration;
-      currentTick += ticksPerStep;
       index += 1;
       continue;
     }
 
     if (char === '(') {
       index += 1;
-      const chordKeys = [];
+      const keys = [];
 
-      while (index < cleanText.length && cleanText[index] !== ')') {
-        const chordChar = cleanText[index];
-        if (chordChar === ' ' || chordChar === '\n' || chordChar === '\r' || chordChar === '\t') {
+      while (index < segment.length && segment[index] !== ')') {
+        const innerChar = segment[index];
+
+        if (innerChar === ' ' || innerChar === '\t' || innerChar === '\u3000') {
           index += 1;
           continue;
         }
 
-        const { token, nextIndex } = readToken(cleanText, index);
+        const { token, nextIndex } = readToken(segment, index);
         const mappedKey = mapKey(token);
-        if (mappedKey) chordKeys.push(mappedKey);
+        if (mappedKey) {
+          keys.push(mappedKey);
+        }
         index = nextIndex;
       }
 
-      if (cleanText[index] === ')') index += 1;
+      if (segment[index] === ')') {
+        index += 1;
+      }
 
-      if (chordKeys.length > 0) {
-        chordKeys.forEach((key, chordIndex) => {
-          const strumOffsetSec = (DEFAULT_CHORD_STRUM_MS * chordIndex) / 1000;
-          const strumOffsetTicks = (strumOffsetSec * playback.bpm * playback.resolution) / 60;
-          events.push(createNormalizedNoteEvent({
-            time: currentTime + strumOffsetSec,
-            tick: currentTick + strumOffsetTicks,
-            key,
-            durationSec: tickDuration * 4,
-            durationTicks: defaultDurationTicks,
-            resolution: playback.resolution,
-            velocity: DEFAULT_NOTE_VELOCITY,
-          }));
-        });
-        currentTime += tickDuration;
-        currentTick += ticksPerStep;
+      if (keys.length > 0) {
+        items.push({ type: 'chord', keys });
       }
 
       continue;
     }
 
-    if (char === '|') {
-      const beats = currentTime / beatDuration;
-      if (Math.abs(beats - Math.round(beats)) > 0.01) {
-        currentTime = Math.ceil(beats - 0.01) * beatDuration;
-        currentTick = Math.ceil(beats - 0.01) * playback.resolution;
-      }
-      index += 1;
-      continue;
-    }
-
-    const { token, nextIndex } = readToken(cleanText, index);
+    const { token, nextIndex } = readToken(segment, index);
     const mappedKey = mapKey(token);
     if (mappedKey) {
-      events.push(createNormalizedNoteEvent({
-        time: currentTime,
-        tick: currentTick,
-        key: mappedKey,
-        durationSec: tickDuration * 4,
-        durationTicks: defaultDurationTicks,
-        resolution: playback.resolution,
-        velocity: DEFAULT_NOTE_VELOCITY,
-      }));
-      currentTime += tickDuration;
-      currentTick += ticksPerStep;
+      items.push({ type: 'note', key: mappedKey });
     }
     index = nextIndex;
   }
 
-  return buildNormalizedResult(events, playback);
+  return items;
 }
 
-function ticksToSeconds(ticks, bpm, resolution) {
-  return (Number(ticks) || 0) * (60 / bpm) / resolution;
+export function parseLegacyScoreText(text, config = {}) {
+  const basePlayback = createPlaybackState(config);
+  const cleanText = stripScoreComments(String(text ?? ''));
+  const parsedBeats = splitBeatSegments(cleanText).map(parseBeatItems);
+  const effectiveResolution = parsedBeats.reduce((resolution, beatItems) => {
+    if (!beatItems.length) {
+      return resolution;
+    }
+
+    return lcm(resolution, beatItems.length);
+  }, basePlayback.resolution);
+  const playback = {
+    ...basePlayback,
+    resolution: effectiveResolution,
+  };
+  const events = [];
+
+  parsedBeats.forEach((beatItems, beatIndex) => {
+    if (!beatItems.length) {
+      return;
+    }
+
+    const beatStartTick = beatIndex * playback.resolution;
+    const subdivisionCount = beatItems.length;
+
+    beatItems.forEach((item, subdivisionIndex) => {
+      const startTick = beatStartTick + ((subdivisionIndex * playback.resolution) / subdivisionCount);
+      const endTick = beatStartTick + (((subdivisionIndex + 1) * playback.resolution) / subdivisionCount);
+      const durationTicks = endTick - startTick;
+
+      if (item.type === 'chord') {
+        item.keys.forEach((key) => {
+          events.push(createNormalizedNoteEvent({
+            tick: startTick,
+            key,
+            durationTicks,
+            resolution: playback.resolution,
+            bpm: playback.bpm,
+            velocity: DEFAULT_NOTE_VELOCITY,
+          }));
+        });
+        return;
+      }
+
+      events.push(createNormalizedNoteEvent({
+        tick: startTick,
+        key: item.key,
+        durationTicks,
+        resolution: playback.resolution,
+        bpm: playback.bpm,
+        velocity: DEFAULT_NOTE_VELOCITY,
+      }));
+    });
+  });
+
+  return buildNormalizedResult(events, playback);
 }
 
 function normalizeJsonEvent(event, context) {
   const type = event?.type ?? 'note';
-  const tick = Number(event?.tick) || 0;
-  const durationTicks = Math.max(0, Number(event?.duration) || 0);
-  const baseTime = ticksToSeconds(tick, context.bpm, context.resolution);
-  const durationSec = ticksToSeconds(durationTicks, context.bpm, context.resolution);
+  const tick = Math.max(0, Math.round(Number(event?.tick) || 0));
+  const durationTicks = Math.max(1, Math.round(Number(event?.duration) || 0));
   const velocity = clampVelocity(event?.velocity);
   const trackId = context.trackId;
 
@@ -222,16 +275,16 @@ function normalizeJsonEvent(event, context) {
       .map((rawKey, chordIndex) => {
         const mappedKey = mapKey(rawKey);
         if (!mappedKey) return null;
+
         const strumOffsetSec = (strumMs * chordIndex) / 1000;
-        const strumOffsetTicks = (strumOffsetSec * context.bpm * context.resolution) / 60;
+        const strumOffsetTicks = Math.round((strumOffsetSec * context.bpm * context.resolution) / 60);
 
         return createNormalizedNoteEvent({
-          time: baseTime + strumOffsetSec,
           tick: tick + strumOffsetTicks,
           key: mappedKey,
-          durationSec,
           durationTicks,
           resolution: context.resolution,
+          bpm: context.bpm,
           velocity,
           trackId,
         });
@@ -243,12 +296,11 @@ function normalizeJsonEvent(event, context) {
   if (!mappedKey) return [];
 
   return [createNormalizedNoteEvent({
-    time: baseTime,
     tick,
     key: mappedKey,
-    durationSec,
     durationTicks,
     resolution: context.resolution,
+    bpm: context.bpm,
     velocity,
     trackId,
   })];
@@ -265,7 +317,7 @@ export function parseScoreJson(scoreJson) {
     resolution: transport.resolution,
     ...(scoreJson.playback ?? {}),
   });
-  const resolution = Math.max(1, Number(transport.resolution) || 480);
+  const resolution = Math.max(1, Math.round(Number(transport.resolution) || playback.resolution || 480));
   const tracks = Array.isArray(scoreJson.tracks) ? scoreJson.tracks : [];
   const events = [];
 
@@ -284,7 +336,10 @@ export function parseScoreJson(scoreJson) {
     });
   });
 
-  return buildNormalizedResult(events, playback);
+  return buildNormalizedResult(events, {
+    ...playback,
+    resolution,
+  });
 }
 
 export function normalizeScoreSource(input, config = {}) {
