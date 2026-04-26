@@ -13,6 +13,7 @@
     "preview:pages": "npm run build && node scripts/preview-github-pages.mjs"
   },
   "dependencies": {
+    "@tonejs/midi": "^2.0.28",
     "firebase": "^12.4.0",
     "lucide-react": "^0.542.0",
     "react": "^19.1.1",
