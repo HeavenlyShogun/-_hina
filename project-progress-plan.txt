@@ -1,174 +1,217 @@
-目前音色設計方向
+# Project Hina 進度規劃表
 
-1. lyre-long
-定位：
-- 柔和
-- 有尾韻
-- 適合旋律線條
+最後更新：2026-04-26
+專案位置：`C:\Users\TPCYL\Desktop\Project_Hina`
 
-做法：
-- triangle
-- 很短 attack
-- 快速 decay
-- 低 sustain
-- 中短 release
-- 少量瞬態 noise 模擬撥弦
+## 一句話現況
 
-2. lyre-short
-定位：
-- 更乾淨
-- 更短促
-- 更清脆
+這個專案已經完成「可演奏、可播放、可切換音色、可匯入匯出、可同步 Firebase 曲庫」的主體架構；目前主軸已從「能不能跑」轉為「播放能力深化、譜面模型升級、UI/UX 細修、音色系統擴充」。
 
-做法：
-- triangle
-- 更短 ADSR
-- 更少延音
+## 目前技術基底
 
-3. flute
-定位：
-- 平滑
-- 氣流感
-- 長音表現較自然
+- 前端：React 19 + Vite + Tailwind CSS
+- 狀態分層：`App.jsx` + custom hooks + `AudioConfigContext` + `PlaybackContext`
+- 音訊：Web Audio API，自製 `audioEngine.js`
+- 播放：自製 `playbackController.js`，採 absolute audio time + lookahead scheduling
+- 雲端：Firebase Auth + Firestore
+- 樂譜來源：同時支援舊文字譜與 JSON score
 
-做法：
-- sine
-- 較長 attack
-- 較高 sustain
-- 較平順 release
-- 很少量 noise 模擬吹氣
+## 已完成
 
-4. tongue-drum
-定位：
-- 空靈
-- 有打擊感
-- 有共鳴尾音
+### 1. 播放與演奏核心
 
-做法：
-- triangle
-- 中短 attack
-- 較長 decay / release
-- 偏低頻濾波收尾
-- 保留敲擊瞬態
+- 已完成 `audioEngine.js`，具備 `AudioContext` 初始化、compressor、reverb bus、noise buffer、voice lifecycle 管理。
+- 已建立 tone preset 架構，現有音色包含：
+  - `piano`
+  - `lyre-long`
+  - `lyre-short`
+  - `flute`
+  - `tongue-drum`
+  - `classic`
+- 已支援 live note 與 scheduled note 兩條路徑。
+- 已加入 voice limit 與 voice stealing，避免過多重疊音導致失控。
+- 已可依 tone preset 套用 ADSR、filter、noise、release 行為。
 
-5. piano
-定位：
-- 明亮
-- 顆粒感
-- 作為通用預設音色
+### 2. 精準播放排程
 
---------------------------------------------------
+- `playbackController.js` 已改為以 `audioContext.currentTime` 為準的播放模型。
+- `setTimeout / setInterval` 不再直接當節拍器，而是作為 scheduler 巡檢機制。
+- 已拆分：
+  - 音訊排程迴圈
+  - UI 視覺更新迴圈
+- 已支援：
+  - play
+  - pause
+  - resume
+  - stop
+  - seek
+  - playback rate 調整
+- 已支援進度列同步與鍵位高亮同步。
 
-目前譜面資料夾方向
+### 3. 樂譜格式與資料正規化
 
-- 專案根目錄新增 `風物之琴譜/`，這是整理中的外部譜面素材區，不是前端執行期直接讀取的 runtime folder。
-- `可匯入譜面/` 放可被目前網站直接匯入的文字譜，第一行使用 `// [META] { ... }` 保存參數。
-- `待整理/` 放尚未符合目前譜面語法的檔案，或正規化後保留的原始備份。
-- `工具與參考/` 放外掛、捷徑、圖片等非譜面資產。
-- `scripts/normalize-score-files.mjs` 會以 `風物之琴譜/` 為根目錄整理檔案，因此之後若資料夾改名，這支腳本與相關說明要一起更新。
-- 目前網站匯入格式已與 `// [META]` 相容，所以後續譜面整理、曲庫擴充、AI 協作都應優先沿用這個格式，而不是再建立另一套平行記譜描述。
+- 已建立 `scoreDocument.js`，統一管理：
+  - `title`
+  - `rawText`
+  - `sourceType`
+  - `compiledEvents`
+  - `bpm`
+  - `timeSigNum`
+  - `timeSigDen`
+  - `charResolution`
+  - `globalKeyOffset`
+  - `accidentals`
+  - `scaleMode`
+  - `tone`
+  - `reverb`
+- 已支援兩種樂譜來源：
+  - 舊文字譜
+  - JSON score
+- `score.js` 已可將文字譜或 JSON score 正規化為統一播放事件。
+- JSON score 已支援 track 與 chord event 基本模型。
 
---------------------------------------------------
+### 4. React 架構分層
 
-目前狀態管理方式
+- `App.jsx` 仍是高層整合點，但已不是單體塞滿邏輯。
+- 已將主要責任拆到 hooks：
+  - `useScoreState`
+  - `useScorePlayback`
+  - `useCloudScores`
+  - `useAudioEngine`
+- 已加入 context：
+  - `AudioConfigContext`
+  - `PlaybackContext`
+- `PianoRoom.jsx` 目前維持容器層角色，負責組裝：
+  - `AppHeader`
+  - `PianoKeys`
+  - `InstrumentSelector`
+  - `ControlPanel`
 
-目前專案狀態是集中式但不混亂的：
+### 5. UI 與互動
 
-- App.jsx 作為頂層狀態持有者
-- 透過 hook 管理：
-  - 樂譜狀態
-  - 雲端狀態
-  - 播放狀態
-  - 音訊設定
-- PianoRoom.jsx 負責把狀態與事件往下傳
-- 子元件盡量維持展示層 / 輕互動層角色
+- 已有可用的虛擬琴鍵互動與鍵盤映射。
+- 已有 `InstrumentSelector`，音色切換走 context/state，同步到音訊與譜面設定。
+- `ControlPanel` 已可控制：
+  - BPM
+  - 拍號
+  - grid / char resolution
+  - 音量
+  - reverb
+  - global key offset
+  - scale mode
+- 已有 toast 提示、播放進度條、背景動態粒子與整體視覺主題。
 
-這代表未來擴充時應遵守：
+### 6. 雲端曲庫
 
-- 不把音訊引擎實作塞進 UI component
-- 不把畫面排版責任塞回 App.jsx
-- 讓新音色、新控制器、新視覺模組都能沿著同一條資料流擴充
+- 已完成 Firebase 匿名登入連線流程。
+- 已完成 Firestore 曲庫訂閱與載入。
+- 已支援：
+  - 儲存單首樂譜
+  - 刪除樂譜
+  - 清空曲庫
+  - 本機多檔匯入後上傳雲端
+- 已能處理 legacy record 與新 `scoreDocument` 的相容正規化。
 
---------------------------------------------------
+### 7. 匯入匯出與示範資料
 
-未來規劃
+- 已支援本機匯入：
+  - 單一文字譜 / JSON 載入到編輯器
+  - 多檔案批次上傳雲端
+- 已支援本機匯出目前樂譜。
+- 已內建 JSON demo 載入流程。
 
-1. 音色系統繼續擴充
-可能方向：
-- 加入更多 tone preset，例如：
-  - harp
-  - bell
-  - strings
-  - pad
-  - plucked synth
-- 將 preset 抽成獨立設定檔
-- 支援更細的 tone params 調整 UI
+## 目前進行中
 
-2. 更真實的聲學表現
-可能方向：
-- 雙 oscillator 疊層
-- detune 微小失諧
-- velocity 對濾波 / 音量 / attack 的影響更明顯
-- 更精細的 reverb / delay 設計
-- 不同樂器用不同 resonance/filter 模型
+### A. 架構穩定後的第二階段整理
 
-3. 播放系統進一步增強
-可能方向：
-- pause / resume 更細緻的相位控制
-- seek / loop / section playback
-- 更穩定的長曲播放
-- 進階播放事件同步（音符高亮、進度軸、段落定位）
+- 專案已從「快速做出可用功能」進入「統一資料流與整理 UI」階段。
+- 舊說明裡提過要移除的舊音色下拉控制，目前畫面已主要改走 `InstrumentSelector`，但仍需確認整體控制介面是否完全去重。
+- 文件內容與實際程式碼已有落差，現在需要同步補齊 README、交接說明與 AI 用摘要。
 
-4. UI/UX 優化
-可能方向：
-- 把 InstrumentSelector 做得更視覺化
-- 改善手機版排版
-- 更強的演奏回饋動畫
-- 更清楚的播放狀態與樂譜狀態提示
-- 將舊控制 UI 整理成更一致的設計系統
+### B. 樂譜模型升級的中繼期
 
-5. 樂譜能力擴充
-可能方向：
-- 更完整的 JSON score 格式
-- 多 track
-- chord / articulation / dynamics
-- 匯入匯出更穩定
-- 範例曲庫與預設模板
+- 現在已有 JSON score 基礎，但還沒有完整擴充到成熟 DAW 式模型。
+- 多 track 是「資料格式已留入口」，但不是完整編輯工作流。
+- chord 已支援基本展開與 strum，articulation / dynamics / section metadata 仍未正式完成。
 
-6. Firebase / 雲端體驗優化
-可能方向：
-- 樂譜分類
-- 標籤 / 搜尋
-- 自動儲存
-- 匿名登入以外的使用者身份機制
-- 更完整的同步提示
+### C. 播放系統進階能力
 
---------------------------------------------------
+- pause / resume / seek 已存在，但還沒做 section loop、A/B loop、段落播放等完整控制。
+- playback rate 邏輯已存在，但 UI 尚未完整暴露成使用者可直覺操作的功能。
+- 長曲、複雜曲目的壓力測試與邊界驗證仍值得補。
 
-目前希望外部 AI 幫忙的方向
+### D. UI/UX 細修
 
-如果要讓另一個 AI 協助，最適合的任務是：
+- `InstrumentSelector` 功能已可用，但視覺表現仍偏簡單，尚未完全達到主題化介面水準。
+- 手機版與小螢幕體驗還需要進一步檢查按鍵密度、控制面板層級與可點擊區域。
+- 樂譜編輯、曲庫、播放狀態之間的提示仍可更清楚。
 
-- 設計新的 tone preset
-- 協助調校 ADSR / filter / noise 參數
-- 優化 React component 結構
-- 提出 ControlPanel 與 InstrumentSelector 的整合方案
-- 規劃樂譜格式與播放事件模型
-- 改善行動端 UI/UX
+## 下一階段優先順序
 
-不希望它做的事：
+### P1. 文件與可維護性
 
-- 一次重寫整個 App.jsx
-- 直接覆蓋大量檔案而不考慮現有資料流
+- 更新 README，讓它反映目前真實架構，而不是早期部署說明為主。
+- 補一份給 AI / 接手開發者看的技術摘要。
+- 明確寫出文字譜與 JSON score 的格式規格。
 
---------------------------------------------------
+### P2. UI 控制整合
 
-一句話總結
+- 檢查 `ControlPanel`、`InstrumentSelector`、`AppHeader` 是否有設定重複或心智模型分裂。
+- 決定播放控制、音色控制、調性控制、樂譜控制的最終分區。
+- 把 playback rate、seek 類能力決定是否升級成正式 UI。
 
-這是一個以 React + Web Audio API 打造的互動式虛擬樂器 / 樂譜播放器，現在已完成穩定播放架構與多音色基礎，接下來的主軸是「擴充音色系統、優化 UI/UX、保持模組化架構下持續進化」。
+### P3. 樂譜模型擴充
 
-如果你要，我可以再幫你把這份整理成：
+- 先擴充 JSON score schema：
+  - section / marker
+  - loop metadata
+  - articulation
+  - dynamics
+  - 多 track 更明確欄位
+- 再決定編輯器如何輸入這些資料，不要先把 UI 做重。
 
-1. README 風格版本
-2. 給 AI agent 的精簡 prompt 版本
-3. 給開發者交接的技術摘要版本
+### P4. 播放能力深化
+
+- section playback
+- loop / A-B loop
+- 更穩定的長曲播放驗證
+- 更完整的音符高亮、段落定位、播放游標同步
+
+### P5. 音色系統擴充
+
+- 將 preset 從 `audioEngine.js` 進一步模組化為獨立設定表。
+- 新增候選音色：
+  - `harp`
+  - `bell`
+  - `strings`
+  - `pad`
+  - `plucked-synth`
+- 加強 velocity 對 filter / gain / attack 的影響。
+
+## 建議暫時不要做的事
+
+- 不要重寫整個 `App.jsx`。
+- 不要把播放邏輯退回單純 `setTimeout`/`setInterval` 直接發聲。
+- 不要把音訊實作塞回 UI component。
+- 不要在還沒定義清楚 score schema 前先做大量複雜編輯 UI。
+- 不要直接覆蓋現有資料流：`App/hooks/context -> PianoRoom -> presentation components`。
+
+## 給外部 AI / 代理的安全任務
+
+- 設計新的 tone preset 與參數建議
+- 調校 ADSR / filter / noise / reverb
+- 規劃 JSON score schema
+- 改善 `InstrumentSelector` 視覺與互動
+- 優化手機版 UI
+- 補文件、規格與交接摘要
+
+## 給外部 AI / 代理的限制
+
+- 不要一次改動整個播放系統
+- 不要打破既有 context / hook 分層
+- 不要在未確認資料流前大量改寫 state 管理
+- 不要無差別覆蓋多個核心檔案
+
+## 目前最準確的狀態結論
+
+專案已經不是原型期，而是進入「可用產品雛形」階段。核心播放、音訊、曲庫、匯入匯出都已成立；下一步應該優先做文件同步、控制介面整合、score schema 升級，以及播放進階能力，而不是再回頭處理最基礎的播放穩定性。
