@@ -109,6 +109,23 @@ export function useScoreState() {
     }));
   }, [updateScoreDocument]);
 
+  const setReferences = useCallback((nextValue) => {
+    updateScoreDocument((prev) => ({
+      ...prev,
+      references: typeof nextValue === 'function' ? nextValue(prev.references ?? []) : nextValue,
+    }));
+  }, [updateScoreDocument]);
+
+  const setReferenceNotes = useCallback((nextValue) => {
+    updateScoreDocument((prev) => ({
+      ...prev,
+      referenceNotes:
+        typeof nextValue === 'function'
+          ? nextValue(prev.referenceNotes ?? '')
+          : nextValue,
+    }));
+  }, [updateScoreDocument]);
+
   const loadScoreSource = useCallback((source) => {
     setScoreDocument(createScoreDocument(source));
   }, []);
@@ -143,6 +160,10 @@ export function useScoreState() {
     updateScoreDocument,
     reverb: scoreDocument.reverb,
     setReverb,
+    references: scoreDocument.references ?? [],
+    setReferences,
+    referenceNotes: scoreDocument.referenceNotes ?? '',
+    setReferenceNotes,
     globalKeyOffset: scoreDocument.globalKeyOffset,
     setGlobalKeyOffset,
     accidentals: scoreDocument.accidentals,

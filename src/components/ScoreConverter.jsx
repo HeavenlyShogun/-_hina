@@ -1,10 +1,24 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Download, FileUp, HardDriveDownload, RefreshCcw, Upload, Wand2 } from 'lucide-react';
+import { Copy, Download, FileUp, HardDriveDownload, RefreshCcw, Sparkles, Upload, Wand2 } from 'lucide-react';
 import { normalizeScoreSource } from '../utils/score';
 import { parseMidiToV2 } from '../utils/midiToV2';
 import { SCORE_SOURCE_TYPES } from '../utils/scoreDocument';
+import {
+  buildAiConversionPrompt,
+  normalizeExternalNotationDraft,
+  tryParseJsonScoreText,
+} from '../utils/scoreConversionAssist';
 
 const LOCAL_STORAGE_KEY = 'project-hina:local-converted-scores';
+const EXTERNAL_INPUT_TYPES = {
+  JIANPU: 'jianpu',
+  STAFF: 'staff',
+  MIXED: 'mixed',
+};
+const OUTPUT_FORMATS = {
+  LEGACY_TEXT: 'legacy-text',
+  JSON_V2: 'json-v2',
+};
 
 function slugifyFilename(value) {
   return String(value || 'score')
@@ -21,6 +35,8 @@ function createJsonScoreSchema({
   sourceType,
   playbackConfig,
   normalized,
+  references,
+  referenceNotes,
 }) {
   return {
     version: '2.0',
@@ -30,6 +46,8 @@ function createJsonScoreSchema({
       sourceType,
       migratedAt: new Date().toISOString(),
       originalFormat: sourceType,
+      references: Array.isArray(references) ? references : [],
+      referenceNotes: typeof referenceNotes === 'string' ? referenceNotes : '',
     },
     transport: {
       bpm: normalized.playback.bpm,
@@ -61,6 +79,55 @@ function createJsonScoreSchema({
         })),
       },
     ],
+  };
+}
+
+function ensurePayloadMetadata(payload, {
+  title,
+  playbackConfig,
+  references,
+  referenceNotes,
+  rawText,
+}) {
+  const transport = payload?.transport ?? {};
+  const playback = payload?.playback ?? {};
+  const meta = payload?.meta ?? {};
+
+  return {
+    ...payload,
+    version: payload?.version ?? '2.0',
+    meta: {
+      ...meta,
+      id: meta.id ?? `${slugifyFilename(title)}-${Date.now()}`,
+      title: meta.title ?? title,
+      references: Array.isArray(meta.references) && meta.references.length > 0
+        ? meta.references
+        : (Array.isArray(references) ? references : []),
+      referenceNotes:
+        typeof meta.referenceNotes === 'string' && meta.referenceNotes.trim()
+          ? meta.referenceNotes
+          : (typeof referenceNotes === 'string' ? referenceNotes : ''),
+    },
+    transport: {
+      bpm: Number(transport.bpm) || playbackConfig.bpm,
+      timeSigNum: Number(transport.timeSigNum) || playbackConfig.timeSigNum,
+      timeSigDen: Number(transport.timeSigDen) || playbackConfig.timeSigDen,
+      resolution: Number(transport.resolution) || 96,
+    },
+    playback: {
+      tone: playback.tone ?? playbackConfig.tone,
+      globalKeyOffset: Number(playback.globalKeyOffset ?? playbackConfig.globalKeyOffset) || 0,
+      reverb: playback.reverb ?? playbackConfig.reverb,
+      scaleMode: playback.scaleMode ?? playbackConfig.scaleMode,
+      accidentals:
+        playback.accidentals && typeof playback.accidentals === 'object'
+          ? playback.accidentals
+          : playbackConfig.accidentals,
+    },
+    source: {
+      ...(payload?.source ?? {}),
+      rawText: payload?.source?.rawText ?? rawText,
+    },
   };
 }
 
@@ -96,6 +163,8 @@ const ScoreConverter = memo(({
   charResolution,
   audioConfig,
   accidentals,
+  references,
+  referenceNotes,
   showToast,
   onLoadLocalScore,
 }) => {
@@ -106,6 +175,9 @@ const ScoreConverter = memo(({
   const [savedScores, setSavedScores] = useState([]);
   const [midiImportStatus, setMidiImportStatus] = useState('No MIDI imported yet');
   const [isImportingMidi, setIsImportingMidi] = useState(false);
+  const [externalInputType, setExternalInputType] = useState(EXTERNAL_INPUT_TYPES.JIANPU);
+  const [aiOutputFormat, setAiOutputFormat] = useState(OUTPUT_FORMATS.LEGACY_TEXT);
+  const [assistantPrompt, setAssistantPrompt] = useState('');
 
   useEffect(() => {
     if (scoreDocument.sourceType === SCORE_SOURCE_TYPES.TEXT) {
@@ -141,7 +213,47 @@ const ScoreConverter = memo(({
     timeSigNum,
   ]);
 
+  const refreshAssistantPrompt = useCallback((nextInputValue = inputValue) => {
+    const prompt = buildAiConversionPrompt({
+      title: scoreTitle.trim() || 'Untitled Score',
+      notationType: externalInputType,
+      outputFormat: aiOutputFormat,
+      playbackConfig,
+      references,
+      referenceNotes,
+      sourceText: nextInputValue,
+    });
+    setAssistantPrompt(prompt);
+    return prompt;
+  }, [
+    aiOutputFormat,
+    externalInputType,
+    inputValue,
+    playbackConfig,
+    referenceNotes,
+    references,
+    scoreTitle,
+  ]);
+
+  useEffect(() => {
+    refreshAssistantPrompt();
+  }, [refreshAssistantPrompt]);
+
   const buildPayload = useCallback(() => {
+    const maybeJsonScore = tryParseJsonScoreText(inputValue);
+
+    if (maybeJsonScore) {
+      const normalizedJsonPayload = ensurePayloadMetadata(maybeJsonScore, {
+        title: scoreTitle.trim() || 'Untitled Score',
+        playbackConfig,
+        references,
+        referenceNotes,
+        rawText: inputValue,
+      });
+      setLastConverted(normalizedJsonPayload);
+      return normalizedJsonPayload;
+    }
+
     const normalized = normalizeScoreSource(inputValue, playbackConfig);
     const payload = createJsonScoreSchema({
       title: scoreTitle.trim() || 'Untitled Score',
@@ -149,16 +261,48 @@ const ScoreConverter = memo(({
       sourceType: SCORE_SOURCE_TYPES.TEXT,
       playbackConfig,
       normalized,
+      references,
+      referenceNotes,
     });
 
     setLastConverted(payload);
     return payload;
-  }, [inputValue, playbackConfig, scoreTitle]);
+  }, [inputValue, playbackConfig, referenceNotes, references, scoreTitle]);
 
   const handleSyncCurrent = useCallback(() => {
     setInputValue(scoreDocument.rawText ?? '');
+    refreshAssistantPrompt(scoreDocument.rawText ?? '');
     showToast?.('Converter synced from current score', 'success');
-  }, [scoreDocument.rawText, showToast]);
+  }, [refreshAssistantPrompt, scoreDocument.rawText, showToast]);
+
+  const handleFormatDraft = useCallback(() => {
+    const formatted = normalizeExternalNotationDraft(inputValue);
+    setInputValue(formatted);
+    refreshAssistantPrompt(formatted);
+    showToast?.('Draft formatting applied', 'success');
+  }, [inputValue, refreshAssistantPrompt, showToast]);
+
+  const handleCopyPrompt = useCallback(async () => {
+    try {
+      const prompt = refreshAssistantPrompt();
+      await window.navigator.clipboard.writeText(prompt);
+      showToast?.('AI prompt copied', 'success');
+    } catch (error) {
+      console.error(error);
+      showToast?.('Prompt copy failed', 'error');
+    }
+  }, [refreshAssistantPrompt, showToast]);
+
+  const handleLoadToEditor = useCallback(() => {
+    try {
+      const payload = buildPayload();
+      onLoadLocalScore?.(payload);
+      showToast?.(`Loaded converted score: ${payload.meta?.title ?? scoreTitle}`, 'success');
+    } catch (error) {
+      console.error(error);
+      showToast?.('Load converted score failed', 'error');
+    }
+  }, [buildPayload, onLoadLocalScore, scoreTitle, showToast]);
 
   const handleDownload = useCallback(() => {
     try {
@@ -311,6 +455,51 @@ const ScoreConverter = memo(({
           </button>
         </div>
 
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto]">
+          <label className="rounded-[22px] border border-white/8 bg-black/25 px-4 py-3 text-[11px] text-amber-100/70">
+            <div className="mb-2 font-black uppercase tracking-[0.22em] text-amber-200/45">Source Type</div>
+            <select
+              value={externalInputType}
+              onChange={(event) => setExternalInputType(event.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-xs text-amber-50 outline-none"
+            >
+              <option value={EXTERNAL_INPUT_TYPES.JIANPU}>Jianpu / Numbered</option>
+              <option value={EXTERNAL_INPUT_TYPES.STAFF}>Staff / Note Names</option>
+              <option value={EXTERNAL_INPUT_TYPES.MIXED}>Mixed / Unknown</option>
+            </select>
+          </label>
+
+          <label className="rounded-[22px] border border-white/8 bg-black/25 px-4 py-3 text-[11px] text-amber-100/70">
+            <div className="mb-2 font-black uppercase tracking-[0.22em] text-amber-200/45">AI Output</div>
+            <select
+              value={aiOutputFormat}
+              onChange={(event) => setAiOutputFormat(event.target.value)}
+              className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-xs text-amber-50 outline-none"
+            >
+              <option value={OUTPUT_FORMATS.LEGACY_TEXT}>Legacy Text</option>
+              <option value={OUTPUT_FORMATS.JSON_V2}>Project Hina JSON</option>
+            </select>
+          </label>
+
+          <button
+            type="button"
+            onClick={handleFormatDraft}
+            className="flex items-center justify-center gap-2 rounded-2xl border border-sky-300/20 bg-sky-500/10 px-4 py-3 text-[11px] font-black tracking-[0.22em] text-sky-100 transition-colors hover:bg-sky-500/18"
+          >
+            <Sparkles size={14} />
+            FORMAT DRAFT
+          </button>
+
+          <button
+            type="button"
+            onClick={handleCopyPrompt}
+            className="flex items-center justify-center gap-2 rounded-2xl border border-fuchsia-300/20 bg-fuchsia-500/10 px-4 py-3 text-[11px] font-black tracking-[0.22em] text-fuchsia-100 transition-colors hover:bg-fuchsia-500/18"
+          >
+            <Copy size={14} />
+            COPY AI PROMPT
+          </button>
+        </div>
+
         <input
           ref={midiInputRef}
           type="file"
@@ -339,17 +528,44 @@ const ScoreConverter = memo(({
 
         <textarea
           value={inputValue}
-          onChange={(event) => setInputValue(event.target.value)}
+          onChange={(event) => {
+            setInputValue(event.target.value);
+          }}
           spellCheck={false}
           className="min-h-[180px] rounded-[24px] border border-white/10 bg-black/40 p-4 text-xs font-mono leading-relaxed text-amber-50/75 outline-none focus:border-amber-300/35"
-          placeholder="Paste legacy text score here for local conversion."
+          placeholder="Paste legacy text, AI generated JSON, jianpu draft, or note-name draft here."
         />
 
-        <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
+        <div className="rounded-[24px] border border-fuchsia-300/14 bg-fuchsia-500/[0.05] p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-[10px] font-black uppercase tracking-[0.24em] text-fuchsia-200/55">AI Conversion Spell</div>
+              <div className="mt-1 text-sm text-fuchsia-50/85">
+                Copy this prompt into ChatGPT or Gemini, then paste the returned legacy text or JSON back here.
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleCopyPrompt}
+              className="flex shrink-0 items-center justify-center gap-2 rounded-2xl border border-fuchsia-300/20 bg-fuchsia-500/10 px-4 py-2 text-[11px] font-black tracking-[0.22em] text-fuchsia-100 transition-colors hover:bg-fuchsia-500/18"
+            >
+              <Copy size={14} />
+              COPY
+            </button>
+          </div>
+          <textarea
+            value={assistantPrompt}
+            readOnly
+            spellCheck={false}
+            className="mt-4 min-h-[180px] w-full rounded-[22px] border border-white/10 bg-black/35 p-4 text-xs font-mono leading-relaxed text-fuchsia-50/75 outline-none"
+          />
+        </div>
+
+        <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto] lg:items-end">
           <div className="rounded-[24px] border border-white/8 bg-black/25 px-4 py-3 text-[11px] leading-relaxed text-amber-100/60">
             <div className="font-black uppercase tracking-[0.25em] text-amber-200/45">Schema Output</div>
             <div className="mt-2">
-              Exports `meta`, `transport`, `playback`, `source`, and `tracks[0].events[]` with precise `tick` and `duration`.
+              Accepts legacy text or AI JSON. Also includes a draft formatter for rough jianpu or note-name input before sending it to an LLM.
             </div>
           </div>
           <div className="rounded-[24px] border border-white/8 bg-black/25 px-4 py-3 text-[11px] text-amber-100/60">
@@ -363,6 +579,14 @@ const ScoreConverter = memo(({
                 : 'No conversion yet'}
             </div>
           </div>
+          <button
+            type="button"
+            onClick={handleLoadToEditor}
+            className="flex items-center justify-center gap-2 rounded-2xl border border-emerald-300/20 bg-emerald-500/10 px-4 py-3 text-[11px] font-black tracking-[0.22em] text-emerald-100 transition-colors hover:bg-emerald-500/18"
+          >
+            <Upload size={14} />
+            LOAD TO EDITOR
+          </button>
         </div>
 
         <div className="rounded-[24px] border border-white/8 bg-black/25 p-4">

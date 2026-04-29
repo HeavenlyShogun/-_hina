@@ -106,6 +106,7 @@ class PlaybackController {
     this.events = [];
     this.maxTime = 0;
     this.maxTick = 0;
+    this.playbackEndTick = 0;
     this.currentPointer = 0;
     this.currentAudioTime = 0;
     this.timing = createTimingModel();
@@ -162,11 +163,18 @@ class PlaybackController {
 
     this.timing = createTimingModel(playback);
     this.events = normalizeEvents(events, this.timing);
-    this.maxTick = Math.max(
-      this.events.reduce((result, event) => Math.max(result, event.tick + event.durationTicks), 0),
-      roundTick(secondsToTicks(maxTime, this.timing)),
+    const eventEndTick = this.events.reduce(
+      (result, event) => Math.max(result, event.tick + event.durationTicks),
+      0,
     );
+    this.playbackEndTick = Math.max(
+      roundTick(Number(playback?.contentEndTick)),
+      roundTick(secondsToTicks(maxTime, this.timing)),
+      this.events.reduce((result, event) => Math.max(result, event.tick), 0),
+    );
+    this.maxTick = Math.max(this.playbackEndTick, 0);
     this.maxTime = Math.max(Number(maxTime) || 0, ticksToSeconds(this.maxTick, this.timing));
+    this.eventTailTick = Math.max(eventEndTick, this.playbackEndTick);
     this.currentPointer = 0;
     this.currentAudioTime = 0;
     this.transport = {
@@ -398,6 +406,8 @@ class PlaybackController {
     if (!preserveLoadedEvents) {
       this.events = [];
       this.maxTick = 0;
+      this.playbackEndTick = 0;
+      this.eventTailTick = 0;
       this.maxTime = 0;
       this.timing = createTimingModel();
     }

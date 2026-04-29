@@ -9,7 +9,7 @@ B  /(SW) /(GQ) /H  /
 
 (NW) /Q  /(QT) /(JE) /
 
-     /G  /(CT) /Y  /
+0 /G /(CT) /Y /
 
 
 
@@ -19,7 +19,7 @@ B  /(XJ) /(SG) /D  /
 
 (NH) /D  /(CQ) /(AJ) /
 
-     /(NAG) /     / Q /
+0 /(NAG) /0 / Q /
 
 
 
@@ -43,7 +43,7 @@ B  /(XJ) /(SG) /D  /
 
 (VJE) A /(FT) YW/B (XU) /(SFT) (GE) /
 
-(NY) E /(CQ) (AU) / (HQT) /     /
+(NY) E /(CQ) (AU) / (HQT) /0 /
 
 
 
@@ -203,7 +203,7 @@ V A /F (GQ)Q/(BQ) (XG) /(SG) (AG)W/
 
 (VJE) A /(FT) (GY)W/B (SU) /(FT) (GE) /
 
-(NY) E /(CQ) (AU) / (NQT) /     /
+(NY) E /(CQ) (AU) / (NQT) /0 /
 
 
 
@@ -323,4 +323,4 @@ N (CJ) /(AJ) DQ/ N /(XBW) S /
 
 
 
-(VHQE) /     /     /     /
+(VHQE) /0 /0 /0 /

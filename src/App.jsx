@@ -10,7 +10,6 @@ import { PlaybackProvider } from './contexts/PlaybackContext';
 import demoScore from './data/scores/demo.json';
 import { useCloudScores } from './hooks/useCloudScores';
 import useKeyboardMatcher from './hooks/useKeyboardMatcher';
-import usePracticeStats from './hooks/usePracticeStats';
 import { useScorePlayback } from './hooks/useScorePlayback';
 import { useScoreState } from './hooks/useScoreState';
 import {
@@ -42,6 +41,20 @@ async function readImportedScore(file) {
   };
 }
 
+function createImportDefaults(scoreDocument, audioConfig) {
+  return {
+    bpm: scoreDocument?.bpm,
+    timeSigNum: scoreDocument?.timeSigNum,
+    timeSigDen: scoreDocument?.timeSigDen,
+    charResolution: scoreDocument?.charResolution,
+    globalKeyOffset: audioConfig?.globalKeyOffset ?? scoreDocument?.globalKeyOffset,
+    scaleMode: audioConfig?.scaleMode ?? scoreDocument?.scaleMode,
+    reverb: audioConfig?.reverb ?? scoreDocument?.reverb,
+    tone: audioConfig?.tone ?? scoreDocument?.tone,
+    accidentals: scoreDocument?.accidentals,
+  };
+}
+
 function AppContent({
   score,
   setScore,
@@ -58,6 +71,10 @@ function AppContent({
   setCharResolution,
   accidentals,
   setAccidentals,
+  references,
+  setReferences,
+  referenceNotes,
+  setReferenceNotes,
   user,
   savedScores,
   cloudStatus,
@@ -76,10 +93,8 @@ function AppContent({
   const [toast, setToast] = useState(null);
   const [activeKeys, setActiveKeys] = useState(() => new Set());
   const [keyPulseTokens, setKeyPulseTokens] = useState({});
-  const [practiceFeedback, setPracticeFeedback] = useState(null);
 
   const toastTimerRef = useRef(null);
-  const lastPracticeTickRef = useRef(0);
 
   const showToast = useCallback((message, type = 'info') => {
     if (toastTimerRef.current) {
@@ -126,6 +141,11 @@ function AppContent({
     setActiveKeys(new Set());
   }, []);
 
+  const importDefaults = useMemo(
+    () => createImportDefaults(scoreDocument, audioConfig),
+    [audioConfig, scoreDocument],
+  );
+
   const playbackScore = useMemo(() => {
     try {
       return parseScoreContent(scoreDocument.rawText, scoreDocument.sourceType);
@@ -161,40 +181,6 @@ function AppContent({
     onVisualReset,
   });
 
-  const {
-    practiceStats,
-    recordJudgement,
-  } = usePracticeStats({
-    scoreDocument,
-    playbackState,
-    missWindowTicks: 120,
-  });
-
-  useEffect(() => {
-    setPracticeFeedback(null);
-  }, [scoreDocument.rawText, scoreDocument.sourceType]);
-
-  useEffect(() => {
-    const currentTick = Math.max(0, Math.round(Number(playbackState?.currentTick) || 0));
-    const lastTick = lastPracticeTickRef.current;
-    const rewound = currentTick + 120 < lastTick;
-    const restarted = playbackState?.status === 'stopped' && currentTick === 0 && lastTick > 0;
-
-    if (rewound || restarted) {
-      setPracticeFeedback(null);
-    }
-
-    lastPracticeTickRef.current = currentTick;
-  }, [playbackState?.currentTick, playbackState?.status]);
-
-  const handlePracticeJudge = useCallback((judgement) => {
-    recordJudgement(judgement);
-    setPracticeFeedback({
-      ...judgement,
-      timestamp: judgement.judgedAt ?? Date.now(),
-    });
-  }, [recordJudgement]);
-
   // Practice mode: bind keyboard input, live note preview, hit grading, and miss detection.
   useKeyboardMatcher({
     scoreDocument,
@@ -203,9 +189,6 @@ function AppContent({
     onTogglePlay: playScoreAction,
     onKeyActivate: handleKeyActivate,
     onKeyDeactivate: handleKeyDeactivate,
-    onJudge: handlePracticeJudge,
-    perfectWindowTicks: 40,
-    hitWindowTicks: 120,
   });
 
   const handleToggleSharp = useCallback((key) => {
@@ -265,7 +248,10 @@ function AppContent({
     try {
       if (files.length === 1) {
         const source = await readImportedScore(files[0]);
-        loadScoreSource(source);
+        loadScoreSource({
+          ...importDefaults,
+          ...source,
+        });
         stopAll();
         showToast(`Loaded ${source.title}`, 'success');
       } else {
@@ -274,7 +260,10 @@ function AppContent({
             const source = await readImportedScore(file);
             return {
               title: source.title,
-              payload: createScoreDocument(source),
+              payload: createScoreDocument({
+                ...importDefaults,
+                ...source,
+              }),
             };
           }),
         );
@@ -291,7 +280,7 @@ function AppContent({
     } finally {
       event.target.value = '';
     }
-  }, [loadScoreSource, showToast, stopAll, uploadCloudScores]);
+  }, [importDefaults, loadScoreSource, showToast, stopAll, uploadCloudScores]);
 
   const handleExportLocal = useCallback(() => {
     const extension = scoreDocument.sourceType === SCORE_SOURCE_TYPES.JSON ? 'json' : 'txt';
@@ -429,8 +418,10 @@ function AppContent({
               setScore={setScore}
               scoreTitle={scoreTitle}
               setScoreTitle={setScoreTitle}
-              practiceFeedback={practiceFeedback}
-              practiceStats={practiceStats}
+              references={references}
+              setReferences={setReferences}
+              referenceNotes={referenceNotes}
+              setReferenceNotes={setReferenceNotes}
               onImport={handleImportLocal}
               onLoadJsonDemo={handleLoadJsonDemo}
               onExport={handleExportLocal}
@@ -449,6 +440,8 @@ function AppContent({
               charResolution={charResolution}
               audioConfig={audioConfig}
               accidentals={accidentals}
+              references={references}
+              referenceNotes={referenceNotes}
               showToast={showToast}
               onLoadLocalScore={handleLoadLocalConvertedScore}
             />
@@ -483,6 +476,10 @@ export default function App() {
     scoreDocument,
     accidentals,
     setAccidentals,
+    references,
+    setReferences,
+    referenceNotes,
+    setReferenceNotes,
     bpm,
     setBpm,
     timeSigNum,
@@ -562,6 +559,10 @@ export default function App() {
         setCharResolution={setCharResolution}
         accidentals={accidentals}
         setAccidentals={setAccidentals}
+        references={references}
+        setReferences={setReferences}
+        referenceNotes={referenceNotes}
+        setReferenceNotes={setReferenceNotes}
         user={user}
         savedScores={savedScores}
         cloudStatus={cloudStatus}
