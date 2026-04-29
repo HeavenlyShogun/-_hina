@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { FolderOpen, ListX, Trash2, UploadCloud } from 'lucide-react';
+import { FolderOpen, Link2, ListX, Trash2, UploadCloud } from 'lucide-react';
 import { KEY_OPTIONS } from '../constants/music';
 
 function formatKeyLabel(offset, scaleMode) {
@@ -38,12 +38,24 @@ const ScoreLibrary = memo(({ user, savedScores, onLoadScore, onClearAll, onDelet
       {savedScores.length === 0 ? <div className="text-center py-20 opacity-10 text-[10px] uppercase tracking-widest">Library Empty</div> : savedScores.map((saved) => (
         <div key={saved.id} onClick={() => onLoadScore(saved)} className="group bg-white/[0.03] p-4 rounded-3xl border border-white/10 hover:bg-emerald-500/20 hover:border-emerald-500/40 transition-all relative flex items-center justify-between cursor-pointer">
           <div className="flex-1 overflow-hidden pr-2">
-            <div className="text-sm font-bold text-emerald-50 truncate">{saved.title}</div>
+            <div className="flex items-center gap-2">
+              <div className="text-sm font-bold text-emerald-50 truncate">{saved.title}</div>
+              {Array.isArray(saved.references) && saved.references.length > 0 ? (
+                <span
+                  className="inline-flex shrink-0 items-center gap-1 rounded-full border border-sky-300/20 bg-sky-500/10 px-2 py-1 text-[9px] font-black tracking-[0.18em] text-sky-200"
+                  title="This score includes external references"
+                >
+                  <Link2 size={11} />
+                  REF
+                </span>
+              ) : null}
+            </div>
             <div className="text-[9px] opacity-40 mt-1 flex gap-2 uppercase tracking-wider">
               <span>{new Date((saved.updatedAt?.seconds ?? Date.now() / 1000) * 1000).toLocaleDateString('zh-TW', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
               {saved.bpm && <span className="text-emerald-300">bpm:{saved.bpm}</span>}
               <span className="text-sky-300">{formatKeyLabel(saved.globalKeyOffset, saved.scaleMode)}</span>
               {saved.tone && <span className="text-amber-300">{saved.tone}</span>}
+              {Array.isArray(saved.references) && saved.references.length > 0 && <span className="text-violet-300">refs:{saved.references.length}</span>}
             </div>
           </div>
           <div className="flex items-center gap-2 transition-opacity">

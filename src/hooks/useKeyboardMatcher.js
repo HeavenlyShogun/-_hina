@@ -329,7 +329,7 @@ export default function useKeyboardMatcher({
     const scanMisses = () => {
       const current = stateRef.current;
 
-      if (current.enabled && current.noteIndex.notes.length > 0) {
+      if (current.enabled && current.onJudge && current.noteIndex.notes.length > 0) {
         const currentTick = Math.max(0, Math.round(Number(current.controller.getCurrentTick()) || 0));
         const notes = current.noteIndex.notes;
         let cursor = missCursorRef.current;
@@ -381,6 +381,15 @@ export default function useKeyboardMatcher({
     const handleKeyDown = (event) => {
       const current = stateRef.current;
 
+      if (event.code === 'Escape') {
+        const activeElement = document.activeElement;
+        if (activeElement && typeof activeElement.blur === 'function' && isTypingTarget(activeElement)) {
+          activeElement.blur();
+          event.preventDefault();
+        }
+        return;
+      }
+
       if (!current.enabled || isTypingTarget(event.target)) {
         return;
       }
@@ -403,6 +412,10 @@ export default function useKeyboardMatcher({
       event.preventDefault();
       pressedKeysRef.current.add(mappedKey);
       current.onKeyActivate?.(mappedKey);
+
+      if (!current.onJudge) {
+        return;
+      }
 
       const currentTick = Math.max(0, Math.round(Number(current.controller.getCurrentTick()) || 0));
       const matchedNote = findMatchingNote({

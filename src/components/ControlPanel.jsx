@@ -132,10 +132,10 @@ const ControlPanel = memo(() => {
                       onChange={(event) => setCharResolution(Number(event.target.value))}
                       className="rounded-full bg-transparent px-2 py-1 text-[11px] font-black text-emerald-300 outline-none"
                     >
-                      <option value={4} className="bg-slate-900">4 chars</option>
-                      <option value={8} className="bg-slate-900">8 chars</option>
-                      <option value={16} className="bg-slate-900">16 chars</option>
-                      <option value={32} className="bg-slate-900">32 chars</option>
+                      <option value={4} className="bg-slate-900">1 char = 4th</option>
+                      <option value={8} className="bg-slate-900">1 char = 8th</option>
+                      <option value={16} className="bg-slate-900">1 char = 16th</option>
+                      <option value={32} className="bg-slate-900">1 char = 32nd</option>
                     </select>
                   </div>
                 </div>

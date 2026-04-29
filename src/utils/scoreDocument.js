@@ -6,6 +6,59 @@ export const SCORE_SOURCE_TYPES = {
   JSON: 'json',
 };
 
+function normalizeScoreReferences(references) {
+  if (!Array.isArray(references)) {
+    return [];
+  }
+
+  return references
+    .map((reference, index) => {
+      if (!reference || typeof reference !== 'object') {
+        return null;
+      }
+
+      const label = String(reference.label ?? reference.title ?? '').trim();
+      const url = String(reference.url ?? reference.href ?? '').trim();
+      const type = String(reference.type ?? reference.kind ?? 'link').trim() || 'link';
+
+      if (!label && !url) {
+        return null;
+      }
+
+      return {
+        id: String(reference.id ?? `reference-${index + 1}`),
+        label: label || url,
+        url,
+        type,
+      };
+    })
+    .filter(Boolean);
+}
+
+function resolveReferenceFields(source = {}, sourceType = SCORE_SOURCE_TYPES.TEXT) {
+  const directReferences = normalizeScoreReferences(source.references);
+  const directReferenceNotes = typeof source.referenceNotes === 'string' ? source.referenceNotes : '';
+
+  if (directReferences.length > 0 || directReferenceNotes) {
+    return {
+      references: directReferences,
+      referenceNotes: directReferenceNotes,
+    };
+  }
+
+  if (sourceType === SCORE_SOURCE_TYPES.JSON && source.content && typeof source.content === 'object') {
+    return {
+      references: normalizeScoreReferences(source.content?.meta?.references),
+      referenceNotes: String(source.content?.meta?.referenceNotes ?? ''),
+    };
+  }
+
+  return {
+    references: [],
+    referenceNotes: '',
+  };
+}
+
 export function transposeFrequency(baseFrequency, semitoneOffset) {
   return baseFrequency * 2 ** (semitoneOffset / 12);
 }
@@ -95,6 +148,7 @@ export function createScoreDocument(source = {}) {
     ? source.rawText
     : serializeScoreContent(source.content, sourceType);
   const playback = createScorePlaybackConfig(source);
+  const referenceFields = resolveReferenceFields(source, sourceType);
   const compiledEvents = Array.isArray(source.compiledEvents)
     ? source.compiledEvents
     : compileScoreEvents(rawText, { ...playback, sourceType });
@@ -105,6 +159,8 @@ export function createScoreDocument(source = {}) {
     rawText,
     compiledEvents,
     sourceType,
+    references: referenceFields.references,
+    referenceNotes: referenceFields.referenceNotes,
     ...playback,
   };
 }

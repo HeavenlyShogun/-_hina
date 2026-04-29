@@ -1,129 +1,129 @@
-// [META] {"title":"未聞花名","bpm":90,"timeSigNum":4,"timeSigDen":4,"charResolution":8,"globalKeyOffset":0,"accidentals":{},"scaleMode":"major","tone":"piano","reverb":true,"storageFormat":"legacy-text@1"}
-(VADQ) QQ Q QQ Q QJ G
-(BMS) G(NADQ) QQ Q QQ Q QJ G
-(BMS) G(VADQ) QQ Q QQ W(BMS) GG
-G GD (NADG) HH A M B
+// [META] {"title":"?芾??勗?","bpm":90,"timeSigNum":4,"timeSigDen":4,"charResolution":8,"globalKeyOffset":0,"accidentals":{},"scaleMode":"major","tone":"piano","reverb":true,"storageFormat":"legacy-text@1"}
+(VADQ) Q / Q Q / Q Q / Q Q / J G /
+(BMS) G / (NADQ) Q / Q Q / Q Q / Q Q / J G /
+(BMS) G / (VADQ) Q / Q Q / Q Q / W (BMS) / G G /
+G G / D (NADG) / H H / A M / B /
 
-(VQ) QQ (NAD)Q QQ (NAD)Q QJ G
-(BMS) G(NQ) QQ (AD)Q QQ (AD)Q QJ G
-(BMS) G(VQ) QQ (NAD)Q QQ WB GG (MS)G
-GD (NG) H (ADH) A M S
+(VQ) Q / Q (NAD) / Q Q / Q (NAD) / Q Q / J G /
+(BMS) G / (NQ) Q / Q (AD) / Q Q / Q (AD) / Q Q / J G /
+(BMS) G / (VQ) Q / Q (NAD) / Q Q / Q W / B G / G (MS) / G /
+G D / (NG) H / (ADH) A / M S /
 
-(VH) A D H G(BH) JS JG
-J H(NJ) QA QD G D(CG) HB HS
-(VH) A D H G(BH) JS JG
-J H(ZJ)QB QS B (AD)
+(VH) A / D H / G (BH) / J S / J G /
+J H / (NJ) Q / A Q / D G / D (CG) / H B / H S /
+(VH) A / D H / G (BH) / J S / J G /
+J H / (ZJ) Q / B Q / S B / (AD) /
 
-(BS) W E(VW) QA HD
-S D(BS) AX NB
-W E(NW) QA GD
-G D(CG) HB HS
-E (VW) QA HD
-W E(BW) QS HG HW
-(ZQ) B S B (AD)
-
-
-(BS) HQ W(VW) EE E(NADE) E
-EB WW W(MSGW) W
-WN QQ Q(ADQ) Q
-QC GG G(BS) HQ W
-(VW) EE E(NADE) EE TB EE
-(MSGE) EW Q (ZW) E E (BS) B (AD)
-
-(BS) HQ W(VW) EE E(NADE) EE
-EB WW W(MSGW) WW
-WN QQ Q(ADQ) QQ QC GG G(BS) HQ W
-(VW) EE E(NADE) EE TB EE
-(MSGE) EW Q (ZW) E E (BS) B (AD)
-(BS) W E(VW) Q Q(NAD)
-B S G W E(ZW) Q Q(BS) B (AD)(FQY) Y T(GWY) U U
-J H(NDJ) Q Q G D(CMG) H H
-G (VAH) H G(BSH) J J
-J H(ZJ) QB QS B (AD)
-
-B W E(VW) QA HD
-S D(BS) AX NB
-W E(NW) QA GD
-G D(CG) HB HS
-E (VW) QA HD
-W E(BW) QS HG HW
-(ZQ) BAB SAB FAB (BAD)
+(BS) W / E (VW) / Q A / H D /
+S D / (BS) A / X N / B /
+W E / (NW) Q / A G / D /
+G D / (CG) H / B H / S /
+E (VW) / Q A / H D /
+W E / (BW) Q / S H / G H / W /
+(ZQ) B / S B / (AD) /
 
 
-(BS) HQ W(VW) EE E(NADE) E
-EB WW W(MSGW) W
-WN QQ Q(ADQ) Q
-QC GG G(BS) HQ W
-(VW) EE E(NADE) EE TB EE
-(MSGE) EW Q (ZW) E E (BS) B (AD)
+(BS) H / Q W / (VW) E / E E / (NADE) E /
+E B / W W / W (MSGW) / W /
+W N / Q Q / Q (ADQ) / Q /
+Q C / G G / G (BS) / H Q / W /
+(VW) E / E E / (NADE) E / E T / B E / E /
+(MSGE) E / W Q / (ZW) E / E (BS) / B (AD) /
 
-(BS) HQ W(VW) E(NE) E(ADE) EN
-EB W(MW) W(SGW) WM
-WN Q(AQ) Q(DQ) QA
-QC G(BG) G(SG) H(BQ) W
+(BS) H / Q W / (VW) E / E E / (NADE) E / E /
+E B / W W / W (MSGW) / W W /
+W N / Q Q / Q (ADQ) / Q Q / Q C / G G / G (BS) / H Q / W /
+(VW) E / E E / (NADE) E / E T / B E / E /
+(MSGE) E / W Q / (ZW) E / E (BS) / B (AD) /
+(BS) W / E (VW) / Q Q / (NAD) /
+B S / G W / E (ZW) / Q Q / (BS) B / (AD) (FQY) / Y T / (GWY) U / U /
+J H / (NDJ) Q / Q G / D (CMG) / H H /
+G (VAH) / H G / (BSH) J / J /
+J H / (ZJ) Q / B Q / S B / (AD) /
 
-(VW) E(NE) E(ADE) EN
-TB E(ME) (SGE) E(MW) Q
-(ZW) EB ES B (AD)
-(BS) W E(VW) QN Q(AD) N
-B S G W E(ZW) QB QS (AD)(VW) NAD(GQ) V
-(BJ) M (SH) JH(ZG)
-(ZB)AG(ZF) (ZB)AF(ZD) (ZB)AD(ZS) A
-(VH) A D H (BJ) S G J
-(NQ) CNCM CMCA CACS D Q
-(VW) NAD(GQ) V
-(BJ) M (SH) JH(ZG)
-(BT)GT(BMR) GRG(VNE) GEG(CBW)
-GG D(VG) HA HD
-H G(BH) JS JG
-J H(NJ) QA QD EW Q(CW) WB ES
+B W / E (VW) / Q A / H D /
+S D / (BS) A / X N / B /
+W E / (NW) Q / A G / D /
+G D / (CG) H / B H / S /
+E (VW) / Q A / H D /
+W E / (BW) Q / S H / G H / W /
+(ZQ) B / A B / S A / B F / A B / (BAD) /
 
 
-W E(VW) EV HV (VW)E
-(BW) QB HB H(BW)
-(ZQ) BB S B (AD)
+(BS) H / Q W / (VW) E / E E / (NADE) E /
+E B / W W / W (MSGW) / W /
+W N / Q Q / Q (ADQ) / Q /
+Q C / G G / G (BS) / H Q / W /
+(VW) E / E E / (NADE) E / E T / B E / E /
+(MSGE) E / W Q / (ZW) E / E (BS) / B (AD) /
 
-HQ W(VW) EE E(AE) E
-EB WW W(SW) W
-WN QQ Q(DQ) Q
-QC GG GS HQ W
-(VW) EE E(AE) EE
-TB EE (SE) EW Q
-(ZW) E ES D
+(BS) H / Q W / (VW) E / (NE) E / (ADE) E / N /
+E B / W (MW) / W (SGW) / W M /
+W N / Q (AQ) / Q (DQ) / Q A /
+Q C / G (BG) / G (SG) / H (BQ) / W /
 
-HQ W(VW) EE E(ADE) EE
-EB WW W(MSW) WW
-WN QQ Q(ADQ) QQ QC GG G(BS) HQ W
-(VW) EE E(ADE) EE TB EE
-(MSE) EW Q (ZW) E E (BS) (AD)
+(VW) E / (NE) E / (ADE) E / N /
+T B / E (ME) / (SGE) E / (MW) Q /
+(ZW) E / B E / S B / (AD) /
+(BS) W / E (VW) / Q N / Q (AD) / N /
+B S / G W / E (ZW) / Q B / Q S / (AD) (VW) / N A / D (GQ) / V /
+(BJ) M / (SH) J / H (ZG) /
+(ZB) A / G (ZF) / (ZB) A / F (ZD) / (ZB) A / D (ZS) / A /
+(VH) A / D H / (BJ) S / G J /
+(NQ) C / N C / M C / M C / A C / A C / S D / Q /
+(VW) N / A D / (GQ) V /
+(BJ) M / (SH) J / H (ZG) /
+(BT) G / T (BMR) / G R / G (VNE) / G E / G (CBW) /
+G G / D (VG) / H A / H D /
+H G / (BH) J / S J / G /
+J H / (NJ) Q / A Q / D E / W Q / (CW) W / B E / S /
 
-(BS) HQ W(VW) EE E(NADE) E
-EB WW W(MSGW) W
-WN QQ Q(ADQ) Q
-QC GG G(BS) HQ W
-(VW) EE E(NADE) EE TB EE
-(MSGE) EW Q (ZW) E E (BS) B (AD)
+
+W E / (VW) E / V H / V (VW) / E /
+(BW) Q / B H / B H / (BW) /
+(ZQ) B / B S / B (AD) /
+
+H Q / W (VW) / E E / E (AE) / E /
+E B / W W / W (SW) / W /
+W N / Q Q / Q (DQ) / Q /
+Q C / G G / G S / H Q / W /
+(VW) E / E E / (AE) E / E /
+T B / E E / (SE) E / W Q /
+(ZW) E / E S / D /
+
+H Q / W (VW) / E E / E (ADE) / E E /
+E B / W W / W (MSW) / W W /
+W N / Q Q / Q (ADQ) / Q Q / Q C / G G / G (BS) / H Q / W /
+(VW) E / E E / (ADE) E / E T / B E / E /
+(MSE) E / W Q / (ZW) E / E (BS) / (AD) /
+
+(BS) H / Q W / (VW) E / E E / (NADE) E /
+E B / W W / W (MSGW) / W /
+W N / Q Q / Q (ADQ) / Q /
+Q C / G G / G (BS) / H Q / W /
+(VW) E / E E / (NADE) E / E T / B E / E /
+(MSGE) E / W Q / (ZW) E / E (BS) / B (AD) /
 
 
-(BS) HQ W(VW) E(NE) E(ADE) EN
-EB W(MW) W(SGW) WM
-WN Q(AQ) Q(DQ) QA
-QC G(BG) G(SG) H(BQ) W
+(BS) H / Q W / (VW) E / (NE) E / (ADE) E / N /
+E B / W (MW) / W (SGW) / W M /
+W N / Q (AQ) / Q (DQ) / Q A /
+Q C / G (BG) / G (SG) / H (BQ) / W /
 
-(VW) E(NE) E(ADE) E(NE)
-TB E(ME) (SGE) E(MW) Q
-(ZW) EB ES B (AD)
-(BS) W E(VW) Q Q(AD) B (MS)
-W E(NW) Q Q(AD) B (MS)
-W E(VW) Q Q(AD) B (MS)
-W E(ZW) Q Q(BS) B (AD)
+(VW) E / (NE) E / (ADE) E / (NE) /
+T B / E (ME) / (SGE) E / (MW) Q /
+(ZW) E / B E / S B / (AD) /
+(BS) W / E (VW) / Q Q / (AD) B / (MS) /
+W E / (NW) Q / Q (AD) / B (MS) /
+W E / (VW) Q / Q (AD) / B (MS) /
+W E / (ZW) Q / Q (BS) / B (AD) /
 
-W E(VW) QN Q(AD) B (MS)
-W E(NW) QA QD C (BS)
-W E(VW) QN Q(AD) B (MS)
-W E(ZW) QB QS D
+W E / (VW) Q / N Q / (AD) B / (MS) /
+W E / (NW) Q / A Q / D C / (BS) /
+W E / (VW) Q / N Q / (AD) B / (MS) /
+W E / (ZW) Q / B Q / S D /
 
-W E(FW) Q Q G
-W E(HW) Q Q D
-W E(FW) Q Q G
-W (AQ) S G Q W T
+W E / (FW) Q / Q G /
+W E / (HW) Q / Q D /
+W E / (FW) Q / Q G /
+W (AQ) / S G / Q W / T /

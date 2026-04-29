@@ -1,61 +1,26 @@
-import React, { memo, useCallback, useMemo, useRef, useState } from 'react';
-import { BookOpen, ChevronRight, Download, Edit3, FolderOpen, RotateCcw, UploadCloud } from 'lucide-react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { BookOpen, ChevronRight, Download, Edit3, FolderOpen, Link2, Plus, RotateCcw, Trash2, UploadCloud } from 'lucide-react';
 import { usePlayback } from '../contexts/PlaybackContext';
 import { usePlayheadSync } from '../hooks/usePlayheadSync';
 import playbackController from '../services/playbackController';
-import { normalizeScoreSource, PPQ } from '../utils/score';
+import { analyzeLegacyScoreText, normalizeScoreSource, PPQ } from '../utils/score';
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
-function stripInlineComments(line) {
-  return String(line ?? '').replace(/\/\/.*$/u, '');
-}
-
 function buildLegacySectionSegments(scoreText, maxTick) {
-  const segments = [];
-  let accumulatedTick = 0;
-
-  String(scoreText ?? '')
-    .split(/\r?\n/u)
-    .forEach((rawLine, index) => {
-      const cleanedLine = stripInlineComments(rawLine).replace(/\|/gu, '').trim();
-      if (!cleanedLine) {
-        return;
-      }
-
-      const beatCount = cleanedLine
-        .split('/')
-        .map((part) => part.trim())
-        .filter(Boolean)
-        .length;
-
-      if (!beatCount) {
-        return;
-      }
-
-      const startTick = accumulatedTick;
-      accumulatedTick += beatCount * PPQ;
-
-      segments.push({
-        id: `section-line-${index}`,
-        label: cleanedLine.length > 24 ? `${cleanedLine.slice(0, 24).trim()}...` : cleanedLine,
-        startTick,
-        endTick: accumulatedTick,
-      });
-    });
-
-  if (!segments.length) {
+  const analysis = analyzeLegacyScoreText(scoreText);
+  if (!analysis.lines.length) {
     return [];
   }
 
-  const resolvedMaxTick = Math.max(Number(maxTick) || 0, segments[segments.length - 1].endTick);
+  const resolvedMaxTick = Math.max(Number(maxTick) || 0, analysis.contentEndTick);
 
-  return segments
+  return analysis.lines
     .map((segment, index) => ({
       ...segment,
-      endTick: index < segments.length - 1 ? segments[index + 1].startTick : resolvedMaxTick,
+      endTick: index < analysis.lines.length - 1 ? analysis.lines[index + 1].startTick : resolvedMaxTick,
     }))
     .filter((segment) => segment.endTick > segment.startTick);
 }
@@ -95,45 +60,34 @@ function buildJsonSectionSegments(scoreJson, maxTick) {
     .filter((section) => section.endTick > section.startTick);
 }
 
-function getPracticeFeedbackTone(grade) {
-  if (grade === 'PERFECT') {
-    return {
-      panel: 'border-amber-300/35 bg-amber-400/10',
-      badge: 'border-amber-300/40 bg-amber-300/10 text-amber-200',
-      headline: 'text-amber-300',
-      detail: 'text-amber-100/75',
-    };
-  }
-
-  if (grade === 'GOOD') {
-    return {
-      panel: 'border-emerald-400/30 bg-emerald-400/10',
-      badge: 'border-emerald-400/35 bg-emerald-400/10 text-emerald-200',
-      headline: 'text-emerald-300',
-      detail: 'text-emerald-100/75',
-    };
-  }
-
-  if (grade === 'MISS') {
-    return {
-      panel: 'border-rose-400/25 bg-rose-500/10',
-      badge: 'border-rose-400/30 bg-rose-500/10 text-rose-200',
-      headline: 'text-rose-300',
-      detail: 'text-rose-100/75',
-    };
-  }
-
+function createReferenceDraft() {
   return {
-    panel: 'border-white/10 bg-white/[0.03]',
-    badge: 'border-white/10 bg-white/[0.04] text-white/55',
-    headline: 'text-emerald-100/80',
-    detail: 'text-white/45',
+    id: `reference-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    label: '',
+    url: '',
+    type: 'link',
   };
 }
 
-function formatTickDelta(deltaTicks = 0) {
-  const rounded = Math.round(Number(deltaTicks) || 0);
-  return `${rounded >= 0 ? '+' : ''}${rounded}`;
+function findActiveSegmentIndex(segments, currentTick) {
+  if (!Array.isArray(segments) || !segments.length) {
+    return -1;
+  }
+
+  const safeTick = Math.max(0, Math.round(Number(currentTick) || 0));
+  const matchedIndex = segments.findIndex((segment) => (
+    safeTick >= segment.startTick && safeTick < segment.endTick
+  ));
+
+  if (matchedIndex >= 0) {
+    return matchedIndex;
+  }
+
+  if (safeTick >= segments[segments.length - 1].startTick) {
+    return segments.length - 1;
+  }
+
+  return 0;
 }
 
 const SheetDisplay = memo(({
@@ -141,8 +95,10 @@ const SheetDisplay = memo(({
   setScore,
   scoreTitle,
   setScoreTitle,
-  practiceFeedback,
-  practiceStats,
+  references,
+  setReferences,
+  referenceNotes,
+  setReferenceNotes,
   onImport,
   onLoadJsonDemo,
   onExport,
@@ -154,7 +110,10 @@ const SheetDisplay = memo(({
 }) => {
   const fileInputRef = useRef(null);
   const playheadRef = useRef(null);
+  const previewContainerRef = useRef(null);
+  const activePreviewTickRef = useRef(null);
   const [showGuide, setShowGuide] = useState(false);
+  const [referenceSearch, setReferenceSearch] = useState('');
   const {
     bpm,
     timeSigNum,
@@ -166,10 +125,6 @@ const SheetDisplay = memo(({
   const scoreEditorValue = useMemo(
     () => (typeof score === 'string' ? score : JSON.stringify(score, null, 2)),
     [score],
-  );
-  const practiceTone = useMemo(
-    () => getPracticeFeedbackTone(practiceFeedback?.grade),
-    [practiceFeedback?.grade],
   );
   const normalizedScore = useMemo(() => {
     try {
@@ -190,7 +145,10 @@ const SheetDisplay = memo(({
 
       return {
         ...nextScore,
-        maxTick,
+        maxTick: Math.max(
+          maxTick,
+          Number(nextScore?.structure?.contentEndTick) || 0,
+        ),
       };
     } catch {
       return {
@@ -243,6 +201,22 @@ const SheetDisplay = memo(({
 
     return [];
   }, [effectiveMaxTick, score]);
+  const filteredReferences = useMemo(() => {
+    const query = referenceSearch.trim().toLowerCase();
+
+    if (!query) {
+      return references;
+    }
+
+    return references.filter((reference) => {
+      const searchable = `${reference?.label ?? ''} ${reference?.url ?? ''} ${reference?.type ?? ''}`.toLowerCase();
+      return searchable.includes(query);
+    });
+  }, [referenceSearch, references]);
+  const activeSegmentIndex = useMemo(
+    () => findActiveSegmentIndex(sectionSegments, playbackState.currentTick),
+    [playbackState.currentTick, sectionSegments],
+  );
 
   const syncPlayheadPosition = useCallback((nextTick) => {
     const playheadElement = playheadRef.current;
@@ -297,7 +271,71 @@ const SheetDisplay = memo(({
     void handleSeek(clickRatio * targetMaxTick);
   }, [handleSeek, normalizedScore.maxTick, playbackState.maxTick]);
 
+  const handlePreviewClick = useCallback((event) => {
+    const target = event.target.closest('[data-seek-tick]');
+    if (!target) {
+      return;
+    }
+
+    const tickValue = Number(target.dataset.seekTick);
+    if (!Number.isFinite(tickValue)) {
+      return;
+    }
+
+    void handleSeek(tickValue);
+  }, [handleSeek]);
+
+  const handleAddReference = useCallback(() => {
+    setReferences((prev) => [...prev, createReferenceDraft()]);
+  }, [setReferences]);
+
+  const handleReferenceChange = useCallback((id, field, value) => {
+    setReferences((prev) => prev.map((reference) => (
+      reference.id === id
+        ? { ...reference, [field]: value }
+        : reference
+    )));
+  }, [setReferences]);
+
+  const handleRemoveReference = useCallback((id) => {
+    setReferences((prev) => prev.filter((reference) => reference.id !== id));
+  }, [setReferences]);
+
   usePlayheadSync(playheadRef);
+
+  useEffect(() => {
+    if (!playbackState.isPlaying || activeSegmentIndex < 0) {
+      return;
+    }
+
+    const activeSegment = sectionSegments[activeSegmentIndex];
+    const activeTick = activeSegment?.startTick;
+    if (!Number.isFinite(activeTick) || activePreviewTickRef.current === activeTick) {
+      return;
+    }
+
+    const container = previewContainerRef.current;
+    if (!container) {
+      return;
+    }
+
+    const target = container.querySelector(`[data-seek-tick="${activeTick}"]`);
+    if (!target) {
+      return;
+    }
+
+    activePreviewTickRef.current = activeTick;
+    target.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center',
+    });
+  }, [activeSegmentIndex, playbackState.isPlaying, sectionSegments]);
+
+  useEffect(() => {
+    if (!playbackState.isPlaying) {
+      activePreviewTickRef.current = null;
+    }
+  }, [playbackState.isPlaying]);
 
   return (
     <div className="bg-white/[0.02] border border-white/5 rounded-[40px] p-6 md:p-8 flex flex-col shadow-2xl relative">
@@ -423,68 +461,171 @@ const SheetDisplay = memo(({
           />
         </div>
         <div className="mt-3 flex items-center justify-between gap-3 text-[11px] text-white/55">
-          <span className="uppercase tracking-[0.24em] text-emerald-100/35">Practice</span>
-          <span className="text-right text-white/35">
-            {practiceStats?.resolvedNotes || 0} / {practiceStats?.totalNotes || 0} judged
-          </span>
+          <span className="uppercase tracking-[0.24em] text-emerald-100/35">Follow Mode</span>
+          <span className="text-right text-white/35">Keyboard input remains active without score grading</span>
         </div>
-        <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
-          <div className={`rounded-2xl border px-4 py-3 ${practiceTone.panel}`}>
-            <div className="flex items-center justify-between gap-3">
-              <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black tracking-[0.28em] ${practiceTone.badge}`}>
-                {practiceFeedback?.grade ?? 'READY'}
-              </span>
-              <span className="text-[10px] font-mono tracking-[0.18em] text-white/35">
-                {practiceFeedback
-                  ? `${formatTickDelta(practiceFeedback.deltaTicks)} tick`
-                  : `Perfect <= 40 / Good <= 120`}
-              </span>
-            </div>
-            <div className={`mt-3 text-lg font-black tracking-[0.08em] ${practiceTone.headline}`}>
-              {practiceFeedback
-                ? `${practiceFeedback.noteName} ${practiceFeedback.grade}`
-                : 'Press a mapped key near the playhead'}
-            </div>
-            <div className={`mt-1 text-[11px] ${practiceTone.detail}`}>
-              {practiceFeedback
-                ? (
-                  practiceFeedback.grade === 'MISS'
-                    ? `Missed at ${practiceFeedback.currentTick} tick`
-                    : `Matched ${practiceFeedback.noteName} at ${practiceFeedback.startTick} tick`
-                )
-                : 'Practice mode listens to Q-U / A-J / Z-M and grades each note in real time.'}
+      </div>
+
+      <div className="mb-6 rounded-[22px] border border-sky-400/15 bg-sky-500/[0.05] p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-[0.24em] text-sky-200/55">Reference Sources</div>
+            <div className="mt-1 text-sm text-sky-50/85">
+              Save score specs, arranger notes, cloud links, or web references with this score.
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-2xl border border-amber-300/20 bg-amber-300/10 px-3 py-3">
-              <div className="text-[10px] font-black tracking-[0.24em] text-amber-200/70">PERFECT</div>
-              <div className="mt-1 text-xl font-black text-amber-300">{practiceStats?.totals?.perfect || 0}</div>
-            </div>
-            <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-3 py-3">
-              <div className="text-[10px] font-black tracking-[0.24em] text-emerald-200/70">GOOD</div>
-              <div className="mt-1 text-xl font-black text-emerald-300">{practiceStats?.totals?.good || 0}</div>
-            </div>
-            <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-3 py-3">
-              <div className="text-[10px] font-black tracking-[0.24em] text-rose-200/70">MISS</div>
-              <div className="mt-1 text-xl font-black text-rose-300">{practiceStats?.totals?.miss || 0}</div>
-            </div>
-            <div className="rounded-2xl border border-sky-400/20 bg-sky-400/10 px-3 py-3">
-              <div className="text-[10px] font-black tracking-[0.24em] text-sky-200/70">MAX COMBO</div>
-              <div className="mt-1 text-xl font-black text-sky-300">{practiceStats?.maxCombo || 0}</div>
-            </div>
+          <div className="flex gap-2">
+            <input
+              value={referenceSearch}
+              onChange={(event) => setReferenceSearch(event.target.value)}
+              className="min-w-[180px] rounded-2xl border border-white/10 bg-black/30 px-4 py-2 text-xs text-sky-50/85 outline-none focus:border-sky-300/35"
+              placeholder="Search references"
+            />
+            <button
+              type="button"
+              onClick={handleAddReference}
+              className="flex items-center justify-center gap-2 rounded-2xl border border-sky-300/20 bg-sky-500/10 px-4 py-2 text-[11px] font-black tracking-[0.22em] text-sky-100 transition-colors hover:bg-sky-500/18"
+            >
+              <Plus size={14} />
+              ADD
+            </button>
           </div>
         </div>
-        <div className="mt-3 flex flex-col gap-1 rounded-2xl border border-white/8 bg-black/20 px-4 py-3 text-[11px] text-white/55 sm:flex-row sm:items-center sm:justify-between">
-          <span className="font-black uppercase tracking-[0.22em] text-emerald-100/40">
-            Measure {Number(practiceStats?.currentMeasure?.index || 0) + 1}
-            {practiceStats?.totalMeasures ? ` / ${practiceStats.totalMeasures}` : ''}
-          </span>
-          <span>
-            Perfect {practiceStats?.currentMeasure?.perfect || 0} / Good {practiceStats?.currentMeasure?.good || 0} / Miss {practiceStats?.currentMeasure?.miss || 0}
-          </span>
-          <span className="text-white/35">
-            {practiceStats?.currentMeasure?.resolved || 0} / {practiceStats?.currentMeasure?.total || 0} notes
-          </span>
+
+        <div className="mt-4 space-y-3">
+          {filteredReferences.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-white/10 px-4 py-6 text-center text-[11px] text-sky-100/45">
+              No references yet. Add source links, shared drive URLs, score posts, or arrangement notes.
+            </div>
+          ) : filteredReferences.map((reference) => (
+            <div
+              key={reference.id}
+              className="grid gap-2 rounded-2xl border border-white/10 bg-black/25 p-3 lg:grid-cols-[120px_minmax(0,1fr)_minmax(0,1.3fr)_auto]"
+            >
+              <input
+                value={reference.type ?? 'link'}
+                onChange={(event) => handleReferenceChange(reference.id, 'type', event.target.value)}
+                className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs uppercase tracking-[0.18em] text-sky-100/75 outline-none focus:border-sky-300/35"
+                placeholder="Type"
+              />
+              <input
+                value={reference.label ?? ''}
+                onChange={(event) => handleReferenceChange(reference.id, 'label', event.target.value)}
+                className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs text-sky-50/85 outline-none focus:border-sky-300/35"
+                placeholder="Label"
+              />
+              <div className="flex items-center gap-2">
+                <Link2 size={14} className="shrink-0 text-sky-200/45" />
+                <input
+                  value={reference.url ?? ''}
+                  onChange={(event) => handleReferenceChange(reference.id, 'url', event.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs text-sky-50/85 outline-none focus:border-sky-300/35"
+                  placeholder="https://..."
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => handleRemoveReference(reference.id)}
+                className="flex items-center justify-center rounded-xl border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-rose-200 transition-colors hover:bg-rose-500/18"
+                title="Remove reference"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {filteredReferences.length > 0 ? (
+          <div className="mt-4 rounded-[20px] border border-white/10 bg-black/20 p-3">
+            <div className="mb-2 text-[10px] font-black uppercase tracking-[0.22em] text-sky-200/50">
+              Quick Links
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {filteredReferences
+                .filter((reference) => reference?.url)
+                .map((reference) => (
+                  <a
+                    key={`${reference.id}-link`}
+                    href={reference.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-2 rounded-full border border-sky-300/20 bg-sky-500/10 px-3 py-2 text-[11px] text-sky-100 transition-colors hover:bg-sky-500/18"
+                  >
+                    <Link2 size={13} />
+                    <span>{reference.label || reference.url}</span>
+                  </a>
+                ))}
+            </div>
+          </div>
+        ) : null}
+
+        <textarea
+          value={referenceNotes}
+          onChange={(event) => setReferenceNotes(event.target.value)}
+          spellCheck={false}
+          className="mt-4 min-h-[110px] w-full rounded-[22px] border border-white/10 bg-black/30 p-4 text-xs leading-relaxed text-sky-50/80 outline-none focus:border-sky-300/35"
+          placeholder="Write spec notes here: source version, arranger comments, BPM assumptions, section map, import caveats, shared cloud folder rules, or lookup keywords."
+        />
+
+        {referenceNotes.trim() ? (
+          <div className="mt-4 rounded-[20px] border border-white/10 bg-black/20 p-4">
+            <div className="mb-2 text-[10px] font-black uppercase tracking-[0.22em] text-sky-200/50">
+              Notes Preview
+            </div>
+            <div className="whitespace-pre-wrap text-sm leading-relaxed text-sky-50/80">
+              {referenceNotes}
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="mb-6 rounded-[22px] border border-emerald-400/12 bg-emerald-500/[0.04] p-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-200/55">
+            Score Map
+          </div>
+          <div className="text-[10px] text-emerald-100/40">
+            Click a line or section to seek
+          </div>
+        </div>
+        <div
+          ref={previewContainerRef}
+          onClick={handlePreviewClick}
+          className="max-h-[240px] overflow-y-auto rounded-[20px] border border-white/10 bg-black/25 p-3 custom-scrollbar"
+        >
+          {sectionSegments.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-white/10 px-4 py-6 text-center text-[11px] text-emerald-100/40">
+              No clickable sections available for this score.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {sectionSegments.map((segment, index) => {
+                const isActive = index === activeSegmentIndex;
+
+                return (
+                  <button
+                    key={segment.id ?? `preview-segment-${index}`}
+                    type="button"
+                    data-seek-tick={segment.startTick}
+                    className={`block w-full rounded-2xl border px-4 py-3 text-left transition-colors ${
+                      isActive
+                        ? 'border-emerald-300/35 bg-emerald-400/15 text-emerald-50'
+                        : 'border-white/8 bg-black/30 text-emerald-100/75 hover:border-emerald-400/25 hover:bg-emerald-500/10'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="truncate text-xs font-semibold">
+                        {segment.label}
+                      </span>
+                      <span className="shrink-0 text-[10px] uppercase tracking-[0.18em] text-white/35">
+                        {Math.round(segment.startTick)} tick
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
