@@ -1,6 +1,25 @@
-import React, { memo, useCallback } from 'react';
+import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { NOTES_MAP, getSolfege } from '../constants/music';
 import { useAudioConfig } from '../contexts/AudioConfigContext';
+import { usePlayback } from '../contexts/PlaybackContext';
+import useLivePlaybackFrame from '../hooks/useLivePlaybackFrame';
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function formatTimeLabel(seconds) {
+  const safeSeconds = Math.max(Number(seconds) || 0, 0);
+  const minutes = Math.floor(safeSeconds / 60);
+  const wholeSeconds = Math.floor(safeSeconds % 60);
+  const tenths = Math.floor((safeSeconds % 1) * 10);
+
+  if (minutes > 0) {
+    return `${minutes}:${String(wholeSeconds).padStart(2, '0')}.${tenths}`;
+  }
+
+  return `${wholeSeconds}.${tenths}s`;
+}
 
 const PianoKey = memo(({
   keyInfo,
@@ -92,16 +111,146 @@ const PianoKeys = memo(({
   progressBarRef,
 }) => {
   const { globalKeyOffset } = useAudioConfig();
+  const { onSeekToTime, onScrubToTime } = usePlayback();
+  const playbackState = useLivePlaybackFrame();
+  const timelineTrackRef = useRef(null);
+  const dragPointerIdRef = useRef(null);
+  const [isScrubbing, setIsScrubbing] = useState(false);
+  const [previewRatio, setPreviewRatio] = useState(null);
+
+  const maxTime = Math.max(Number(playbackState.maxTime) || 0, 0);
+  const currentTime = Math.max(Number(playbackState.currentTime) || 0, 0);
+  const committedRatio = maxTime > 0 ? clamp(currentTime / maxTime, 0, 1) : 0;
+  const displayRatio = previewRatio ?? committedRatio;
+  const displayTime = maxTime > 0 ? displayRatio * maxTime : 0;
+
+  useEffect(() => {
+    if (!isScrubbing) {
+      setPreviewRatio(null);
+    }
+  }, [isScrubbing, playbackState.generation, playbackState.status]);
+
+  const resolvePointerRatio = useCallback((clientX) => {
+    const rect = timelineTrackRef.current?.getBoundingClientRect();
+    if (!rect || rect.width <= 0) {
+      return 0;
+    }
+
+    return clamp((clientX - rect.left) / rect.width, 0, 1);
+  }, []);
+
+  const commitSeek = useCallback((ratio, scrubOnly = false) => {
+    const safeRatio = clamp(ratio, 0, 1);
+    const targetSeconds = maxTime > 0 ? safeRatio * maxTime : 0;
+
+    setPreviewRatio(safeRatio);
+    if (scrubOnly) {
+      onScrubToTime?.(targetSeconds);
+      return;
+    }
+
+    void onSeekToTime?.(targetSeconds);
+  }, [maxTime, onScrubToTime, onSeekToTime]);
+
+  const finishScrub = useCallback((clientX = null) => {
+    const ratio = clientX == null ? (previewRatio ?? committedRatio) : resolvePointerRatio(clientX);
+    commitSeek(ratio, false);
+    dragPointerIdRef.current = null;
+    setIsScrubbing(false);
+  }, [commitSeek, committedRatio, previewRatio, resolvePointerRatio]);
+
+  const handleTimelinePointerDown = useCallback((event) => {
+    if (maxTime <= 0) {
+      return;
+    }
+
+    event.preventDefault();
+    dragPointerIdRef.current = event.pointerId;
+    setIsScrubbing(true);
+    const ratio = resolvePointerRatio(event.clientX);
+    setPreviewRatio(ratio);
+    commitSeek(ratio, true);
+
+    if (event.currentTarget.setPointerCapture) {
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      } catch {}
+    }
+  }, [commitSeek, maxTime, resolvePointerRatio]);
+
+  const handleTimelinePointerMove = useCallback((event) => {
+    if (!isScrubbing || dragPointerIdRef.current !== event.pointerId) {
+      return;
+    }
+
+    event.preventDefault();
+    const ratio = resolvePointerRatio(event.clientX);
+    setPreviewRatio(ratio);
+    commitSeek(ratio, true);
+  }, [commitSeek, isScrubbing, resolvePointerRatio]);
+
+  const handleTimelinePointerUp = useCallback((event) => {
+    if (dragPointerIdRef.current !== event.pointerId) {
+      return;
+    }
+
+    event.preventDefault();
+    finishScrub(event.clientX);
+
+    if (event.currentTarget.releasePointerCapture && event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      try {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      } catch {}
+    }
+  }, [finishScrub]);
+
+  const handleTimelinePointerCancel = useCallback((event) => {
+    if (dragPointerIdRef.current !== event.pointerId) {
+      return;
+    }
+
+    event.preventDefault();
+    finishScrub();
+  }, [finishScrub]);
 
   return (
     <main className="relative z-20 mt-8 w-full max-w-6xl px-4 sm:mt-10">
       <div className="group relative overflow-hidden rounded-[36px] border border-white/10 bg-black/60 p-5 shadow-[0_35px_120px_rgba(0,0,0,0.5)] backdrop-blur-xl sm:p-6 md:rounded-[60px] md:p-14">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.16),transparent_30%),radial-gradient(circle_at_80%_22%,rgba(45,212,191,0.12),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))]" />
-        <div className="absolute left-0 top-0 h-1 w-full overflow-hidden bg-white/5">
-          <div ref={progressBarRef} className="h-full bg-gradient-to-r from-emerald-600 via-emerald-300 to-teal-400 will-change-transform" style={{ width: '0%', transition: 'width 16ms linear' }} />
+        <div className="absolute inset-x-0 top-0 px-4 pt-4 sm:px-6 md:px-8">
+          <div className="mb-2 flex items-center justify-between gap-3 text-[10px] font-black uppercase tracking-[0.22em] text-emerald-100/42">
+            <span>{isScrubbing ? 'Scrubbing' : 'Transport'}</span>
+            <span>{formatTimeLabel(displayTime)} / {formatTimeLabel(maxTime)}</span>
+          </div>
+          <div
+            ref={timelineTrackRef}
+            role="slider"
+            tabIndex={maxTime > 0 ? 0 : -1}
+            aria-label="Seek playback timeline"
+            aria-valuemin={0}
+            aria-valuemax={Math.round(maxTime * 1000)}
+            aria-valuenow={Math.round(displayTime * 1000)}
+            onPointerDown={handleTimelinePointerDown}
+            onPointerMove={handleTimelinePointerMove}
+            onPointerUp={handleTimelinePointerUp}
+            onPointerCancel={handleTimelinePointerCancel}
+            onLostPointerCapture={handleTimelinePointerCancel}
+            className={`relative h-4 overflow-hidden rounded-full border border-white/10 bg-black/35 ${maxTime > 0 ? 'cursor-ew-resize' : 'cursor-default'}`}
+          >
+            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))]" />
+            <div
+              ref={progressBarRef}
+              className="pointer-events-none absolute inset-y-0 left-0 bg-gradient-to-r from-emerald-600 via-emerald-300 to-teal-300 will-change-[width]"
+              style={{ width: `${displayRatio * 100}%`, transition: isScrubbing ? 'none' : 'width 16ms linear' }}
+            />
+            <div
+              className="pointer-events-none absolute top-1/2 h-6 w-6 -translate-y-1/2 -translate-x-1/2 rounded-full border border-emerald-200/70 bg-emerald-100/90 shadow-[0_0_18px_rgba(52,211,153,0.45)]"
+              style={{ left: `${displayRatio * 100}%` }}
+            />
+          </div>
         </div>
         {NOTES_MAP.map((row, rowIndex) => (
-          <div key={rowIndex} className="relative mb-7 grid grid-cols-1 items-center gap-4 last:mb-0 sm:mb-8 md:mb-10 md:gap-8 lg:grid-cols-[104px_1fr]">
+          <div key={rowIndex} className="relative mb-7 grid grid-cols-1 items-center gap-4 first:pt-8 last:mb-0 sm:mb-8 sm:first:pt-10 md:mb-10 md:gap-8 md:first:pt-12 lg:grid-cols-[104px_1fr]">
             <div className="flex w-full flex-col items-center justify-center text-center lg:items-end lg:text-right">
               <span className="mb-1 text-[10px] font-black text-emerald-400/80">{row.label}</span>
               <span className="rounded-full border border-white/10 bg-black/40 px-2.5 py-1 text-[8px] font-bold uppercase tracking-[0.32em] text-white/35 backdrop-blur-lg">{row.sub}</span>

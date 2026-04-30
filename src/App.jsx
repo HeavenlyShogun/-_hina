@@ -18,6 +18,7 @@ import {
   parseScoreContent,
   SCORE_SOURCE_TYPES,
 } from './utils/scoreDocument';
+import { applyScoreRecommendation } from './utils/scoreRecommendations';
 
 function getFileTitle(filename) {
   return filename.replace(/\.[^/.]+$/, '');
@@ -165,6 +166,9 @@ function AppContent({
     pauseScoreAction,
     resumeScoreAction,
     seekToTime,
+    scrubToTime,
+    seekToTick,
+    scrubToTick,
     setPlaybackRate,
     playScoreSourceAction,
     stopAll,
@@ -259,10 +263,10 @@ function AppContent({
     try {
       if (files.length === 1) {
         const source = await readImportedScore(files[0]);
-        loadScoreSource({
+        loadScoreSource(applyScoreRecommendation({
           ...importDefaults,
           ...source,
-        });
+        }, { force: true }));
         stopAll();
         showToast(`已載入 ${source.title}`, 'success');
       } else {
@@ -271,10 +275,10 @@ function AppContent({
             const source = await readImportedScore(file);
             return {
               title: source.title,
-              payload: createScoreDocument({
+              payload: createScoreDocument(applyScoreRecommendation({
                 ...importDefaults,
                 ...source,
-              }),
+              }, { force: true })),
             };
           }),
         );
@@ -342,7 +346,7 @@ function AppContent({
       accidentals: featuredScore.accidentals,
     };
 
-    loadScoreSource(source);
+    loadScoreSource(applyScoreRecommendation(source, { force: true }));
     showToast(`正在播放：${featuredScore.displayTitle ?? featuredScore.title}`, 'success');
     await playScoreSourceAction({
       score: featuredScore.rawText,
@@ -399,6 +403,9 @@ function AppContent({
     onPause: pauseScoreAction,
     onResume: resumeScoreAction,
     onSeekToTime: seekToTime,
+    onScrubToTime: scrubToTime,
+    onSeekToTick: seekToTick,
+    onScrubToTick: scrubToTick,
     onSetPlaybackRate: setPlaybackRate,
   }), [
     bpm,
@@ -409,6 +416,9 @@ function AppContent({
     pauseScoreAction,
     playScoreAction,
     resumeScoreAction,
+    scrubToTick,
+    scrubToTime,
+    seekToTick,
     seekToTime,
     setBpm,
     setPlaybackRate,
@@ -447,6 +457,8 @@ function AppContent({
           onKeyDeactivate={handleKeyDeactivate}
           onToggleSharp={handleToggleSharp}
           progressBarRef={progressBarRef}
+          score={editorScore}
+          scoreTitle={scoreTitle}
         />
 
         <section className="z-20 w-full max-w-6xl grid lg:grid-cols-[300px_1fr] gap-8 px-4 items-start">
