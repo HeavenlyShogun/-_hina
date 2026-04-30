@@ -67,9 +67,14 @@ const PianoKey = memo(({
         className={`lyre-key-button relative flex aspect-square min-h-[5.4rem] w-full touch-none select-none flex-col items-center justify-center rounded-full border ${isActive ? 'playing-active' : ''}`}
       >
         <span className="lyre-key-string" aria-hidden="true" />
-        <span className="lyre-key-note flex items-start text-[1.35rem] font-black tracking-tighter sm:text-xl md:text-2xl">
-          {getSolfege(keyInfo.n)}
-          {displayOffset && <sup className="ml-0.5 text-[9px] text-amber-400 sm:text-[10px]">{displayOffset}</sup>}
+        <span className="lyre-key-note-wrap">
+          <span className="lyre-key-sparkle lyre-key-sparkle-a" aria-hidden="true" />
+          <span className="lyre-key-sparkle lyre-key-sparkle-b" aria-hidden="true" />
+          <span className="lyre-key-sparkle lyre-key-sparkle-c" aria-hidden="true" />
+          <span className="lyre-key-note flex items-start text-[1.35rem] font-black tracking-tighter sm:text-xl md:text-2xl">
+            {getSolfege(keyInfo.n)}
+            {displayOffset && <sup className="lyre-key-offset ml-0.5 text-[9px] sm:text-[10px]">{displayOffset}</sup>}
+          </span>
         </span>
         <span className="lyre-key-label mt-1 font-mono text-[10px] font-bold uppercase tracking-[0.24em] md:text-[11px]">{keyInfo.k}</span>
       </button>
