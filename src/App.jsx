@@ -7,6 +7,7 @@ import WindParticles from './components/WindParticles';
 import PianoRoom from './pages/PianoRoom';
 import { AudioConfigProvider, useAudioConfig } from './contexts/AudioConfigContext';
 import { PlaybackProvider } from './contexts/PlaybackContext';
+import { FEATURED_SCORES } from './data/featuredScores';
 import demoScore from './data/scores/demo.json';
 import { useCloudScores } from './hooks/useCloudScores';
 import useKeyboardMatcher from './hooks/useKeyboardMatcher';
@@ -78,6 +79,7 @@ function AppContent({
   user,
   savedScores,
   cloudStatus,
+  cloudError,
   isSaving,
   ensureCloudConnection,
   saveCloudScore,
@@ -164,6 +166,7 @@ function AppContent({
     resumeScoreAction,
     seekToTime,
     setPlaybackRate,
+    playScoreSourceAction,
     stopAll,
     handleKeyActivate,
     handleKeyDeactivate,
@@ -200,43 +203,51 @@ function AppContent({
 
   const handleConnectCloud = useCallback(async () => {
     const result = await ensureCloudConnection();
+    if (!result) {
+      showToast(cloudError || 'Firebase 連線失敗，請檢查設定。', 'error');
+      return;
+    }
     if (result) {
-      showToast('Cloud connected', 'success');
+      showToast('雲端已連線', 'success');
       return;
     }
 
-    showToast('Cloud unavailable', 'error');
-  }, [ensureCloudConnection, showToast]);
+    showToast('雲端目前無法使用', 'error');
+  }, [cloudError, ensureCloudConnection, showToast]);
 
   const handleLoadScore = useCallback((savedScore) => {
     applySavedScore(savedScore);
     stopAll();
-    showToast(`Loaded ${savedScore.title}`, 'success');
+    showToast(`已載入 ${savedScore.title}`, 'success');
   }, [applySavedScore, showToast, stopAll]);
 
   const handleSaveScore = useCallback(async () => {
     const title = scoreTitle.trim();
     if (!title) {
-      showToast('Score title is required', 'error');
+      showToast('請先輸入琴譜標題', 'error');
       return;
     }
 
     const saved = await saveCloudScore(title, scoreDocument);
-    showToast(saved ? 'Saved to cloud' : 'Connect cloud first', saved ? 'success' : 'error');
-  }, [saveCloudScore, scoreDocument, scoreTitle, showToast]);
+    if (!saved) {
+      showToast(cloudError || 'Firebase 儲存失敗，請檢查設定與 Firestore 規則。', 'error');
+      return;
+    }
+    showToast(saved ? '已儲存到雲端' : '請先連線雲端', saved ? 'success' : 'error');
+  }, [cloudError, saveCloudScore, scoreDocument, scoreTitle, showToast]);
 
   const handleDeleteScore = useCallback(async (id) => {
     const deleted = await deleteCloudScore(id);
-    showToast(deleted ? 'Deleted score' : 'Delete failed', deleted ? 'success' : 'error');
+    showToast(deleted ? '已刪除琴譜' : '刪除失敗', deleted ? 'success' : 'error');
   }, [deleteCloudScore, showToast]);
 
   const handleClearAllScores = useCallback(async () => {
-    if (!window.confirm('Delete all cloud scores?')) {
+    if (!window.confirm('確定要刪除所有雲端琴譜嗎？')) {
       return;
     }
 
     const cleared = await clearAllCloudScores();
-    showToast(cleared ? 'Cleared library' : 'Clear failed', cleared ? 'success' : 'error');
+    showToast(cleared ? '琴譜庫已清空' : '清空失敗', cleared ? 'success' : 'error');
   }, [clearAllCloudScores, showToast]);
 
   const handleImportLocal = useCallback(async (event) => {
@@ -253,7 +264,7 @@ function AppContent({
           ...source,
         });
         stopAll();
-        showToast(`Loaded ${source.title}`, 'success');
+        showToast(`已載入 ${source.title}`, 'success');
       } else {
         const payloads = await Promise.all(
           files.map(async (file) => {
@@ -270,13 +281,13 @@ function AppContent({
 
         const uploaded = await uploadCloudScores(payloads);
         showToast(
-          uploaded ? `Uploaded ${payloads.length} scores` : 'Connect cloud first',
+          uploaded ? `已上傳 ${payloads.length} 份琴譜` : '請先連線雲端',
           uploaded ? 'success' : 'error',
         );
       }
     } catch (error) {
       console.error(error);
-      showToast('Import failed', 'error');
+      showToast('匯入失敗', 'error');
     } finally {
       event.target.value = '';
     }
@@ -294,30 +305,64 @@ function AppContent({
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    showToast(`Exported ${filename}`, 'success');
+    showToast(`已匯出 ${filename}`, 'success');
   }, [scoreDocument.rawText, scoreDocument.sourceType, scoreTitle, showToast]);
 
   const handleResetScore = useCallback(() => {
     resetScoreState();
     stopAll();
-    showToast('Score reset', 'success');
+    showToast('琴譜已重設', 'success');
   }, [resetScoreState, showToast, stopAll]);
 
   const handleLoadJsonDemo = useCallback(() => {
     loadScoreSource({
-      title: demoScore.meta?.title ?? 'JSON Demo',
+      title: demoScore.meta?.title ?? 'JSON 範例',
       content: demoScore,
       sourceType: SCORE_SOURCE_TYPES.JSON,
       ...demoScore.transport,
       ...demoScore.playback,
     });
     stopAll();
-    showToast('Loaded JSON demo', 'success');
+    showToast('已載入 JSON 範例', 'success');
   }, [loadScoreSource, showToast, stopAll]);
+
+  const handlePlayFeaturedScore = useCallback(async (featuredScore) => {
+    const source = {
+      title: featuredScore.title,
+      rawText: featuredScore.rawText,
+      sourceType: featuredScore.sourceType,
+      bpm: featuredScore.bpm,
+      timeSigNum: featuredScore.timeSigNum,
+      timeSigDen: featuredScore.timeSigDen,
+      charResolution: featuredScore.charResolution,
+      globalKeyOffset: featuredScore.globalKeyOffset,
+      scaleMode: featuredScore.scaleMode,
+      reverb: featuredScore.reverb,
+      tone: featuredScore.tone,
+      accidentals: featuredScore.accidentals,
+    };
+
+    loadScoreSource(source);
+    showToast(`正在播放：${featuredScore.displayTitle ?? featuredScore.title}`, 'success');
+    await playScoreSourceAction({
+      score: featuredScore.rawText,
+      bpm: featuredScore.bpm,
+      timeSigNum: featuredScore.timeSigNum,
+      timeSigDen: featuredScore.timeSigDen,
+      charResolution: featuredScore.charResolution,
+      audioConfig: {
+        ...audioConfig,
+        tone: featuredScore.tone ?? audioConfig.tone,
+        reverb: featuredScore.reverb ?? audioConfig.reverb,
+        globalKeyOffset: featuredScore.globalKeyOffset ?? audioConfig.globalKeyOffset,
+      },
+      accidentals: featuredScore.accidentals,
+    });
+  }, [audioConfig, loadScoreSource, playScoreSourceAction, showToast]);
 
   const handleLoadLocalConvertedScore = useCallback((payload) => {
     loadScoreSource({
-      title: payload?.meta?.title ?? 'Local JSON Score',
+      title: payload?.meta?.title ?? '本機 JSON 琴譜',
       content: payload,
       sourceType: SCORE_SOURCE_TYPES.JSON,
       ...payload?.transport,
@@ -393,6 +438,8 @@ function AppContent({
         <PianoRoom
           playHotkey={playHotkey}
           setPlayHotkey={setPlayHotkey}
+          featuredScores={FEATURED_SCORES}
+          onPlayFeaturedScore={handlePlayFeaturedScore}
           activeKeys={activeKeys}
           accidentals={accidentals}
           keyPulseTokens={keyPulseTokens}
@@ -411,6 +458,7 @@ function AppContent({
             onDeleteScore={handleDeleteScore}
             onConnectCloud={handleConnectCloud}
             cloudStatus={cloudStatus}
+            cloudError={cloudError}
           />
           <div className="flex flex-col">
             <ScoreEditor
@@ -449,7 +497,7 @@ function AppContent({
         </section>
 
         <footer className="z-20 mt-16 opacity-20 text-[10px] tracking-[0.6em] uppercase">
-          Aria Engine Teyvat Symphony Studio
+          風物之詩琴譜工作室
         </footer>
 
         <style>{`
@@ -497,6 +545,7 @@ export default function App() {
     savedScores,
     user,
     cloudStatus,
+    cloudError,
     isSaving,
     ensureCloudConnection,
     saveCloudScore,
@@ -566,6 +615,7 @@ export default function App() {
         user={user}
         savedScores={savedScores}
         cloudStatus={cloudStatus}
+        cloudError={cloudError}
         isSaving={isSaving}
         ensureCloudConnection={ensureCloudConnection}
         saveCloudScore={saveCloudScore}

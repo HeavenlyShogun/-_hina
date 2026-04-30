@@ -1,12 +1,19 @@
-import { appId, getFirebaseConfig, initialAuthToken } from '../config/appConfig';
+import { appId, getFirebaseConfig, getFirebaseConfigError, initialAuthToken } from '../config/appConfig';
 import { createScoreDocument, SCORE_SOURCE_TYPES } from '../utils/scoreDocument';
 
 let firebaseContextPromise;
 export const SCORE_COMPILER_VERSION = 'wind-poetry-score-compiler@2';
 
 async function createFirebaseContext() {
+  const configError = getFirebaseConfigError();
+  if (configError) {
+    throw new Error(configError);
+  }
+
   const firebaseConfig = getFirebaseConfig();
-  if (!firebaseConfig) return null;
+  if (!firebaseConfig) {
+    throw new Error('Firebase config 無法讀取，請檢查 .env 設定。');
+  }
 
   const [
     { initializeApp, getApps, getApp },
@@ -57,6 +64,7 @@ export async function connectFirebaseAuth(onUserChange) {
     else await ctx.signInAnonymously(ctx.auth);
   } catch (error) {
     console.warn('Firebase Auth Error', error);
+    throw error;
   }
 
   return { ctx, unsubscribe };
@@ -106,6 +114,7 @@ async function createScoreDocumentData(ctx, uid, title, payload) {
 
   return {
     ...normalized,
+    content: normalized.rawText,
     compilerVersion: SCORE_COMPILER_VERSION,
     createdAt: existingCreatedAt ?? ctx.serverTimestamp(),
     updatedAt: ctx.serverTimestamp(),
@@ -123,13 +132,13 @@ export function normalizeLoadedScore(record) {
   };
 }
 
-export function subscribeToScores(ctx, uid, onData) {
+export function subscribeToScores(ctx, uid, onData, onError) {
   return ctx.onSnapshot(scoreCollection(ctx, uid), (snapshot) => {
     const scores = snapshot.docs
       .map((snap) => normalizeLoadedScore({ id: snap.id, ...snap.data() }))
       .sort((left, right) => (right.updatedAt?.seconds || 0) - (left.updatedAt?.seconds || 0));
     onData(scores);
-  });
+  }, onError);
 }
 
 export async function saveScore(ctx, uid, title, data) {

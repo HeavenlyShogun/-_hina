@@ -356,7 +356,7 @@ const SheetDisplay = memo(({
           </button>
           {onLoadJsonDemo ? (
             <button onClick={onLoadJsonDemo} className="flex items-center justify-center px-4 py-3 bg-sky-500/10 hover:bg-sky-500/20 rounded-2xl border border-sky-400/20 text-sky-300 transition-all text-[11px] font-black tracking-widest" title="載入 JSON demo">
-              JSON DEMO
+              JSON 範例
             </button>
           ) : null}
           <button onClick={onExport} className="flex items-center justify-center p-3 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/5 text-emerald-400 transition-all" title="匯出目前琴譜">
@@ -364,7 +364,7 @@ const SheetDisplay = memo(({
           </button>
           <button onClick={cloudStatus === 'ready' ? onSave : onConnectCloud} disabled={isSaving || cloudStatus === 'loading'} className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-emerald-600/80 hover:bg-emerald-600 text-white px-6 py-3 rounded-2xl text-xs font-black transition-all shadow-lg ml-1 sm:ml-2 disabled:opacity-60">
             <UploadCloud size={16} />
-            {cloudStatus === 'ready' ? (isSaving ? 'SYNC' : 'CLOUD') : (cloudStatus === 'loading' ? 'LOADING' : 'CONNECT')}
+            {cloudStatus === 'ready' ? (isSaving ? '同步中' : '雲端儲存') : (cloudStatus === 'loading' ? '連線中' : '連線')}
           </button>
           <button onClick={onReset} className="flex items-center justify-center p-3 bg-rose-500/10 hover:bg-rose-500/20 rounded-2xl border border-rose-500/20 text-rose-400 transition-all" title="重設目前琴譜">
             <RotateCcw size={18} />
@@ -423,7 +423,7 @@ const SheetDisplay = memo(({
 
       <div className="mb-4 rounded-[22px] border border-white/8 bg-black/30 px-4 py-3">
         <div className="mb-2 flex items-center justify-between text-[10px] font-black uppercase tracking-[0.24em] text-emerald-100/40">
-          <span>Playhead</span>
+          <span>播放位置</span>
           <span>{Math.round(playbackState.currentTick || 0)} / {Math.round(effectiveMaxTick || 0)} tick</span>
         </div>
         <div
@@ -446,7 +446,7 @@ const SheetDisplay = memo(({
                     event.stopPropagation();
                     void handleSeek(segment.startTick);
                   }}
-                  title={`Seek to ${Math.round(segment.startTick)} tick`}
+                  title={`跳到 ${Math.round(segment.startTick)} tick`}
                 >
                   <span className="block truncate">{segment.label}</span>
                 </button>
@@ -461,17 +461,17 @@ const SheetDisplay = memo(({
           />
         </div>
         <div className="mt-3 flex items-center justify-between gap-3 text-[11px] text-white/55">
-          <span className="uppercase tracking-[0.24em] text-emerald-100/35">Follow Mode</span>
-          <span className="text-right text-white/35">Keyboard input remains active without score grading</span>
+          <span className="uppercase tracking-[0.24em] text-emerald-100/35">跟隨模式</span>
+          <span className="text-right text-white/35">鍵盤仍可即時演奏，目前不做評分</span>
         </div>
       </div>
 
       <div className="mb-6 rounded-[22px] border border-sky-400/15 bg-sky-500/[0.05] p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.24em] text-sky-200/55">Reference Sources</div>
+            <div className="text-[10px] font-black uppercase tracking-[0.24em] text-sky-200/55">參考資料</div>
             <div className="mt-1 text-sm text-sky-50/85">
-              Save score specs, arranger notes, cloud links, or web references with this score.
+              可保存琴譜規格、編曲備註、雲端連結或來源參考。
             </div>
           </div>
           <div className="flex gap-2">
@@ -479,7 +479,7 @@ const SheetDisplay = memo(({
               value={referenceSearch}
               onChange={(event) => setReferenceSearch(event.target.value)}
               className="min-w-[180px] rounded-2xl border border-white/10 bg-black/30 px-4 py-2 text-xs text-sky-50/85 outline-none focus:border-sky-300/35"
-              placeholder="Search references"
+              placeholder="搜尋參考資料"
             />
             <button
               type="button"
@@ -487,7 +487,7 @@ const SheetDisplay = memo(({
               className="flex items-center justify-center gap-2 rounded-2xl border border-sky-300/20 bg-sky-500/10 px-4 py-2 text-[11px] font-black tracking-[0.22em] text-sky-100 transition-colors hover:bg-sky-500/18"
             >
               <Plus size={14} />
-              ADD
+              新增
             </button>
           </div>
         </div>
@@ -495,7 +495,7 @@ const SheetDisplay = memo(({
         <div className="mt-4 space-y-3">
           {filteredReferences.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-white/10 px-4 py-6 text-center text-[11px] text-sky-100/45">
-              No references yet. Add source links, shared drive URLs, score posts, or arrangement notes.
+              尚無參考資料。可新增來源連結、共用雲端、琴譜貼文或編曲備註。
             </div>
           ) : filteredReferences.map((reference) => (
             <div
@@ -506,13 +506,13 @@ const SheetDisplay = memo(({
                 value={reference.type ?? 'link'}
                 onChange={(event) => handleReferenceChange(reference.id, 'type', event.target.value)}
                 className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs uppercase tracking-[0.18em] text-sky-100/75 outline-none focus:border-sky-300/35"
-                placeholder="Type"
+                placeholder="類型"
               />
               <input
                 value={reference.label ?? ''}
                 onChange={(event) => handleReferenceChange(reference.id, 'label', event.target.value)}
                 className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs text-sky-50/85 outline-none focus:border-sky-300/35"
-                placeholder="Label"
+                placeholder="標籤"
               />
               <div className="flex items-center gap-2">
                 <Link2 size={14} className="shrink-0 text-sky-200/45" />
@@ -527,7 +527,7 @@ const SheetDisplay = memo(({
                 type="button"
                 onClick={() => handleRemoveReference(reference.id)}
                 className="flex items-center justify-center rounded-xl border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-rose-200 transition-colors hover:bg-rose-500/18"
-                title="Remove reference"
+                title="移除參考資料"
               >
                 <Trash2 size={14} />
               </button>
@@ -538,7 +538,7 @@ const SheetDisplay = memo(({
         {filteredReferences.length > 0 ? (
           <div className="mt-4 rounded-[20px] border border-white/10 bg-black/20 p-3">
             <div className="mb-2 text-[10px] font-black uppercase tracking-[0.22em] text-sky-200/50">
-              Quick Links
+              快速連結
             </div>
             <div className="flex flex-wrap gap-2">
               {filteredReferences
@@ -564,13 +564,13 @@ const SheetDisplay = memo(({
           onChange={(event) => setReferenceNotes(event.target.value)}
           spellCheck={false}
           className="mt-4 min-h-[110px] w-full rounded-[22px] border border-white/10 bg-black/30 p-4 text-xs leading-relaxed text-sky-50/80 outline-none focus:border-sky-300/35"
-          placeholder="Write spec notes here: source version, arranger comments, BPM assumptions, section map, import caveats, shared cloud folder rules, or lookup keywords."
+          placeholder="在這裡寫下規格備註：來源版本、編曲說明、BPM 假設、段落地圖、匯入注意事項、共用雲端規則或查找關鍵字。"
         />
 
         {referenceNotes.trim() ? (
           <div className="mt-4 rounded-[20px] border border-white/10 bg-black/20 p-4">
             <div className="mb-2 text-[10px] font-black uppercase tracking-[0.22em] text-sky-200/50">
-              Notes Preview
+              備註預覽
             </div>
             <div className="whitespace-pre-wrap text-sm leading-relaxed text-sky-50/80">
               {referenceNotes}
@@ -582,10 +582,10 @@ const SheetDisplay = memo(({
       <div className="mb-6 rounded-[22px] border border-emerald-400/12 bg-emerald-500/[0.04] p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-200/55">
-            Score Map
+            琴譜地圖
           </div>
           <div className="text-[10px] text-emerald-100/40">
-            Click a line or section to seek
+            點擊段落即可跳轉
           </div>
         </div>
         <div
@@ -595,7 +595,7 @@ const SheetDisplay = memo(({
         >
           {sectionSegments.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-white/10 px-4 py-6 text-center text-[11px] text-emerald-100/40">
-              No clickable sections available for this score.
+              這份琴譜目前沒有可點擊段落。
             </div>
           ) : (
             <div className="space-y-2">

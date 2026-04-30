@@ -31,7 +31,7 @@ const ControlPanel = memo(() => {
       <div className="grid gap-4 xl:grid-cols-[1.35fr_1fr]">
         <div
           className="relative overflow-hidden rounded-[28px] border border-white/10 bg-black/60 p-4 shadow-[0_20px_70px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:p-5"
-          title="Tempo"
+          title="速度"
         >
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.12),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))]" />
           <div className="relative flex flex-col gap-4">
@@ -40,8 +40,8 @@ const ControlPanel = memo(() => {
                 <Zap size={16} className="shrink-0 text-amber-300" />
               </div>
               <div>
-                <div className="text-[10px] font-black uppercase tracking-[0.35em] text-amber-100/45">Tempo</div>
-                <div className="text-sm font-semibold text-emerald-50/90">Control pulse and score spacing</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.35em] text-amber-100/45">速度</div>
+                <div className="text-sm font-semibold text-emerald-50/90">調整節拍與琴譜間距</div>
               </div>
             </div>
 
@@ -94,7 +94,7 @@ const ControlPanel = memo(() => {
                   <div className="flex items-center justify-between gap-3 rounded-[22px] border border-emerald-400/15 bg-emerald-950/25 px-4 py-3">
                     <div className="flex items-center gap-2">
                       <Clock size={15} className="shrink-0 text-emerald-300" />
-                      <span className="text-[10px] font-black uppercase tracking-[0.28em] text-emerald-100/50">Meter</span>
+                      <span className="text-[10px] font-black uppercase tracking-[0.28em] text-emerald-100/50">拍號</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <select
@@ -126,16 +126,16 @@ const ControlPanel = memo(() => {
                   <div className="hidden w-px justify-self-center bg-white/10 sm:block" />
 
                   <div className="flex items-center justify-between gap-3 rounded-[22px] border border-teal-400/15 bg-emerald-950/20 px-4 py-3">
-                    <span className="text-[10px] font-black uppercase tracking-[0.28em] text-emerald-100/50">Grid</span>
+                    <span className="text-[10px] font-black uppercase tracking-[0.28em] text-emerald-100/50">格點</span>
                     <select
                       value={charResolution}
                       onChange={(event) => setCharResolution(Number(event.target.value))}
                       className="rounded-full bg-transparent px-2 py-1 text-[11px] font-black text-emerald-300 outline-none"
                     >
-                      <option value={4} className="bg-slate-900">1 char = 4th</option>
-                      <option value={8} className="bg-slate-900">1 char = 8th</option>
-                      <option value={16} className="bg-slate-900">1 char = 16th</option>
-                      <option value={32} className="bg-slate-900">1 char = 32nd</option>
+                      <option value={4} className="bg-slate-900">1 字 = 四分音符</option>
+                      <option value={8} className="bg-slate-900">1 字 = 八分音符</option>
+                      <option value={16} className="bg-slate-900">1 字 = 十六分音符</option>
+                      <option value={32} className="bg-slate-900">1 字 = 三十二分音符</option>
                     </select>
                   </div>
                 </div>
@@ -152,8 +152,8 @@ const ControlPanel = memo(() => {
                 <Volume2 size={16} className="text-emerald-300" />
               </div>
               <div>
-                <div className="text-[10px] font-black uppercase tracking-[0.35em] text-emerald-100/45">Space</div>
-                <div className="text-sm font-semibold text-emerald-50/90">Reverb, gain and tonal offset</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.35em] text-emerald-100/45">聲音</div>
+                <div className="text-sm font-semibold text-emerald-50/90">殘響、音量與移調設定</div>
               </div>
             </div>
 
@@ -168,7 +168,7 @@ const ControlPanel = memo(() => {
                 onChange={(event) => setVol(Number(event.target.value))}
                 className="flex-1 accent-emerald-400"
               />
-              <span className="text-[9px] font-mono tracking-[0.35em] text-emerald-100/40">VOL</span>
+              <span className="text-[9px] font-mono tracking-[0.35em] text-emerald-100/40">音量</span>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-[auto_1fr]">
@@ -177,7 +177,7 @@ const ControlPanel = memo(() => {
                 onClick={onToggleReverb}
                 className={`min-h-[3.5rem] rounded-[22px] border px-5 py-3 text-[10px] font-black tracking-[0.32em] transition-all ${reverb ? 'border-emerald-300/25 bg-emerald-500/16 text-emerald-100 shadow-[0_0_24px_rgba(16,185,129,0.18)]' : 'border-white/10 bg-white/5 text-white/35'}`}
               >
-                REVERB <span className="ml-1 opacity-55">{reverb ? 'ON' : 'OFF'}</span>
+                殘響 <span className="ml-1 opacity-55">{reverb ? '開' : '關'}</span>
               </button>
 
               <div className="grid gap-3 sm:grid-cols-2">
@@ -190,7 +190,7 @@ const ControlPanel = memo(() => {
                   >
                     {KEY_OPTIONS.map((option) => (
                       <option key={option.offset} value={option.offset} className="bg-[#0f172a]">
-                        {option.name} Key
+                        {option.name} 調
                       </option>
                     ))}
                   </select>

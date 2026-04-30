@@ -3,11 +3,11 @@ import { AudioLines, Drum, Music2, Piano, Wind } from 'lucide-react';
 import { useAudioConfig } from '../contexts/AudioConfigContext';
 
 const INSTRUMENTS = [
-  { id: 'piano', label: 'Piano', Icon: Piano, sub: 'Piano' },
-  { id: 'lyre-long', label: 'Lyre L', Icon: Music2, sub: 'Lyre Long' },
-  { id: 'lyre-short', label: 'Lyre S', Icon: AudioLines, sub: 'Lyre Short' },
-  { id: 'flute', label: 'Flute', Icon: Wind, sub: 'Flute' },
-  { id: 'tongue-drum', label: 'Drum', Icon: Drum, sub: 'Tongue Drum' },
+  { id: 'piano', label: '真鋼琴', Icon: Piano, sub: '真鋼琴' },
+  { id: 'lyre-long', label: '長琴', Icon: Music2, sub: '長音萊雅琴' },
+  { id: 'lyre-short', label: '短琴', Icon: AudioLines, sub: '短音萊雅琴' },
+  { id: 'flute', label: '長笛', Icon: Wind, sub: '長笛' },
+  { id: 'tongue-drum', label: '空靈鼓', Icon: Drum, sub: '空靈鼓' },
 ];
 
 const InstrumentSelector = memo(() => {

@@ -7,6 +7,8 @@ import PianoKeys from '../components/PianoKeys';
 const PianoRoom = memo(({
   playHotkey,
   setPlayHotkey,
+  featuredScores,
+  onPlayFeaturedScore,
   activeKeys,
   accidentals,
   keyPulseTokens,
@@ -19,6 +21,8 @@ const PianoRoom = memo(({
     <AppHeader
       playHotkey={playHotkey}
       setPlayHotkey={setPlayHotkey}
+      featuredScores={featuredScores}
+      onPlayFeaturedScore={onPlayFeaturedScore}
     />
     <PianoKeys
       activeKeys={activeKeys}

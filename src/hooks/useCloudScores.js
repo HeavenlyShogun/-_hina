@@ -6,6 +6,7 @@ export function useCloudScores() {
   const [user, setUser] = useState(null);
   const [firebaseCtx, setFirebaseCtx] = useState(null);
   const [cloudStatus, setCloudStatus] = useState('idle');
+  const [cloudError, setCloudError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   const userRef = useRef(null);
@@ -27,10 +28,12 @@ export function useCloudScores() {
     if (connectPromiseRef.current) return connectPromiseRef.current;
 
     setCloudStatus('loading');
+    setCloudError('');
     connectPromiseRef.current = connectFirebaseAuth(setUser)
       .then((result) => {
         if (!result?.ctx) {
           setCloudStatus('unavailable');
+          setCloudError('Firebase config 尚未設定。');
           return null;
         }
 
@@ -44,6 +47,7 @@ export function useCloudScores() {
       .catch((error) => {
         console.error(error);
         setCloudStatus('error');
+        setCloudError(error?.message || 'Firebase 連線失敗，請檢查設定與網路。');
         return null;
       })
       .finally(() => {
@@ -61,7 +65,11 @@ export function useCloudScores() {
     }
 
     scoresUnsubscribeRef.current?.();
-    const unsubscribe = subscribeToScores(firebaseCtx, user.uid, setSavedScores);
+    const unsubscribe = subscribeToScores(firebaseCtx, user.uid, setSavedScores, (error) => {
+      console.error(error);
+      setCloudStatus('error');
+      setCloudError(error?.message || 'Firestore 訂閱失敗，請檢查安全規則與專案權限。');
+    });
     scoresUnsubscribeRef.current = unsubscribe;
     return () => unsubscribe();
   }, [firebaseCtx, user]);
@@ -85,7 +93,12 @@ export function useCloudScores() {
     setIsSaving(true);
     try {
       await saveScore(connection.ctx, connection.uid, title, payload);
+      setCloudError('');
       return true;
+    } catch (error) {
+      console.error(error);
+      setCloudError(error?.message || 'Firestore 儲存失敗，請檢查安全規則。');
+      return false;
     } finally {
       setIsSaving(false);
     }
@@ -94,28 +107,50 @@ export function useCloudScores() {
   const deleteCloudScore = useCallback(async (id) => {
     const connection = await getConnectedUser();
     if (!connection) return false;
-    await deleteScore(connection.ctx, connection.uid, id);
-    return true;
+    try {
+      await deleteScore(connection.ctx, connection.uid, id);
+      setCloudError('');
+      return true;
+    } catch (error) {
+      console.error(error);
+      setCloudError(error?.message || 'Firestore 刪除失敗，請檢查安全規則。');
+      return false;
+    }
   }, [getConnectedUser]);
 
   const clearAllCloudScores = useCallback(async () => {
     const connection = await getConnectedUser();
     if (!connection) return false;
-    await Promise.all(savedScores.map((saved) => deleteScore(connection.ctx, connection.uid, saved.id)));
-    return true;
+    try {
+      await Promise.all(savedScores.map((saved) => deleteScore(connection.ctx, connection.uid, saved.id)));
+      setCloudError('');
+      return true;
+    } catch (error) {
+      console.error(error);
+      setCloudError(error?.message || 'Firestore 清空失敗，請檢查安全規則。');
+      return false;
+    }
   }, [getConnectedUser, savedScores]);
 
   const uploadCloudScores = useCallback(async (files) => {
     const connection = await getConnectedUser();
     if (!connection) return false;
-    await uploadScores(connection.ctx, connection.uid, files);
-    return true;
+    try {
+      await uploadScores(connection.ctx, connection.uid, files);
+      setCloudError('');
+      return true;
+    } catch (error) {
+      console.error(error);
+      setCloudError(error?.message || 'Firestore 上傳失敗，請檢查安全規則。');
+      return false;
+    }
   }, [getConnectedUser]);
 
   return {
     savedScores,
     user,
     cloudStatus,
+    cloudError,
     isSaving,
     ensureCloudConnection,
     saveCloudScore,
