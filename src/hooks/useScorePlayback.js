@@ -46,6 +46,8 @@ export function useScorePlayback({
   const progressBarRef = useRef(null);
   const isPlayingRef = useRef(false);
   const activeLiveVoicesRef = useRef(new Map());
+  const queuedSeekJobRef = useRef(null);
+  const seekLoopPromiseRef = useRef(null);
   const playbackConfigRef = useRef({
     score,
     bpm,
@@ -93,6 +95,8 @@ export function useScorePlayback({
   }, [onKeyVisualAttack, onKeyVisualRelease, onVisualReset]);
 
   useEffect(() => () => {
+    queuedSeekJobRef.current = null;
+    seekLoopPromiseRef.current = null;
     playbackController.stop();
     activeLiveVoicesRef.current.clear();
     audioEngine.stopAll();
@@ -117,7 +121,24 @@ export function useScorePlayback({
   useEffect(() => {
     playbackController.updateSnapshot(buildSnapshot());
     audioEngine.setReverbEnabled(audioConfig?.reverb);
-  }, [accidentals, audioConfig?.globalKeyOffset, audioConfig?.reverb, audioConfig?.tone, audioConfig?.vol, buildSnapshot]);
+  }, [
+    accidentals,
+    audioConfig?.globalKeyOffset,
+    audioConfig?.reverb,
+    audioConfig?.tone,
+    audioConfig?.vol,
+    buildSnapshot,
+  ]);
+
+  useEffect(() => {
+    if (!audioConfig?.tone) {
+      return;
+    }
+
+    audioEngine.prepareTone(audioConfig.tone).catch((error) => {
+      console.warn(`Failed to prepare tone "${audioConfig.tone}".`, error);
+    });
+  }, [audioConfig?.tone]);
 
   const loadCurrentScore = useCallback(() => {
     const current = playbackConfigRef.current;
@@ -147,20 +168,75 @@ export function useScorePlayback({
   }, []);
 
   const stopAll = useCallback(() => {
+    queuedSeekJobRef.current = null;
     playbackController.stop();
     activeLiveVoicesRef.current.clear();
     audioEngine.stopAll();
   }, []);
+
+  const drainQueuedSeek = useCallback(async () => {
+    if (seekLoopPromiseRef.current) {
+      return seekLoopPromiseRef.current;
+    }
+
+    const run = (async () => {
+      while (queuedSeekJobRef.current) {
+        const job = queuedSeekJobRef.current;
+        queuedSeekJobRef.current = null;
+
+        try {
+          const result = await playbackController.seek(job.target, job.snapshot);
+          job.resolve?.(result);
+        } catch (error) {
+          job.reject?.(error);
+        }
+      }
+    })();
+
+    seekLoopPromiseRef.current = run;
+
+    try {
+      await run;
+    } finally {
+      seekLoopPromiseRef.current = null;
+      if (queuedSeekJobRef.current) {
+        return drainQueuedSeek();
+      }
+    }
+
+    return playbackController.getState();
+  }, []);
+
+  const queueSeek = useCallback((target, options = {}) => {
+    const snapshot = buildSnapshot();
+    const { silent = false } = options;
+
+    return new Promise((resolve, reject) => {
+      queuedSeekJobRef.current = {
+        target,
+        snapshot,
+        resolve,
+        reject: silent ? null : reject,
+      };
+
+      drainQueuedSeek().catch((error) => {
+        if (!silent) {
+          reject(error);
+        }
+      });
+    });
+  }, [buildSnapshot, drainQueuedSeek]);
 
   const playFromStart = useCallback(async () => {
     const { events } = loadCurrentScore();
 
     if (!events.length) {
       stopAll();
-      showToast('沒有可播放的音符事件', 'error');
+      showToast('沒有可播放的音符。', 'error');
       return;
     }
 
+    await audioEngine.prepareTone(playbackConfigRef.current.audioConfig?.tone);
     await playbackController.play(audioEngine.audioContext, buildSnapshot());
   }, [buildSnapshot, loadCurrentScore, showToast, stopAll]);
 
@@ -180,9 +256,9 @@ export function useScorePlayback({
     } catch (error) {
       console.error(error);
       stopAll();
-      showToast('播放失敗', 'error');
+      showToast('播放失敗。', 'error');
     }
-  }, [playFromStart, playbackState.isPaused, playbackState.isPlaying, showToast, stopAll]);
+  }, [buildSnapshot, playbackState.isPaused, playbackState.isPlaying, playFromStart, showToast, stopAll]);
 
   const playScoreSourceAction = useCallback(async (source) => {
     try {
@@ -190,10 +266,13 @@ export function useScorePlayback({
       const { events } = loadProvidedScore(source);
 
       if (!events.length) {
-        showToast('沒有可播放的音符事件', 'error');
+        showToast('沒有可播放的音符。', 'error');
         return;
       }
 
+      await audioEngine.prepareTone(
+        source?.audioConfig?.tone ?? playbackConfigRef.current.audioConfig?.tone,
+      );
       await audioEngine.resume();
       audioEngine.setReverbEnabled(source?.audioConfig?.reverb);
       await playbackController.play(audioEngine.audioContext, buildSnapshot({
@@ -203,48 +282,67 @@ export function useScorePlayback({
     } catch (error) {
       console.error(error);
       stopAll();
-      showToast('播放失敗', 'error');
+      showToast('播放失敗。', 'error');
     }
   }, [buildSnapshot, loadProvidedScore, showToast, stopAll]);
 
   const pauseScoreAction = useCallback(() => {
+    queuedSeekJobRef.current = null;
     playbackController.pause();
   }, []);
 
   const resumeScoreAction = useCallback(async () => {
     try {
+      await audioEngine.prepareTone(playbackConfigRef.current.audioConfig?.tone);
       await playbackController.resume(buildSnapshot());
     } catch (error) {
       console.error(error);
       stopAll();
-      showToast('恢復播放失敗', 'error');
+      showToast('恢復播放失敗。', 'error');
     }
   }, [buildSnapshot, showToast, stopAll]);
 
   const seekToTime = useCallback(async (seconds) => {
     try {
-      await playbackController.seek({ time: seconds }, buildSnapshot());
+      await queueSeek({ time: seconds });
     } catch (error) {
       console.error(error);
-      showToast('跳轉失敗', 'error');
+      showToast('定位失敗。', 'error');
     }
-  }, [buildSnapshot, showToast]);
+  }, [queueSeek, showToast]);
+
+  const scrubToTime = useCallback((seconds) => {
+    void queueSeek({ time: seconds }, { silent: true });
+  }, [queueSeek]);
+
+  const seekToTick = useCallback(async (tick) => {
+    try {
+      await queueSeek({ tick });
+    } catch (error) {
+      console.error(error);
+      showToast('定位失敗。', 'error');
+    }
+  }, [queueSeek, showToast]);
+
+  const scrubToTick = useCallback((tick) => {
+    void queueSeek({ tick }, { silent: true });
+  }, [queueSeek]);
 
   const seekToIndex = useCallback(async (index) => {
     try {
-      await playbackController.seek({ index }, buildSnapshot());
+      await queueSeek({ index });
     } catch (error) {
       console.error(error);
-      showToast('跳轉失敗', 'error');
+      showToast('定位失敗。', 'error');
     }
-  }, [buildSnapshot, showToast]);
+  }, [queueSeek, showToast]);
 
   const setPlaybackRate = useCallback(async (rate) => {
     try {
       await playbackController.setPlaybackRate(rate);
     } catch (error) {
       console.error(error);
-      showToast('變速失敗', 'error');
+      showToast('播放速度更新失敗。', 'error');
     }
   }, [showToast]);
 
@@ -257,6 +355,7 @@ export function useScorePlayback({
       const frequency = info ? transposeFrequency(info.f, semitoneOffset) : null;
 
       if (info && frequency && !activeLiveVoicesRef.current.has(keyK)) {
+        await audioEngine.prepareTone(current.audioConfig?.tone);
         await audioEngine.resume();
         const voice = audioEngine.playLiveNote(frequency, {
           tone: current.audioConfig?.tone,
@@ -295,6 +394,9 @@ export function useScorePlayback({
     pauseScoreAction,
     resumeScoreAction,
     seekToTime,
+    scrubToTime,
+    seekToTick,
+    scrubToTick,
     seekToIndex,
     setPlaybackRate,
     stopAll,

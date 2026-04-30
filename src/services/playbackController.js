@@ -3,7 +3,7 @@ import { KEY_INFO_MAP } from '../constants/music';
 import { PPQ } from '../utils/score';
 
 const LOOKAHEAD_INTERVAL_MS = 25;
-const SCHEDULE_AHEAD_SEC = 0.5;
+const SCHEDULE_AHEAD_SEC = 0.12;
 const PLAY_START_DELAY_SEC = 0.3;
 const STOP_TAIL_SEC = 0.12;
 const MAX_VISUAL_HOLD_SEC = 0.2;
@@ -135,6 +135,7 @@ class PlaybackController {
       anchorTick: 0,
       anchorScoreTime: 0,
       playbackRate: 1,
+      generation: 0,
     };
   }
 
@@ -218,6 +219,7 @@ class PlaybackController {
       status: this.transport.status,
       isPlaying: this.transport.status === 'playing',
       isPaused: this.transport.status === 'paused',
+      generation: this.transport.generation,
       currentTick,
       currentTime,
       currentPointer: this.currentPointer,
@@ -288,11 +290,12 @@ class PlaybackController {
     await this.audioEngine.resume();
 
     const startTick = this.transport.status === 'paused' ? this.transport.currentTick : this.transport.currentTick || 0;
+    const generation = this.bumpTransportGeneration();
     this.audioEngine.stopAll();
     this.currentPointer = this.findNextEventIndex(startTick);
     this.resetVisualState({ fromTick: startTick, emitReset: true });
-    this.startTransport(startTick);
-    this.startLoops();
+    this.startTransport(startTick, generation);
+    this.startLoops(generation);
     this.emitProgress();
     this.emitState();
 
@@ -306,6 +309,7 @@ class PlaybackController {
 
     const pausedTick = this.getCurrentTick();
     const pausedTime = ticksToSeconds(pausedTick, this.timing);
+    const generation = this.bumpTransportGeneration();
     this.stopLoops();
     this.audioEngine.stopAll();
     this.releaseAllVisuals();
@@ -318,6 +322,7 @@ class PlaybackController {
       anchorAudioTime: 0,
       anchorTick: pausedTick,
       anchorScoreTime: pausedTime,
+      generation,
     };
     this.currentPointer = this.findNextEventIndex(pausedTick);
     this.currentAudioTime = 0;
@@ -354,6 +359,7 @@ class PlaybackController {
     const wasPlaying = this.transport.status === 'playing';
     const targetTick = this.resolveSeekTick(targetTimeOrIndex);
     const targetTime = ticksToSeconds(targetTick, this.timing);
+    const generation = this.bumpTransportGeneration();
 
     this.stopLoops();
     this.audioEngine.stopAll();
@@ -369,14 +375,15 @@ class PlaybackController {
       anchorTick: targetTick,
       anchorScoreTime: targetTime,
       status: this.events.length ? 'paused' : 'stopped',
+      generation,
     };
     this.resetVisualState({ fromTick: targetTick, emitReset: true });
     this.emitProgress();
 
     if (wasPlaying && this.events.length) {
       await this.audioEngine.resume();
-      this.startTransport(targetTick);
-      this.startLoops();
+      this.startTransport(targetTick, generation);
+      this.startLoops(generation);
     }
 
     this.emitState();
@@ -386,6 +393,7 @@ class PlaybackController {
   stop(options = {}) {
     const { preserveLoadedEvents = true } = options;
 
+    const generation = this.bumpTransportGeneration();
     this.stopLoops();
     this.audioEngine.stopAll();
     this.releaseAllVisuals();
@@ -398,6 +406,7 @@ class PlaybackController {
       anchorAudioTime: 0,
       anchorTick: 0,
       anchorScoreTime: 0,
+      generation,
     };
     this.currentPointer = 0;
     this.currentAudioTime = 0;
@@ -426,6 +435,7 @@ class PlaybackController {
     const currentTick = this.getCurrentTick();
     const currentTime = ticksToSeconds(currentTick, this.timing);
     const wasPlaying = this.transport.status === 'playing';
+    const generation = this.bumpTransportGeneration();
 
     this.transport = {
       ...this.transport,
@@ -436,6 +446,7 @@ class PlaybackController {
       anchorTick: currentTick,
       anchorScoreTime: currentTime,
       status: wasPlaying ? 'paused' : this.transport.status,
+      generation,
     };
     this.currentPointer = this.findNextEventIndex(currentTick);
     this.currentAudioTime = 0;
@@ -451,7 +462,7 @@ class PlaybackController {
     return this.getState();
   }
 
-  startTransport(startTick) {
+  startTransport(startTick, generation = this.transport.generation) {
     const anchorAudioTime = this.audioEngine.getCurrentTime() + PLAY_START_DELAY_SEC;
     const anchorScoreTime = ticksToSeconds(startTick, this.timing);
 
@@ -463,14 +474,15 @@ class PlaybackController {
       anchorAudioTime,
       anchorTick: startTick,
       anchorScoreTime,
+      generation,
     };
     this.currentAudioTime = anchorAudioTime;
   }
 
-  startLoops() {
+  startLoops(generation = this.transport.generation) {
     this.stopLoops();
-    this.schedulerTick();
-    this.visualTick();
+    this.schedulerTick(generation);
+    this.visualTick(generation);
   }
 
   stopLoops() {
@@ -485,8 +497,8 @@ class PlaybackController {
     }
   }
 
-  schedulerTick() {
-    if (this.transport.status !== 'playing') {
+  schedulerTick(generation = this.transport.generation) {
+    if (this.transport.status !== 'playing' || generation !== this.transport.generation) {
       return;
     }
 
@@ -520,7 +532,7 @@ class PlaybackController {
     };
     this.currentAudioTime = nowAudioTime;
 
-    const playbackEndAudioTime = this.getEventAbsoluteTime(this.maxTick) + STOP_TAIL_SEC;
+    const playbackEndAudioTime = this.getEventAbsoluteTime(this.eventTailTick) + STOP_TAIL_SEC;
     if (this.currentPointer >= this.events.length && nowAudioTime >= playbackEndAudioTime) {
       this.finishPlayback();
       return;
@@ -528,12 +540,12 @@ class PlaybackController {
 
     this.emitProgress();
     this.schedulerTimer = window.setTimeout(() => {
-      this.schedulerTick();
+      this.schedulerTick(generation);
     }, LOOKAHEAD_INTERVAL_MS);
   }
 
-  visualTick() {
-    if (this.transport.status !== 'playing') {
+  visualTick(generation = this.transport.generation) {
+    if (this.transport.status !== 'playing' || generation !== this.transport.generation) {
       return;
     }
 
@@ -576,11 +588,12 @@ class PlaybackController {
 
     this.emitProgress();
     this.visualFrame = window.requestAnimationFrame(() => {
-      this.visualTick();
+      this.visualTick(generation);
     });
   }
 
   finishPlayback() {
+    const generation = this.bumpTransportGeneration();
     this.stopLoops();
     this.audioEngine.stopAll();
     this.releaseAllVisuals();
@@ -593,6 +606,7 @@ class PlaybackController {
       anchorAudioTime: 0,
       anchorTick: 0,
       anchorScoreTime: 0,
+      generation,
     };
     this.currentPointer = 0;
     this.currentAudioTime = 0;
@@ -750,6 +764,10 @@ class PlaybackController {
 
   emitState() {
     this.callbacks.onStateChange?.(this.getState());
+  }
+
+  bumpTransportGeneration() {
+    return (Number(this.transport.generation) || 0) + 1;
   }
 }
 

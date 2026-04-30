@@ -1,16 +1,17 @@
 import { useCallback, useMemo, useState } from 'react';
 import { DEFAULT_SCORE, DEFAULT_SCORE_PARAMS } from '../constants/music';
 import { createScoreDocument, SCORE_SOURCE_TYPES } from '../utils/scoreDocument';
+import { applyScoreRecommendation } from '../utils/scoreRecommendations';
 
 const DEFAULT_SCORE_TITLE = '未命名琴譜';
 
 function createDefaultState() {
-  return createScoreDocument({
+  return createScoreDocument(applyScoreRecommendation({
     title: DEFAULT_SCORE_TITLE,
     rawText: DEFAULT_SCORE,
     sourceType: SCORE_SOURCE_TYPES.TEXT,
     ...DEFAULT_SCORE_PARAMS,
-  });
+  }, { force: true }));
 }
 
 export function useScoreState() {
@@ -127,11 +128,11 @@ export function useScoreState() {
   }, [updateScoreDocument]);
 
   const loadScoreSource = useCallback((source) => {
-    setScoreDocument(createScoreDocument(source));
+    setScoreDocument(createScoreDocument(applyScoreRecommendation(source)));
   }, []);
 
   const applySavedScore = useCallback((savedScore) => {
-    setScoreDocument(createScoreDocument(savedScore));
+    setScoreDocument(createScoreDocument(applyScoreRecommendation(savedScore)));
   }, []);
 
   const resetScoreState = useCallback(() => {

@@ -3,6 +3,7 @@ import AppHeader from '../components/AppHeader';
 import ControlPanel from '../components/ControlPanel';
 import InstrumentSelector from '../components/InstrumentSelector';
 import PianoKeys from '../components/PianoKeys';
+import PerformanceWorkspace from '../components/PerformanceWorkspace';
 
 const PianoRoom = memo(({
   playHotkey,
@@ -16,6 +17,8 @@ const PianoRoom = memo(({
   onKeyDeactivate,
   onToggleSharp,
   progressBarRef,
+  score,
+  scoreTitle,
 }) => (
   <>
     <AppHeader
@@ -32,6 +35,10 @@ const PianoRoom = memo(({
       onKeyDeactivate={onKeyDeactivate}
       onToggleSharp={onToggleSharp}
       progressBarRef={progressBarRef}
+    />
+    <PerformanceWorkspace
+      score={score}
+      scoreTitle={scoreTitle}
     />
     <InstrumentSelector />
     <ControlPanel />

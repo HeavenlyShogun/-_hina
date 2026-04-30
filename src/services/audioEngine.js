@@ -12,26 +12,16 @@ const TONE_ALIASES = {
 const TONE_PRESETS = {
   piano: {
     tone: 'piano',
-    type: 'triangle',
-    dur: 4.4,
-    atk: 0.004,
-    dec: 1.25,
-    sus: 0.018,
-    pk: 0.92,
-    flt: true,
-    fltStartMult: 8,
-    fltEndMult: 2.2,
-    fltDec: 0.85,
-    nBufKey: 'shortNoise',
-    nDur: 0.018,
-    nVol: 0.045,
-    release: 0.32,
+    engine: 'sampler',
+    sampleSet: 'piano',
+    dur: 5.2,
+    atk: 0.003,
+    dec: 0.22,
+    sus: 0.82,
+    pk: 1,
+    flt: false,
+    release: 0.38,
     velocity: 0.9,
-    harmonics: [
-      { ratio: 2, gain: 0.22, type: 'sine', detune: 2 },
-      { ratio: 3, gain: 0.1, type: 'triangle', detune: -4 },
-      { ratio: 4, gain: 0.045, type: 'sine', detune: 5 },
-    ],
   },
   flute: {
     tone: 'flute',
@@ -127,6 +117,12 @@ const DYNAMIC_TONE_OVERRIDES = {
 };
 
 const VALID_OSCILLATOR_TYPES = new Set(['sine', 'square', 'sawtooth', 'triangle']);
+const SAMPLE_LIBRARY_CONFIG = {
+  piano: {
+    baseUrl: 'https://tonejs.github.io/audio/salamander',
+    samples: ['A2', 'C3', 'Ds3', 'Fs3', 'A3', 'C4', 'Ds4', 'Fs4', 'A4', 'C5', 'Ds5', 'Fs5', 'A5'],
+  },
+};
 
 function createImpulseResponse(context, duration = 2.6, decay = 2.4) {
   const safeDuration = Math.max(Number(duration) || 0, 0.2);
@@ -170,6 +166,34 @@ function normalizeOscillatorType(type, fallback = 'triangle') {
   return VALID_OSCILLATOR_TYPES.has(type) ? type : fallback;
 }
 
+function noteNameToMidi(noteName) {
+  const match = /^([A-G])([sb#]?)(-?\d+)$/u.exec(String(noteName || ''));
+  if (!match) return null;
+
+  const [, letter, accidental, octaveText] = match;
+  const semitones = {
+    C: 0,
+    D: 2,
+    E: 4,
+    F: 5,
+    G: 7,
+    A: 9,
+    B: 11,
+  };
+  let midi = (Number(octaveText) + 1) * 12 + semitones[letter];
+  if (accidental === '#' || accidental === 's') midi += 1;
+  if (accidental === 'b') midi -= 1;
+  return midi;
+}
+
+function midiToFrequency(midi) {
+  return 440 * 2 ** ((midi - 69) / 12);
+}
+
+function frequencyToMidi(frequency) {
+  return 69 + (12 * Math.log2(frequency / 440));
+}
+
 class AudioEngine {
   static MAX_VOICES = 32;
 
@@ -182,6 +206,8 @@ class AudioEngine {
     this.shortNoiseBuffer = null;
     this.activeVoices = new Set();
     this.activeLiveVoices = new Map();
+    this.sampleSets = new Map();
+    this.sampleSetLoads = new Map();
   }
 
   init() {
@@ -237,6 +263,18 @@ class AudioEngine {
     return context;
   }
 
+  async prepareTone(tone) {
+    const context = this.init();
+    const config = this.resolveRenderConfig({ tone }, 1);
+
+    if (config.engine !== 'sampler' || !config.sampleSet) {
+      return context;
+    }
+
+    await this.loadSampleSet(config.sampleSet);
+    return context;
+  }
+
   getCurrentTime() {
     return this.audioContext ? this.audioContext.currentTime : 0;
   }
@@ -264,7 +302,7 @@ class AudioEngine {
     this.enforceVoiceLimit(startTime);
 
     const config = this.resolveRenderConfig(noteConfig, noteDuration);
-    const voice = this._buildVoice(context, safeFreq, startTime, noteDuration, config, {
+    const voice = this.buildVoice(context, safeFreq, startTime, noteDuration, config, {
       mode: noteConfig.mode ?? 'scheduled',
       importance: noteConfig.importance ?? 100,
     });
@@ -287,7 +325,7 @@ class AudioEngine {
     }
 
     const config = this.resolveRenderConfig(noteConfig, 30);
-    const voice = this._buildVoice(context, safeFreq, now, 30, config, {
+    const voice = this.buildVoice(context, safeFreq, now, 30, config, {
       mode: 'live',
       importance: noteConfig.importance ?? 80,
       liveVoiceKey: voiceKey,
@@ -329,7 +367,25 @@ class AudioEngine {
     this.activeLiveVoices.clear();
   }
 
-  _buildVoice(context, safeFrequency, startTime, noteDuration, config, voiceMeta = {}) {
+  buildVoice(context, safeFrequency, startTime, noteDuration, config, voiceMeta = {}) {
+    if (config.engine === 'sampler') {
+      const sampledVoice = this._buildSamplerVoice(
+        context,
+        safeFrequency,
+        startTime,
+        noteDuration,
+        config,
+        voiceMeta,
+      );
+      if (sampledVoice) {
+        return sampledVoice;
+      }
+    }
+
+    return this._buildSynthVoice(context, safeFrequency, startTime, noteDuration, config, voiceMeta);
+  }
+
+  _buildSynthVoice(context, safeFrequency, startTime, noteDuration, config, voiceMeta = {}) {
     const keyGainMod = Math.min(1, 800 / (safeFrequency + 200));
     const outputGain = Math.max(Number(config.outputGain) || 0, 0);
     const reverbAmount = Math.max(Number(config.reverbAmount) || 0, 0);
@@ -420,6 +476,7 @@ class AudioEngine {
     wetGain.connect(this.reverbBus);
 
     const voice = {
+      sourceType: 'oscillator',
       mode: voiceMeta.mode ?? 'scheduled',
       importance: voiceMeta.importance ?? 0,
       liveVoiceKey: voiceMeta.liveVoiceKey ?? null,
@@ -451,6 +508,73 @@ class AudioEngine {
       noiseSource.start(startTime);
       noiseSource.stop(Math.min(stopTime, startTime + (config.nDur ?? 0.05) + 0.02));
     }
+
+    return voice;
+  }
+
+  _buildSamplerVoice(context, safeFrequency, startTime, noteDuration, config, voiceMeta = {}) {
+    const sample = this.pickSample(config.sampleSet, safeFrequency);
+    if (!sample?.buffer) {
+      return null;
+    }
+
+    const outputGain = Math.max(Number(config.outputGain) || 0, 0);
+    const reverbAmount = Math.max(Number(config.reverbAmount) || 0, 0);
+    const playbackRate = Math.max(safeFrequency / sample.frequency, 0.125);
+    const peak = Math.max(0.0001, (config.velocity ?? 0.85) * (config.pk ?? 1) * outputGain);
+    const sustainUntil = Math.max(startTime + noteDuration, startTime + 0.04);
+    const releaseDuration = Math.max(config.release ?? 0.28, 0.05);
+    const naturalDuration = sample.buffer.duration / playbackRate;
+    const stopTime = Math.min(sustainUntil + releaseDuration, startTime + naturalDuration);
+    const endTime = voiceMeta.endTime ?? stopTime;
+
+    const source = context.createBufferSource();
+    source.buffer = sample.buffer;
+    source.playbackRate.setValueAtTime(playbackRate, startTime);
+
+    const envelopeGain = context.createGain();
+    envelopeGain.gain.setValueAtTime(0.0001, startTime);
+    envelopeGain.gain.linearRampToValueAtTime(peak, startTime + Math.max(config.atk ?? 0.003, 0.002));
+    envelopeGain.gain.exponentialRampToValueAtTime(
+      Math.max(peak * Math.max(config.sus ?? 0.82, 0.05), 0.0001),
+      startTime + Math.max(config.dec ?? 0.18, 0.05),
+    );
+    envelopeGain.gain.setValueAtTime(Math.max(peak * Math.max(config.sus ?? 0.82, 0.05), 0.0001), sustainUntil);
+    envelopeGain.gain.exponentialRampToValueAtTime(0.0001, stopTime);
+
+    const dryGain = context.createGain();
+    dryGain.gain.value = 1;
+    const wetGain = context.createGain();
+    wetGain.gain.value = reverbAmount;
+
+    source.connect(envelopeGain);
+    envelopeGain.connect(dryGain);
+    envelopeGain.connect(wetGain);
+    dryGain.connect(this.compressor);
+    wetGain.connect(this.reverbBus);
+
+    const voice = {
+      sourceType: 'sample',
+      mode: voiceMeta.mode ?? 'scheduled',
+      importance: voiceMeta.importance ?? 0,
+      liveVoiceKey: voiceMeta.liveVoiceKey ?? null,
+      startTime,
+      endTime,
+      stopTime,
+      releaseAt: null,
+      isReleased: false,
+      cleaned: false,
+      sampleMeta: sample,
+      envelopeGain,
+      dryGain,
+      wetGain,
+      sourceNodes: [source],
+    };
+
+    this.activeVoices.add(voice);
+    source.onended = () => this.cleanupVoice(voice);
+    source.start(startTime);
+    source.stop(stopTime);
 
     return voice;
   }
@@ -502,8 +626,12 @@ class AudioEngine {
       voice.envelopeGain.gain.exponentialRampToValueAtTime(0.0001, safeStopAt);
     } catch {}
 
-    const oscillators = Array.isArray(voice.oscillators) ? voice.oscillators : [voice.oscillator];
-    oscillators.forEach((item) => {
+    const sourceNodes = Array.isArray(voice.sourceNodes)
+      ? voice.sourceNodes
+      : Array.isArray(voice.oscillators)
+        ? voice.oscillators
+        : [voice.oscillator].filter(Boolean);
+    sourceNodes.forEach((item) => {
       try { item.stop(safeStopAt); } catch {}
     });
     if (voice.noiseSource) {
@@ -517,8 +645,13 @@ class AudioEngine {
     this.activeVoices.delete(voice);
 
     try { voice.oscillator.onended = null; } catch {}
-    const oscillators = Array.isArray(voice.oscillators) ? voice.oscillators : [voice.oscillator];
-    oscillators.forEach((item) => {
+    const sourceNodes = Array.isArray(voice.sourceNodes)
+      ? voice.sourceNodes
+      : Array.isArray(voice.oscillators)
+        ? voice.oscillators
+        : [voice.oscillator].filter(Boolean);
+    sourceNodes.forEach((item) => {
+      try { item.onended = null; } catch {}
       try { item.disconnect(); } catch {}
     });
     try {
@@ -594,6 +727,84 @@ class AudioEngine {
       data[i] = taper ? raw * (1 - i / data.length) : raw * 0.08;
     }
     return buffer;
+  }
+
+  async loadSampleSet(sampleSetId) {
+    if (!sampleSetId) {
+      return null;
+    }
+
+    if (this.sampleSets.has(sampleSetId)) {
+      return this.sampleSets.get(sampleSetId);
+    }
+
+    if (this.sampleSetLoads.has(sampleSetId)) {
+      return this.sampleSetLoads.get(sampleSetId);
+    }
+
+    const sampleConfig = SAMPLE_LIBRARY_CONFIG[sampleSetId];
+    if (!sampleConfig) {
+      return null;
+    }
+
+    const context = this.init();
+    const loadPromise = Promise.all(sampleConfig.samples.map(async (noteName) => {
+      const midi = noteNameToMidi(noteName);
+      if (!Number.isFinite(midi)) {
+        return null;
+      }
+
+      const url = `${sampleConfig.baseUrl}/${noteName}.mp3`;
+      const response = await fetch(url, { mode: 'cors' });
+      if (!response.ok) {
+        throw new Error(`Failed to load sample: ${url}`);
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = await context.decodeAudioData(arrayBuffer.slice(0));
+
+      return {
+        id: noteName,
+        midi,
+        frequency: midiToFrequency(midi),
+        buffer,
+      };
+    }))
+      .then((samples) => {
+        const loadedSet = samples.filter(Boolean).sort((left, right) => left.midi - right.midi);
+        this.sampleSets.set(sampleSetId, loadedSet);
+        this.sampleSetLoads.delete(sampleSetId);
+        return loadedSet;
+      })
+      .catch((error) => {
+        this.sampleSetLoads.delete(sampleSetId);
+        console.warn(`Sampler load failed for "${sampleSetId}". Falling back to synth.`, error);
+        throw error;
+      });
+
+    this.sampleSetLoads.set(sampleSetId, loadPromise);
+    return loadPromise;
+  }
+
+  pickSample(sampleSetId, targetFrequency) {
+    const samples = this.sampleSets.get(sampleSetId);
+    if (!Array.isArray(samples) || !samples.length) {
+      return null;
+    }
+
+    const targetMidi = frequencyToMidi(targetFrequency);
+    let bestSample = samples[0];
+    let bestDistance = Infinity;
+
+    samples.forEach((sample) => {
+      const distance = Math.abs(sample.midi - targetMidi);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestSample = sample;
+      }
+    });
+
+    return bestSample;
   }
 }
 
