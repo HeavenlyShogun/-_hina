@@ -98,15 +98,19 @@ export function useScorePlayback({
     audioEngine.stopAll();
   }, []);
 
-  const buildSnapshot = useCallback(() => {
+  const buildSnapshot = useCallback((overrides = {}) => {
     const current = playbackConfigRef.current;
+    const nextAudioConfig = {
+      ...current.audioConfig,
+      ...(overrides.audioConfig ?? {}),
+    };
 
     return deepFreeze(cloneValue({
-      tone: current.audioConfig?.tone,
-      vol: current.audioConfig?.vol,
-      reverb: current.audioConfig?.reverb,
-      globalKeyOffset: current.audioConfig?.globalKeyOffset,
-      accidentals: current.accidentals,
+      tone: nextAudioConfig?.tone,
+      vol: nextAudioConfig?.vol,
+      reverb: nextAudioConfig?.reverb,
+      globalKeyOffset: nextAudioConfig?.globalKeyOffset,
+      accidentals: overrides.accidentals ?? current.accidentals,
     }));
   }, []);
 
@@ -123,6 +127,19 @@ export function useScorePlayback({
       timeSigNum: current.timeSigNum,
       timeSigDen: current.timeSigDen,
       charResolution: current.charResolution,
+    });
+
+    playbackController.load(events, maxTime, playback);
+    return { events, maxTime, playback };
+  }, []);
+
+  const loadProvidedScore = useCallback((source) => {
+    const normalizedBpm = Number(source?.bpm) || DEFAULT_SCORE_PARAMS.bpm;
+    const { events, maxTime, playback } = normalizeScoreSource(source?.score ?? '', {
+      bpm: normalizedBpm,
+      timeSigNum: source?.timeSigNum ?? DEFAULT_SCORE_PARAMS.timeSigNum,
+      timeSigDen: source?.timeSigDen ?? DEFAULT_SCORE_PARAMS.timeSigDen,
+      charResolution: source?.charResolution ?? DEFAULT_SCORE_PARAMS.charResolution,
     });
 
     playbackController.load(events, maxTime, playback);
@@ -166,6 +183,29 @@ export function useScorePlayback({
       showToast('播放失敗', 'error');
     }
   }, [playFromStart, playbackState.isPaused, playbackState.isPlaying, showToast, stopAll]);
+
+  const playScoreSourceAction = useCallback(async (source) => {
+    try {
+      stopAll();
+      const { events } = loadProvidedScore(source);
+
+      if (!events.length) {
+        showToast('沒有可播放的音符事件', 'error');
+        return;
+      }
+
+      await audioEngine.resume();
+      audioEngine.setReverbEnabled(source?.audioConfig?.reverb);
+      await playbackController.play(audioEngine.audioContext, buildSnapshot({
+        audioConfig: source?.audioConfig,
+        accidentals: source?.accidentals,
+      }));
+    } catch (error) {
+      console.error(error);
+      stopAll();
+      showToast('播放失敗', 'error');
+    }
+  }, [buildSnapshot, loadProvidedScore, showToast, stopAll]);
 
   const pauseScoreAction = useCallback(() => {
     playbackController.pause();
@@ -251,6 +291,7 @@ export function useScorePlayback({
     progressBarRef,
     isPlayingRef,
     playScoreAction,
+    playScoreSourceAction,
     pauseScoreAction,
     resumeScoreAction,
     seekToTime,

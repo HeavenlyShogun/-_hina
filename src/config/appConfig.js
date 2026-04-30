@@ -21,3 +21,25 @@ export function getFirebaseConfig() {
     return null;
   }
 }
+
+export function getFirebaseConfigError() {
+  if (!firebaseConfigSource) {
+    return '缺少 VITE_FIREBASE_CONFIG，請先在 .env 設定 Firebase Web App config。';
+  }
+
+  let firebaseConfig;
+  try {
+    firebaseConfig = JSON.parse(firebaseConfigSource);
+  } catch {
+    return 'VITE_FIREBASE_CONFIG 不是合法 JSON，請確認雙引號與大括號格式。';
+  }
+
+  const requiredFields = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId'];
+  const missingFields = requiredFields.filter((field) => !firebaseConfig?.[field]);
+
+  if (missingFields.length > 0) {
+    return `Firebase config 缺少欄位：${missingFields.join(', ')}。`;
+  }
+
+  return null;
+}

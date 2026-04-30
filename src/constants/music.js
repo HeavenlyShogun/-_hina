@@ -1,7 +1,7 @@
 export const NOTES_MAP = [
   {
     label: '高音區',
-    sub: 'High',
+    sub: '高音',
     keys: [
       { n: 'C5', k: 'q', f: 523.25 },
       { n: 'D5', k: 'w', f: 587.33 },
@@ -14,7 +14,7 @@ export const NOTES_MAP = [
   },
   {
     label: '中音區',
-    sub: 'Mid',
+    sub: '中音',
     keys: [
       { n: 'C4', k: 'a', f: 261.63 },
       { n: 'D4', k: 's', f: 293.66 },
@@ -27,7 +27,7 @@ export const NOTES_MAP = [
   },
   {
     label: '低音區',
-    sub: 'Low',
+    sub: '低音',
     keys: [
       { n: 'C3', k: 'z', f: 130.81 },
       { n: 'D3', k: 'x', f: 146.83 },
@@ -58,9 +58,9 @@ export const KEY_OPTIONS = [
 ];
 
 export const SCALE_MODE_OPTIONS = [
-  { value: 'major', label: 'Major' },
-  { value: 'minor', label: 'Minor' },
-  { value: 'custom', label: 'Custom' },
+  { value: 'major', label: '大調' },
+  { value: 'minor', label: '小調' },
+  { value: 'custom', label: '自訂' },
 ];
 
 export const CHAR_TO_KEY_MAP = {

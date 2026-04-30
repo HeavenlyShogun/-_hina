@@ -12,19 +12,26 @@ const TONE_ALIASES = {
 const TONE_PRESETS = {
   piano: {
     tone: 'piano',
-    type: 'sawtooth',
-    dur: 3.5,
-    atk: 0.01,
-    dec: 0.8,
-    sus: 0.1,
-    pk: 0.6,
+    type: 'triangle',
+    dur: 4.4,
+    atk: 0.004,
+    dec: 1.25,
+    sus: 0.018,
+    pk: 0.92,
     flt: true,
-    fltStartMult: 5,
-    fltEndMult: 1,
-    fltDec: 0.2,
-    nBufKey: null,
-    release: 0.18,
-    velocity: 0.85,
+    fltStartMult: 8,
+    fltEndMult: 2.2,
+    fltDec: 0.85,
+    nBufKey: 'shortNoise',
+    nDur: 0.018,
+    nVol: 0.045,
+    release: 0.32,
+    velocity: 0.9,
+    harmonics: [
+      { ratio: 2, gain: 0.22, type: 'sine', detune: 2 },
+      { ratio: 3, gain: 0.1, type: 'triangle', detune: -4 },
+      { ratio: 4, gain: 0.045, type: 'sine', detune: 5 },
+    ],
   },
   flute: {
     tone: 'flute',
@@ -340,6 +347,8 @@ class AudioEngine {
     oscillator.type = normalizeOscillatorType(config.type);
     oscillator.frequency.setValueAtTime(safeFrequency, startTime);
 
+    const oscillators = [oscillator];
+
     const envelopeGain = context.createGain();
     envelopeGain.gain.setValueAtTime(0.0001, startTime);
     envelopeGain.gain.linearRampToValueAtTime(peak, startTime + config.atk);
@@ -381,6 +390,25 @@ class AudioEngine {
     }
 
     oscillator.connect(filter || envelopeGain);
+    if (Array.isArray(config.harmonics)) {
+      config.harmonics.forEach((harmonic) => {
+        const ratio = Math.max(Number(harmonic?.ratio) || 1, 0.25);
+        const gainValue = Math.max(Number(harmonic?.gain) || 0, 0);
+        if (gainValue <= 0) {
+          return;
+        }
+
+        const harmonicOscillator = context.createOscillator();
+        const harmonicGain = context.createGain();
+        harmonicOscillator.type = normalizeOscillatorType(harmonic?.type, 'sine');
+        harmonicOscillator.frequency.setValueAtTime(safeFrequency * ratio, startTime);
+        harmonicOscillator.detune.setValueAtTime(Number(harmonic?.detune) || 0, startTime);
+        harmonicGain.gain.value = gainValue;
+        harmonicOscillator.connect(harmonicGain);
+        harmonicGain.connect(filter || envelopeGain);
+        oscillators.push(harmonicOscillator);
+      });
+    }
     if (noiseSource && noiseGain) {
       noiseSource.connect(noiseGain);
       noiseGain.connect(filter || envelopeGain);
@@ -408,13 +436,16 @@ class AudioEngine {
       filter,
       noiseSource,
       noiseGain,
+      oscillators,
     };
 
     this.activeVoices.add(voice);
 
     oscillator.onended = () => this.cleanupVoice(voice);
-    oscillator.start(startTime);
-    oscillator.stop(stopTime);
+    oscillators.forEach((item) => {
+      item.start(startTime);
+      item.stop(stopTime);
+    });
 
     if (noiseSource) {
       noiseSource.start(startTime);
@@ -471,7 +502,10 @@ class AudioEngine {
       voice.envelopeGain.gain.exponentialRampToValueAtTime(0.0001, safeStopAt);
     } catch {}
 
-    try { voice.oscillator.stop(safeStopAt); } catch {}
+    const oscillators = Array.isArray(voice.oscillators) ? voice.oscillators : [voice.oscillator];
+    oscillators.forEach((item) => {
+      try { item.stop(safeStopAt); } catch {}
+    });
     if (voice.noiseSource) {
       try { voice.noiseSource.stop(safeStopAt); } catch {}
     }
@@ -483,7 +517,10 @@ class AudioEngine {
     this.activeVoices.delete(voice);
 
     try { voice.oscillator.onended = null; } catch {}
-    try { voice.oscillator.disconnect(); } catch {}
+    const oscillators = Array.isArray(voice.oscillators) ? voice.oscillators : [voice.oscillator];
+    oscillators.forEach((item) => {
+      try { item.disconnect(); } catch {}
+    });
     try {
       voice.envelopeGain.disconnect();
       voice.dryGain.disconnect();

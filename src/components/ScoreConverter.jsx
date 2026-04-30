@@ -42,7 +42,7 @@ function createJsonScoreSchema({
     version: '2.0',
     meta: {
       id: `${slugifyFilename(title)}-${Date.now()}`,
-      title: title || 'Untitled Score',
+      title: title || '未命名琴譜',
       sourceType,
       migratedAt: new Date().toISOString(),
       originalFormat: sourceType,
@@ -173,7 +173,7 @@ const ScoreConverter = memo(({
   const [lastConverted, setLastConverted] = useState(null);
   const [savedCount, setSavedCount] = useState(0);
   const [savedScores, setSavedScores] = useState([]);
-  const [midiImportStatus, setMidiImportStatus] = useState('No MIDI imported yet');
+  const [midiImportStatus, setMidiImportStatus] = useState('尚未匯入 MIDI');
   const [isImportingMidi, setIsImportingMidi] = useState(false);
   const [externalInputType, setExternalInputType] = useState(EXTERNAL_INPUT_TYPES.JIANPU);
   const [aiOutputFormat, setAiOutputFormat] = useState(OUTPUT_FORMATS.LEGACY_TEXT);
@@ -215,7 +215,7 @@ const ScoreConverter = memo(({
 
   const refreshAssistantPrompt = useCallback((nextInputValue = inputValue) => {
     const prompt = buildAiConversionPrompt({
-      title: scoreTitle.trim() || 'Untitled Score',
+      title: scoreTitle.trim() || '未命名琴譜',
       notationType: externalInputType,
       outputFormat: aiOutputFormat,
       playbackConfig,
@@ -244,7 +244,7 @@ const ScoreConverter = memo(({
 
     if (maybeJsonScore) {
       const normalizedJsonPayload = ensurePayloadMetadata(maybeJsonScore, {
-        title: scoreTitle.trim() || 'Untitled Score',
+        title: scoreTitle.trim() || '未命名琴譜',
         playbackConfig,
         references,
         referenceNotes,
@@ -256,7 +256,7 @@ const ScoreConverter = memo(({
 
     const normalized = normalizeScoreSource(inputValue, playbackConfig);
     const payload = createJsonScoreSchema({
-      title: scoreTitle.trim() || 'Untitled Score',
+      title: scoreTitle.trim() || '未命名琴譜',
       rawText: inputValue,
       sourceType: SCORE_SOURCE_TYPES.TEXT,
       playbackConfig,
@@ -272,24 +272,24 @@ const ScoreConverter = memo(({
   const handleSyncCurrent = useCallback(() => {
     setInputValue(scoreDocument.rawText ?? '');
     refreshAssistantPrompt(scoreDocument.rawText ?? '');
-    showToast?.('Converter synced from current score', 'success');
+    showToast?.('已同步目前琴譜到轉換器', 'success');
   }, [refreshAssistantPrompt, scoreDocument.rawText, showToast]);
 
   const handleFormatDraft = useCallback(() => {
     const formatted = normalizeExternalNotationDraft(inputValue);
     setInputValue(formatted);
     refreshAssistantPrompt(formatted);
-    showToast?.('Draft formatting applied', 'success');
+    showToast?.('草稿格式已整理', 'success');
   }, [inputValue, refreshAssistantPrompt, showToast]);
 
   const handleCopyPrompt = useCallback(async () => {
     try {
       const prompt = refreshAssistantPrompt();
       await window.navigator.clipboard.writeText(prompt);
-      showToast?.('AI prompt copied', 'success');
+      showToast?.('AI 提示已複製', 'success');
     } catch (error) {
       console.error(error);
-      showToast?.('Prompt copy failed', 'error');
+      showToast?.('複製提示失敗', 'error');
     }
   }, [refreshAssistantPrompt, showToast]);
 
@@ -297,10 +297,10 @@ const ScoreConverter = memo(({
     try {
       const payload = buildPayload();
       onLoadLocalScore?.(payload);
-      showToast?.(`Loaded converted score: ${payload.meta?.title ?? scoreTitle}`, 'success');
+      showToast?.(`已載入轉換琴譜：${payload.meta?.title ?? scoreTitle}`, 'success');
     } catch (error) {
       console.error(error);
-      showToast?.('Load converted score failed', 'error');
+      showToast?.('載入轉換琴譜失敗', 'error');
     }
   }, [buildPayload, onLoadLocalScore, scoreTitle, showToast]);
 
@@ -309,14 +309,14 @@ const ScoreConverter = memo(({
       const payload = buildPayload();
       const filename = `${slugifyFilename(scoreTitle || 'score')}-converted.json`;
       downloadJsonFile(filename, payload);
-      showToast?.(`Downloaded ${filename}`, 'success');
+      showToast?.(`已下載 ${filename}`, 'success');
     } catch (error) {
       console.error(error);
-      showToast?.('Convert failed', 'error');
+      showToast?.('轉換失敗', 'error');
     }
   }, [buildPayload, scoreTitle, showToast]);
 
-  const savePayloadLocal = useCallback((payload, successMessage = 'Converted score saved locally') => {
+  const savePayloadLocal = useCallback((payload, successMessage = '已儲存轉換琴譜到本機') => {
     const next = readLocalSavedScores();
     next.unshift({
       id: payload.meta.id,
@@ -337,7 +337,7 @@ const ScoreConverter = memo(({
       savePayloadLocal(payload);
     } catch (error) {
       console.error(error);
-      showToast?.('Local save failed', 'error');
+      showToast?.('本機儲存失敗', 'error');
     }
   }, [buildPayload, savePayloadLocal, showToast]);
 
@@ -347,7 +347,7 @@ const ScoreConverter = memo(({
     }
 
     setIsImportingMidi(true);
-    setMidiImportStatus(`Importing ${file.name}...`);
+    setMidiImportStatus(`正在匯入 ${file.name}...`);
 
     try {
       const payload = await parseMidiToV2(file, {
@@ -365,14 +365,14 @@ const ScoreConverter = memo(({
         0,
       );
 
-      savePayloadLocal(payload, `Imported MIDI: ${payload.meta.title}`);
+      savePayloadLocal(payload, `已匯入 MIDI：${payload.meta.title}`);
       setMidiImportStatus(
-        `${payload.meta.fileName} -> ${importedCount} notes @ PPQ ${payload.transport.resolution}`,
+        `${payload.meta.fileName} -> ${importedCount} 個音符 @ PPQ ${payload.transport.resolution}`,
       );
     } catch (error) {
       console.error(error);
       setMidiImportStatus(file.name);
-      showToast?.('MIDI import failed', 'error');
+      showToast?.('MIDI 匯入失敗', 'error');
     } finally {
       setIsImportingMidi(false);
     }
@@ -402,16 +402,16 @@ const ScoreConverter = memo(({
     try {
       const payload = saved?.data;
       if (!payload || typeof payload !== 'object') {
-        showToast?.('Saved payload is invalid', 'error');
+        showToast?.('已儲存的資料無效', 'error');
         return;
       }
 
       onLoadLocalScore?.(payload);
       setLastConverted(payload);
-      showToast?.(`Loaded local score: ${saved.title}`, 'success');
+      showToast?.(`已載入本機琴譜：${saved.title}`, 'success');
     } catch (error) {
       console.error(error);
-      showToast?.('Local load failed', 'error');
+      showToast?.('本機載入失敗', 'error');
     }
   }, [onLoadLocalScore, showToast]);
 
@@ -420,11 +420,11 @@ const ScoreConverter = memo(({
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.35em] text-amber-200/55">Local Converter</div>
-            <div className="mt-1 text-sm font-semibold text-amber-50/90">Convert legacy text score into local JSON schema</div>
+            <div className="text-[10px] font-black uppercase tracking-[0.35em] text-amber-200/55">本機轉換器</div>
+            <div className="mt-1 text-sm font-semibold text-amber-50/90">將文字譜轉成專案可保存的 JSON 格式</div>
           </div>
           <div className="text-[10px] uppercase tracking-[0.28em] text-amber-100/40">
-            local saved: {savedCount}
+            本機已存：{savedCount}
           </div>
         </div>
 
@@ -435,7 +435,7 @@ const ScoreConverter = memo(({
             className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-[11px] font-black tracking-[0.22em] text-amber-100/80 transition-colors hover:bg-white/10"
           >
             <RefreshCcw size={14} />
-            SYNC CURRENT SCORE
+            同步目前琴譜
           </button>
           <button
             type="button"
@@ -443,7 +443,7 @@ const ScoreConverter = memo(({
             className="flex items-center justify-center gap-2 rounded-2xl border border-amber-300/20 bg-amber-500/10 px-4 py-3 text-[11px] font-black tracking-[0.22em] text-amber-100 transition-colors hover:bg-amber-500/18"
           >
             <Download size={14} />
-            DOWNLOAD JSON
+            下載 JSON
           </button>
           <button
             type="button"
@@ -451,32 +451,32 @@ const ScoreConverter = memo(({
             className="flex items-center justify-center gap-2 rounded-2xl border border-emerald-300/20 bg-emerald-500/10 px-4 py-3 text-[11px] font-black tracking-[0.22em] text-emerald-100 transition-colors hover:bg-emerald-500/18"
           >
             <HardDriveDownload size={14} />
-            SAVE LOCAL
+            儲存本機
           </button>
         </div>
 
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto]">
           <label className="rounded-[22px] border border-white/8 bg-black/25 px-4 py-3 text-[11px] text-amber-100/70">
-            <div className="mb-2 font-black uppercase tracking-[0.22em] text-amber-200/45">Source Type</div>
+            <div className="mb-2 font-black uppercase tracking-[0.22em] text-amber-200/45">來源類型</div>
             <select
               value={externalInputType}
               onChange={(event) => setExternalInputType(event.target.value)}
               className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-xs text-amber-50 outline-none"
             >
-              <option value={EXTERNAL_INPUT_TYPES.JIANPU}>Jianpu / Numbered</option>
-              <option value={EXTERNAL_INPUT_TYPES.STAFF}>Staff / Note Names</option>
-              <option value={EXTERNAL_INPUT_TYPES.MIXED}>Mixed / Unknown</option>
+              <option value={EXTERNAL_INPUT_TYPES.JIANPU}>簡譜 / 數字譜</option>
+              <option value={EXTERNAL_INPUT_TYPES.STAFF}>五線譜 / 音名</option>
+              <option value={EXTERNAL_INPUT_TYPES.MIXED}>混合 / 未知</option>
             </select>
           </label>
 
           <label className="rounded-[22px] border border-white/8 bg-black/25 px-4 py-3 text-[11px] text-amber-100/70">
-            <div className="mb-2 font-black uppercase tracking-[0.22em] text-amber-200/45">AI Output</div>
+            <div className="mb-2 font-black uppercase tracking-[0.22em] text-amber-200/45">AI 輸出格式</div>
             <select
               value={aiOutputFormat}
               onChange={(event) => setAiOutputFormat(event.target.value)}
               className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-xs text-amber-50 outline-none"
             >
-              <option value={OUTPUT_FORMATS.LEGACY_TEXT}>Legacy Text</option>
+              <option value={OUTPUT_FORMATS.LEGACY_TEXT}>文字譜</option>
               <option value={OUTPUT_FORMATS.JSON_V2}>Project Hina JSON</option>
             </select>
           </label>
@@ -487,7 +487,7 @@ const ScoreConverter = memo(({
             className="flex items-center justify-center gap-2 rounded-2xl border border-sky-300/20 bg-sky-500/10 px-4 py-3 text-[11px] font-black tracking-[0.22em] text-sky-100 transition-colors hover:bg-sky-500/18"
           >
             <Sparkles size={14} />
-            FORMAT DRAFT
+            整理草稿
           </button>
 
           <button
@@ -496,7 +496,7 @@ const ScoreConverter = memo(({
             className="flex items-center justify-center gap-2 rounded-2xl border border-fuchsia-300/20 bg-fuchsia-500/10 px-4 py-3 text-[11px] font-black tracking-[0.22em] text-fuchsia-100 transition-colors hover:bg-fuchsia-500/18"
           >
             <Copy size={14} />
-            COPY AI PROMPT
+            複製 AI 提示
           </button>
         </div>
 
@@ -516,10 +516,10 @@ const ScoreConverter = memo(({
         >
           <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.24em]">
             <FileUp size={15} />
-            {isImportingMidi ? 'Importing MIDI...' : 'Import MIDI File'}
+            {isImportingMidi ? '正在匯入 MIDI...' : '匯入 MIDI 檔'}
           </div>
           <div className="text-xs text-sky-100/70">
-            Select a `.mid` file to convert into V2 JSON and save it directly to local storage.
+            選擇 `.mid` 檔後會轉成 V2 JSON，並直接儲存到本機。
           </div>
           <div className="text-[10px] uppercase tracking-[0.2em] text-sky-100/45">
             {midiImportStatus}
@@ -533,15 +533,15 @@ const ScoreConverter = memo(({
           }}
           spellCheck={false}
           className="min-h-[180px] rounded-[24px] border border-white/10 bg-black/40 p-4 text-xs font-mono leading-relaxed text-amber-50/75 outline-none focus:border-amber-300/35"
-          placeholder="Paste legacy text, AI generated JSON, jianpu draft, or note-name draft here."
+          placeholder="貼上文字譜、AI 產生的 JSON、簡譜草稿或音名草稿。"
         />
 
         <div className="rounded-[24px] border border-fuchsia-300/14 bg-fuchsia-500/[0.05] p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <div className="text-[10px] font-black uppercase tracking-[0.24em] text-fuchsia-200/55">AI Conversion Spell</div>
+              <div className="text-[10px] font-black uppercase tracking-[0.24em] text-fuchsia-200/55">AI 轉譜提示</div>
               <div className="mt-1 text-sm text-fuchsia-50/85">
-                Copy this prompt into ChatGPT or Gemini, then paste the returned legacy text or JSON back here.
+                複製這段提示到 ChatGPT 或 Gemini，再把回傳的文字譜或 JSON 貼回這裡。
               </div>
             </div>
             <button
@@ -550,7 +550,7 @@ const ScoreConverter = memo(({
               className="flex shrink-0 items-center justify-center gap-2 rounded-2xl border border-fuchsia-300/20 bg-fuchsia-500/10 px-4 py-2 text-[11px] font-black tracking-[0.22em] text-fuchsia-100 transition-colors hover:bg-fuchsia-500/18"
             >
               <Copy size={14} />
-              COPY
+              複製
             </button>
           </div>
           <textarea
@@ -563,20 +563,20 @@ const ScoreConverter = memo(({
 
         <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto] lg:items-end">
           <div className="rounded-[24px] border border-white/8 bg-black/25 px-4 py-3 text-[11px] leading-relaxed text-amber-100/60">
-            <div className="font-black uppercase tracking-[0.25em] text-amber-200/45">Schema Output</div>
+            <div className="font-black uppercase tracking-[0.25em] text-amber-200/45">結構輸出</div>
             <div className="mt-2">
-              Accepts legacy text or AI JSON. Also includes a draft formatter for rough jianpu or note-name input before sending it to an LLM.
+              支援文字譜或 AI JSON，也可先整理粗略簡譜、音名草稿，再送給 AI 轉換。
             </div>
           </div>
           <div className="rounded-[24px] border border-white/8 bg-black/25 px-4 py-3 text-[11px] text-amber-100/60">
             <div className="flex items-center gap-2 font-black uppercase tracking-[0.25em] text-amber-200/45">
               <Wand2 size={13} />
-              Last Convert
+              上次轉換
             </div>
             <div className="mt-2">
               {lastConverted
-                ? `${lastConverted.tracks.reduce((count, track) => count + (track.events?.length ?? 0), 0)} events @ PPQ ${lastConverted.transport.resolution}`
-                : 'No conversion yet'}
+                ? `${lastConverted.tracks.reduce((count, track) => count + (track.events?.length ?? 0), 0)} 個事件 @ PPQ ${lastConverted.transport.resolution}`
+                : '尚未轉換'}
             </div>
           </div>
           <button
@@ -585,24 +585,24 @@ const ScoreConverter = memo(({
             className="flex items-center justify-center gap-2 rounded-2xl border border-emerald-300/20 bg-emerald-500/10 px-4 py-3 text-[11px] font-black tracking-[0.22em] text-emerald-100 transition-colors hover:bg-emerald-500/18"
           >
             <Upload size={14} />
-            LOAD TO EDITOR
+            載入編輯器
           </button>
         </div>
 
         <div className="rounded-[24px] border border-white/8 bg-black/25 p-4">
           <div className="flex items-center justify-between gap-3">
             <div className="text-[10px] font-black uppercase tracking-[0.25em] text-amber-200/45">
-              Local Saved Scores
+              本機已存琴譜
             </div>
             <div className="text-[10px] uppercase tracking-[0.22em] text-amber-100/35">
-              {savedCount} entries
+              {savedCount} 筆
             </div>
           </div>
 
           <div className="mt-3 space-y-2">
             {savedScores.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-white/10 px-4 py-6 text-center text-[11px] text-amber-100/35">
-                No local converted scores yet
+                尚無本機轉換琴譜
               </div>
             ) : savedScores.map((saved) => (
               <div
@@ -623,7 +623,7 @@ const ScoreConverter = memo(({
                   className="flex shrink-0 items-center justify-center gap-2 rounded-xl border border-sky-300/20 bg-sky-500/10 px-3 py-2 text-[10px] font-black tracking-[0.22em] text-sky-100 transition-colors hover:bg-sky-500/18"
                 >
                   <Upload size={13} />
-                  LOAD
+                  載入
                 </button>
               </div>
             ))}
