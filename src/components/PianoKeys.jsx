@@ -45,8 +45,10 @@ const PianoKey = memo(({
   }, [onToggleSharp, keyInfo.k]);
 
   const handleDown = useCallback((event) => {
-    event.preventDefault();
-    if (event.currentTarget.setPointerCapture) {
+    if (event.pointerType !== 'touch') {
+      event.preventDefault();
+    }
+    if (event.pointerType !== 'touch' && event.currentTarget.setPointerCapture) {
       try {
         event.currentTarget.setPointerCapture(event.pointerId);
       } catch {}
@@ -55,7 +57,9 @@ const PianoKey = memo(({
   }, [onActivate, keyInfo.k]);
 
   const handleUp = useCallback((event) => {
-    event.preventDefault();
+    if (event.pointerType !== 'touch') {
+      event.preventDefault();
+    }
     if (event.currentTarget.releasePointerCapture && event.currentTarget.hasPointerCapture?.(event.pointerId)) {
       try {
         event.currentTarget.releasePointerCapture(event.pointerId);
@@ -83,14 +87,14 @@ const PianoKey = memo(({
         onPointerCancel={handleUp}
         onLostPointerCapture={handleUp}
         data-active={isActive}
-        className={`lyre-key-button relative flex aspect-square min-h-[5.4rem] w-full touch-none select-none flex-col items-center justify-center rounded-full border ${isActive ? 'playing-active' : ''}`}
+        className={`lyre-key-button relative flex aspect-square min-h-[5.4rem] w-full select-none flex-col items-center justify-center rounded-[1.35rem] border [touch-action:pan-y] ${isActive ? 'playing-active' : ''}`}
       >
         <span className="lyre-key-string" aria-hidden="true" />
         <span className="lyre-key-note-wrap">
           <span className="lyre-key-sparkle lyre-key-sparkle-a" aria-hidden="true" />
           <span className="lyre-key-sparkle lyre-key-sparkle-b" aria-hidden="true" />
           <span className="lyre-key-sparkle lyre-key-sparkle-c" aria-hidden="true" />
-          <span className="lyre-key-note flex items-start text-[1.35rem] font-black tracking-tighter sm:text-xl md:text-2xl">
+          <span className="lyre-key-note flex items-start font-sans text-[1.45rem] font-black tracking-normal sm:text-[1.55rem] md:text-[1.75rem]">
             {getSolfege(keyInfo.n)}
             {displayOffset && <sup className="lyre-key-offset ml-0.5 text-[9px] sm:text-[10px]">{displayOffset}</sup>}
           </span>
@@ -215,11 +219,11 @@ const PianoKeys = memo(({
 
   return (
     <main className="relative z-20 mt-8 w-full max-w-6xl px-4 sm:mt-10">
-      <div className="group relative overflow-hidden rounded-[36px] border border-white/10 bg-black/60 p-5 shadow-[0_35px_120px_rgba(0,0,0,0.5)] backdrop-blur-xl sm:p-6 md:rounded-[60px] md:p-14">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.16),transparent_30%),radial-gradient(circle_at_80%_22%,rgba(45,212,191,0.12),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))]" />
+      <div className="group relative overflow-hidden rounded-[36px] border border-white/70 bg-white/88 p-5 text-slate-900 shadow-[0_35px_120px_rgba(15,23,42,0.12)] backdrop-blur-xl sm:p-6 md:rounded-[60px] md:p-14">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.10),transparent_30%),radial-gradient(circle_at_80%_22%,rgba(45,212,191,0.10),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.88),rgba(248,250,252,0.72))]" />
         <div className="absolute inset-x-0 top-0 px-4 pt-4 sm:px-6 md:px-8">
-          <div className="mb-2 flex items-center justify-between gap-3 text-[10px] font-black uppercase tracking-[0.22em] text-emerald-100/42">
-            <span>{isScrubbing ? 'Scrubbing' : 'Transport'}</span>
+          <div className="mb-2 flex items-center justify-between gap-3 text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
+            <span>{isScrubbing ? '拖曳定位' : '播放進度'}</span>
             <span>{formatTimeLabel(displayTime)} / {formatTimeLabel(maxTime)}</span>
           </div>
           <div
@@ -235,7 +239,7 @@ const PianoKeys = memo(({
             onPointerUp={handleTimelinePointerUp}
             onPointerCancel={handleTimelinePointerCancel}
             onLostPointerCapture={handleTimelinePointerCancel}
-            className={`relative h-4 overflow-hidden rounded-full border border-white/10 bg-black/35 ${maxTime > 0 ? 'cursor-ew-resize' : 'cursor-default'}`}
+            className={`relative h-4 overflow-hidden rounded-full border border-slate-200 bg-slate-100/90 ${maxTime > 0 ? 'cursor-ew-resize' : 'cursor-default'}`}
           >
             <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))]" />
             <div
@@ -252,8 +256,8 @@ const PianoKeys = memo(({
         {NOTES_MAP.map((row, rowIndex) => (
           <div key={rowIndex} className="relative mb-7 grid grid-cols-1 items-center gap-4 first:pt-8 last:mb-0 sm:mb-8 sm:first:pt-10 md:mb-10 md:gap-8 md:first:pt-12 lg:grid-cols-[104px_1fr]">
             <div className="flex w-full flex-col items-center justify-center text-center lg:items-end lg:text-right">
-              <span className="mb-1 text-[10px] font-black text-emerald-400/80">{row.label}</span>
-              <span className="rounded-full border border-white/10 bg-black/40 px-2.5 py-1 text-[8px] font-bold uppercase tracking-[0.32em] text-white/35 backdrop-blur-lg">{row.sub}</span>
+              <span className="mb-1 text-[10px] font-black text-indigo-700/80">{row.label}</span>
+              <span className="rounded-full border border-slate-200 bg-white/70 px-2.5 py-1 text-[8px] font-bold uppercase tracking-[0.32em] text-slate-500 backdrop-blur-lg">{row.sub}</span>
             </div>
             <div className="grid grid-cols-3 items-center justify-items-center gap-3 sm:grid-cols-4 sm:gap-4 md:grid-cols-7 md:gap-5">
               {row.keys.map((key) => (

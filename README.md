@@ -1,4 +1,4 @@
-# Wind Poetry Lyre
+# guilty corn(豐川罪孽玉米企業)
 
 這個專案使用 `Vite + React` 建立，已接上 GitHub 倉庫，並設定成推送到 `main` 後自動部署到 GitHub Pages。
 

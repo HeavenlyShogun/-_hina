@@ -7,7 +7,7 @@ export const FEATURED_SCORES = [
     id: 'i-really-want-to-stay-at-your-house',
     title: 'I Really Want to Stay at Your House',
     displayTitle: 'I Really Want to Stay at Your House',
-    subtitle: 'Featured score',
+    subtitle: '精選琴譜',
     rawText: DEFAULT_SCORE,
     sourceType: SCORE_SOURCE_TYPES.TEXT,
     ...DEFAULT_SCORE_PARAMS,

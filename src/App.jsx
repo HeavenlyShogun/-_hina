@@ -97,6 +97,7 @@ function AppContent({
   const [activeKeys, setActiveKeys] = useState(() => new Set());
   const [keyPulseTokens, setKeyPulseTokens] = useState({});
 
+  const pageRef = useRef(null);
   const toastTimerRef = useRef(null);
 
   const showToast = useCallback((message, type = 'info') => {
@@ -142,6 +143,16 @@ function AppContent({
 
   const onVisualReset = useCallback(() => {
     setActiveKeys(new Set());
+  }, []);
+
+  const handlePagePointerMove = useCallback((event) => {
+    const page = pageRef.current;
+    if (!page || event.pointerType === 'touch') {
+      return;
+    }
+
+    page.style.setProperty('--cursor-x', `${event.clientX}px`);
+    page.style.setProperty('--cursor-y', `${event.clientY}px`);
   }, []);
 
   const importDefaults = useMemo(
@@ -432,10 +443,13 @@ function AppContent({
   return (
     <PlaybackProvider value={playbackValue}>
       <div
-        className="min-h-screen bg-[#060a12] text-emerald-50 flex flex-col items-center font-serif relative overflow-hidden select-none pb-20 touch-manipulation"
+        ref={pageRef}
+        className="app-shell min-h-screen text-slate-900 flex flex-col items-center font-serif relative select-none pb-20 touch-pan-y"
+        onPointerMove={handlePagePointerMove}
         onContextMenu={(event) => event.preventDefault()}
       >
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(16,185,129,0.08),transparent_70%)] pointer-events-none" />
+        <div className="app-background pointer-events-none fixed inset-0" />
+        <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(96,165,250,0.16),transparent_62%)]" />
         <WindParticles />
 
         {toast ? (
@@ -508,8 +522,8 @@ function AppContent({
           </div>
         </section>
 
-        <footer className="z-20 mt-16 opacity-20 text-[10px] tracking-[0.6em] uppercase">
-          風物之詩琴譜工作室
+        <footer className="z-20 mt-16 text-[10px] uppercase tracking-[0.6em] text-slate-400">
+          guilty corn(豐川罪孽玉米企業)
         </footer>
 
         <style>{`
@@ -517,7 +531,7 @@ function AppContent({
           input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 14px; width: 14px; border-radius: 50%; background: currentColor; cursor: pointer; transition: all 0.2s; border: 2px solid rgba(0,0,0,0.5); }
           .custom-scrollbar::-webkit-scrollbar { width: 5px; }
           .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(16, 185, 129, 0.1); border-radius: 10px; }
-          .touch-manipulation { touch-action: manipulation; }
+          .touch-pan-y { touch-action: pan-y; }
           input[type="number"].no-spinners::-webkit-inner-spin-button, input[type="number"].no-spinners::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
           input[type="number"].no-spinners { -moz-appearance: textfield; }
           @keyframes float { 0% { transform: translateY(0); opacity: 0; } 20% { opacity: 0.15; } 100% { transform: translateY(-100vh); opacity: 0; } }
