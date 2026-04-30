@@ -39,7 +39,7 @@ function buildJsonSectionSegments(scoreJson, maxTick) {
   const normalizedSections = rawSections
     .map((section, index) => ({
       id: section?.id ?? `section-json-${index}`,
-      label: section?.label ?? section?.title ?? section?.name ?? `Section ${index + 1}`,
+      label: section?.label ?? section?.title ?? section?.name ?? `段落 ${index + 1}`,
       startTick: Math.max(0, Math.round(Number(section?.startTick ?? section?.tick ?? section?.start) || 0)),
       endTick: Number.isFinite(Number(section?.endTick ?? section?.end))
         ? Math.max(0, Math.round(Number(section.endTick ?? section.end)))
@@ -302,34 +302,6 @@ const SheetDisplay = memo(({
   }, [setReferences]);
 
   usePlayheadSync(playheadRef);
-
-  useEffect(() => {
-    if (!playbackState.isPlaying || activeSegmentIndex < 0) {
-      return;
-    }
-
-    const activeSegment = sectionSegments[activeSegmentIndex];
-    const activeTick = activeSegment?.startTick;
-    if (!Number.isFinite(activeTick) || activePreviewTickRef.current === activeTick) {
-      return;
-    }
-
-    const container = previewContainerRef.current;
-    if (!container) {
-      return;
-    }
-
-    const target = container.querySelector(`[data-seek-tick="${activeTick}"]`);
-    if (!target) {
-      return;
-    }
-
-    activePreviewTickRef.current = activeTick;
-    target.scrollIntoView({
-      behavior: 'smooth',
-      block: 'center',
-    });
-  }, [activeSegmentIndex, playbackState.isPlaying, sectionSegments]);
 
   useEffect(() => {
     if (!playbackState.isPlaying) {

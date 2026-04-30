@@ -29,7 +29,7 @@ function buildLegacyTimelineItems(scoreText, normalizedScore) {
 
     result.push({
       id: `legacy-live-line-${rawIndex}`,
-      label: `Line ${result.length + 1}`,
+      label: `第 ${result.length + 1} 行`,
       content: rawLine,
       startTick: segment.startTick,
       endTick: segment.endTick,
@@ -49,8 +49,8 @@ function buildJsonTimelineItems(scoreJson, effectiveMaxTick) {
   return sections
     .map((section, index) => ({
       id: section?.id ?? `json-live-section-${index}`,
-      label: section?.label ?? section?.title ?? section?.name ?? `Section ${index + 1}`,
-      content: section?.description ?? section?.notes ?? 'Section jump point',
+      label: section?.label ?? section?.title ?? section?.name ?? `段落 ${index + 1}`,
+      content: section?.description ?? section?.notes ?? '段落跳轉點',
       startTick: Math.max(0, Math.round(Number(section?.startTick ?? section?.tick ?? section?.start) || 0)),
       endTick: Number.isFinite(Number(section?.endTick ?? section?.end))
         ? Math.max(0, Math.round(Number(section?.endTick ?? section?.end)))
@@ -76,8 +76,8 @@ function buildFallbackTimelineItems(normalizedScore, effectiveMaxTick) {
   for (let startTick = 0, index = 0; startTick < maxTick; startTick += measureTick, index += 1) {
     items.push({
       id: `measure-${index + 1}`,
-      label: `Measure ${index + 1}`,
-      content: `Jump to measure ${index + 1}`,
+      label: `第 ${index + 1} 小節`,
+      content: `跳到第 ${index + 1} 小節`,
       startTick,
       endTick: Math.min(startTick + measureTick, maxTick),
     });
@@ -231,17 +231,6 @@ const PerformanceWorkspace = memo(({ score, scoreTitle }) => {
   ]);
 
   useEffect(() => {
-    if (!activeLineRef.current) {
-      return;
-    }
-
-    activeLineRef.current.scrollIntoView({
-      block: 'nearest',
-      behavior: playbackState.isPlaying ? 'smooth' : 'auto',
-    });
-  }, [activeTimelineItemIndex, playbackState.isPlaying]);
-
-  useEffect(() => {
     if (!playbackState.isPlaying) {
       setPreviewTick(null);
       scrubValueRef.current = null;
@@ -250,41 +239,41 @@ const PerformanceWorkspace = memo(({ score, scoreTitle }) => {
 
   return (
     <section className="relative z-20 mt-8 w-full max-w-6xl px-4">
-      <div className="overflow-hidden rounded-[32px] border border-white/10 bg-black/60 shadow-[0_28px_90px_rgba(0,0,0,0.38)] backdrop-blur-xl">
-        <div className="border-b border-white/8 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.18),transparent_28%),radial-gradient(circle_at_85%_10%,rgba(16,185,129,0.16),transparent_24%)] px-5 py-5 sm:px-6">
+      <div className="overflow-hidden rounded-[32px] border border-white/70 bg-white/88 text-slate-900 shadow-[0_28px_90px_rgba(15,23,42,0.12)] backdrop-blur-xl">
+        <div className="border-b border-slate-200 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.10),transparent_28%),radial-gradient(circle_at_85%_10%,rgba(16,185,129,0.10),transparent_24%)] px-5 py-5 sm:px-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <div className="text-[10px] font-black uppercase tracking-[0.32em] text-sky-200/55">Performance Workspace</div>
-              <h2 className="mt-2 text-lg font-black text-emerald-50 sm:text-xl">
-                {scoreTitle?.trim() || 'Untitled Score'}
+              <div className="text-[10px] font-black uppercase tracking-[0.32em] text-sky-700/70">Performance Workspace</div>
+              <h2 className="mt-2 text-lg font-black text-slate-950 sm:text-xl">
+                {scoreTitle?.trim() || '未命名琴譜'}
               </h2>
-              <p className="mt-1 text-xs text-white/45">
+              <p className="mt-1 text-xs text-slate-500">
                 即時譜面與彈奏頁同窗顯示，可直接用進度條或段落卡跳轉。
               </p>
             </div>
-            <div className="grid grid-cols-3 gap-2 text-center text-[10px] font-black uppercase tracking-[0.22em] text-white/45">
-              <div className="rounded-2xl border border-white/10 bg-black/35 px-3 py-3">
-                <div className="text-white/30">Tick</div>
-                <div className="mt-1 text-sm text-emerald-200">{Math.round(currentDisplayTick || 0)}</div>
+            <div className="grid grid-cols-3 gap-2 text-center text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
+              <div className="rounded-2xl border border-slate-200/80 bg-slate-50/95 px-3 py-3 shadow-sm">
+                <div className="text-slate-400">目前</div>
+                <div className="mt-1 text-sm text-teal-700">{Math.round(currentDisplayTick || 0)}</div>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-black/35 px-3 py-3">
-                <div className="text-white/30">Total</div>
-                <div className="mt-1 text-sm text-emerald-200">{Math.round(effectiveMaxTick || 0)}</div>
+              <div className="rounded-2xl border border-slate-200/80 bg-slate-50/95 px-3 py-3 shadow-sm">
+                <div className="text-slate-400">總長</div>
+                <div className="mt-1 text-sm text-teal-700">{Math.round(effectiveMaxTick || 0)}</div>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-black/35 px-3 py-3">
-                <div className="text-white/30">Progress</div>
-                <div className="mt-1 text-sm text-emerald-200">{Math.round(progressPercent)}%</div>
+              <div className="rounded-2xl border border-slate-200/80 bg-slate-50/95 px-3 py-3 shadow-sm">
+                <div className="text-slate-400">進度</div>
+                <div className="mt-1 text-sm text-teal-700">{Math.round(progressPercent)}%</div>
               </div>
             </div>
           </div>
 
           <div className="mt-5">
-            <div className="mb-2 flex items-center justify-between text-[10px] font-black uppercase tracking-[0.24em] text-emerald-100/40">
-              <span>Timeline Seek</span>
+            <div className="mb-2 flex items-center justify-between text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">
+              <span>時間軸跳轉</span>
               <span>{Math.round((currentDisplayTick / Math.max(effectiveMaxTick, 1)) * (normalizedScore.maxTime || 0) || 0)}s / {Math.round(normalizedScore.maxTime || 0)}s</span>
             </div>
             <div className="relative">
-              <div className="h-3 rounded-full bg-white/8" />
+              <div className="h-3 rounded-full bg-slate-200" />
               <div
                 className="pointer-events-none absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-sky-400 via-emerald-300 to-amber-300"
                 style={{ width: `${progressPercent}%` }}
@@ -317,12 +306,12 @@ const PerformanceWorkspace = memo(({ score, scoreTitle }) => {
         </div>
 
         <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1.35fr)_340px] lg:p-6">
-          <div className="rounded-[28px] border border-white/10 bg-black/30 p-4">
-            <div className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.24em] text-emerald-100/45">
-              <ListMusic size={14} className="text-emerald-300" />
-              Live Score
+          <div className="rounded-[28px] border border-slate-200/80 bg-slate-50/92 p-4 shadow-sm">
+            <div className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">
+              <ListMusic size={14} className="text-teal-700" />
+              即時琴譜
             </div>
-            <div className="max-h-[360px] overflow-y-auto rounded-[22px] border border-white/8 bg-black/35 p-3 custom-scrollbar">
+            <div className="max-h-[360px] overflow-y-auto rounded-[22px] border border-slate-200 bg-white/82 p-3 custom-scrollbar">
               <div className="space-y-2">
                 {timelineItems.map((item, index) => {
                   const isActive = index === activeTimelineItemIndex;
@@ -337,20 +326,20 @@ const PerformanceWorkspace = memo(({ score, scoreTitle }) => {
                       }}
                       className={`block w-full rounded-[20px] border px-4 py-3 text-left transition-colors ${
                         isActive
-                          ? 'border-emerald-300/35 bg-emerald-400/15 text-emerald-50'
-                          : 'border-white/8 bg-black/30 text-white/70 hover:border-sky-300/22 hover:bg-white/[0.04]'
+                          ? 'border-teal-300 bg-teal-50 text-teal-900'
+                          : 'border-slate-200 bg-white text-slate-700 hover:border-sky-300 hover:bg-sky-50'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-200/55">
+                          <div className="text-[10px] font-black uppercase tracking-[0.2em] text-teal-700/70">
                             {item.label}
                           </div>
                           <div className="mt-1 whitespace-pre-wrap break-words font-mono text-xs leading-relaxed">
                             {item.content}
                           </div>
                         </div>
-                        <div className="shrink-0 text-[10px] font-bold uppercase tracking-[0.18em] text-white/35">
+                        <div className="shrink-0 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
                           {Math.round(item.startTick)}
                         </div>
                       </div>
@@ -361,10 +350,10 @@ const PerformanceWorkspace = memo(({ score, scoreTitle }) => {
             </div>
           </div>
 
-          <div className="rounded-[28px] border border-sky-300/12 bg-sky-500/[0.05] p-4">
-            <div className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.24em] text-sky-100/50">
-              <MousePointerClick size={14} className="text-sky-300" />
-              Quick Jump
+          <div className="rounded-[28px] border border-slate-200/80 bg-slate-50/92 p-4 shadow-sm">
+            <div className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">
+              <MousePointerClick size={14} className="text-sky-700" />
+              快速跳轉
             </div>
             <div className="space-y-2">
               {timelineItems.slice(0, 10).map((item, index) => {
@@ -379,19 +368,19 @@ const PerformanceWorkspace = memo(({ score, scoreTitle }) => {
                     }}
                     className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left transition-colors ${
                       isActive
-                        ? 'border-sky-300/30 bg-sky-400/16 text-sky-50'
-                        : 'border-white/10 bg-black/25 text-sky-100/72 hover:bg-sky-500/12'
+                        ? 'border-sky-300 bg-sky-50 text-sky-900'
+                        : 'border-slate-200 bg-white text-slate-700 hover:bg-sky-50'
                     }`}
                   >
                     <span className="truncate text-xs font-semibold">{item.label}</span>
-                    <span className="ml-3 shrink-0 text-[10px] uppercase tracking-[0.18em] text-white/35">
+                    <span className="ml-3 shrink-0 text-[10px] uppercase tracking-[0.18em] text-slate-400">
                       {Math.round(item.startTick)}
                     </span>
                   </button>
                 );
               })}
             </div>
-            <div className="mt-4 rounded-[20px] border border-white/10 bg-black/20 px-4 py-3 text-xs leading-relaxed text-white/45">
+            <div className="mt-4 rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-relaxed text-slate-500">
               拖曳上方進度條可精確跳轉，點選左側譜面或右側段落卡可快速切換到對應位置。
             </div>
           </div>
