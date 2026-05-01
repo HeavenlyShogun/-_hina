@@ -5,8 +5,17 @@ import { usePlayback } from '../contexts/PlaybackContext';
 const BRAND_NAME = 'guilty corn';
 const BRAND_SUBTITLE = '(豐川罪孽玉米企業)';
 
-const AppHeader = memo(({ playHotkey, setPlayHotkey, featuredScores = [], onPlayFeaturedScore }) => {
+const AppHeader = memo(({
+  playHotkey,
+  setPlayHotkey,
+  featuredScores = [],
+  onPlayFeaturedScore,
+  scoreTitle,
+}) => {
   const { isPlaying, onTogglePlay } = usePlayback();
+  const selectedFeaturedId = featuredScores.find((score) => (
+    score.title === scoreTitle || score.displayTitle === scoreTitle
+  ))?.id ?? '';
 
   return (
     <header className="relative z-30 mt-6 flex w-full max-w-6xl flex-col gap-5 overflow-hidden rounded-[28px] border border-white/70 bg-white/88 px-4 py-5 text-slate-900 shadow-[0_30px_90px_rgba(15,23,42,0.12)] backdrop-blur-xl sm:mt-8 sm:px-6 sm:py-6 lg:flex-row lg:items-center lg:justify-between">
@@ -28,27 +37,26 @@ const AppHeader = memo(({ playHotkey, setPlayHotkey, featuredScores = [], onPlay
 
       <div className="relative flex w-full flex-col items-stretch gap-3 lg:w-auto">
         {featuredScores.length > 0 ? (
-          <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
-            {featuredScores.map((score) => (
-              <button
-                key={score.id}
-                type="button"
-                onClick={() => onPlayFeaturedScore?.(score)}
-                className="flex min-h-[3.25rem] items-center justify-center gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-left text-amber-900 shadow-[0_16px_40px_rgba(245,158,11,0.12)] transition-all hover:-translate-y-0.5 hover:bg-amber-100 hover:shadow-[0_18px_46px_rgba(245,158,11,0.16)]"
-                title={`播放 ${score.displayTitle ?? score.title}`}
-              >
-                <Sparkles size={15} className="shrink-0 text-amber-700" />
-                <span className="min-w-0">
-                  <span className="block truncate text-[11px] font-black tracking-[0.16em]">
-                    {score.displayTitle ?? score.title}
-                  </span>
-                  <span className="mt-0.5 block text-[9px] font-bold tracking-[0.22em] text-amber-700/65">
-                    {score.subtitle ?? '精選琴譜'}
-                  </span>
-                </span>
-                <Play size={14} fill="currentColor" className="shrink-0 text-amber-700" />
-              </button>
-            ))}
+          <div className="flex min-h-[3.25rem] min-w-0 items-center gap-3 overflow-hidden rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900 shadow-[0_16px_40px_rgba(245,158,11,0.12)] transition-all hover:bg-amber-100">
+            <Sparkles size={15} className="shrink-0 text-amber-700" />
+            <select
+              value={selectedFeaturedId}
+              onChange={(event) => {
+                const selectedScore = featuredScores.find((score) => score.id === event.target.value);
+                if (selectedScore) {
+                  onPlayFeaturedScore?.(selectedScore);
+                }
+              }}
+              className="min-w-0 flex-1 cursor-pointer bg-transparent text-[11px] font-black tracking-[0.16em] text-amber-900 outline-none"
+              title="選擇歌曲"
+            >
+              <option value="" className="bg-white text-slate-900">選擇歌曲</option>
+              {featuredScores.map((score) => (
+                <option key={score.id} value={score.id} className="bg-white text-slate-900">
+                  {score.displayTitle ?? score.title}
+                </option>
+              ))}
+            </select>
           </div>
         ) : null}
 
@@ -69,10 +77,11 @@ const AppHeader = memo(({ playHotkey, setPlayHotkey, featuredScores = [], onPlay
           <button
             type="button"
             onClick={onTogglePlay}
-            className={`flex w-full min-w-[12rem] items-center justify-center gap-4 rounded-full border px-6 py-3.5 text-sm font-black tracking-[0.22em] shadow-xl transition-all active:scale-[0.98] sm:w-auto sm:px-10 ${isPlaying ? 'border-rose-300 bg-rose-50 text-rose-700 shadow-[0_16px_40px_rgba(244,63,94,0.12)]' : 'border-indigo-200 bg-white/92 text-indigo-800 shadow-[0_18px_45px_rgba(30,41,59,0.12)] hover:bg-indigo-50'}`}
+            className={`flex h-12 w-full items-center justify-center gap-3 rounded-full border px-5 text-xs font-black tracking-[0.18em] shadow-xl transition-all active:scale-[0.98] sm:w-auto ${isPlaying ? 'border-rose-300 bg-rose-50 text-rose-700 shadow-[0_16px_40px_rgba(244,63,94,0.12)]' : 'border-emerald-400 bg-emerald-500 text-white shadow-[0_18px_45px_rgba(16,185,129,0.28)] hover:bg-emerald-400'}`}
+            title={isPlaying ? '停止播放' : '播放目前選擇的琴譜'}
           >
             {isPlaying ? <Square size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
-            {isPlaying ? '停止' : '播放琴譜'}
+            {isPlaying ? '停止' : '播放'}
           </button>
         </div>
       </div>

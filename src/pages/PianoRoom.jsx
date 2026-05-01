@@ -26,6 +26,7 @@ const PianoRoom = memo(({
       setPlayHotkey={setPlayHotkey}
       featuredScores={featuredScores}
       onPlayFeaturedScore={onPlayFeaturedScore}
+      scoreTitle={scoreTitle}
     />
     <PianoKeys
       activeKeys={activeKeys}

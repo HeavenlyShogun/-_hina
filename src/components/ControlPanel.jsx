@@ -100,10 +100,10 @@ const ControlPanel = memo(() => {
                 <span className="shrink-0 text-[9px] font-mono tracking-[0.28em] text-amber-700/60">BPM</span>
               </div>
 
-              <div className="grid min-w-0 gap-3 md:grid-cols-[minmax(0,0.9fr)_minmax(0,0.85fr)_minmax(0,1fr)]">
-                <div className="min-w-0 rounded-[22px] border border-slate-200/80 bg-slate-50/95 px-3 py-3 shadow-sm">
+              <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(10rem,0.9fr)_minmax(10rem,0.85fr)_minmax(12rem,1fr)]">
+                <div className="min-w-0 overflow-hidden rounded-[22px] border border-slate-200/80 bg-slate-50/95 px-3 py-3 shadow-sm">
                   <div className="mb-2 truncate text-[10px] font-black tracking-[0.24em] text-slate-500">BPM</div>
-                  <div className="flex min-w-0 items-center rounded-xl border border-slate-200 bg-white/80 p-1 transition-colors focus-within:border-amber-400/70">
+                  <div className="flex min-w-0 items-center overflow-hidden rounded-xl border border-slate-200 bg-white/80 p-1 transition-colors focus-within:border-amber-400/70">
                     <button
                       type="button"
                       onClick={() => applyBpm(lastValidBpmRef.current - 1)}
@@ -135,16 +135,16 @@ const ControlPanel = memo(() => {
                   </div>
                 </div>
 
-                <div className="min-w-0 rounded-[22px] border border-slate-200/80 bg-slate-50/95 px-3 py-3 shadow-sm">
+                <div className="min-w-0 overflow-hidden rounded-[22px] border border-slate-200/80 bg-slate-50/95 px-3 py-3 shadow-sm">
                   <div className="mb-2 flex min-w-0 items-center gap-2">
                     <Clock size={15} className="shrink-0 text-teal-600" />
                     <span className="truncate text-[10px] font-black tracking-[0.24em] text-slate-500">拍號</span>
                   </div>
-                  <div className="flex min-w-0 items-center gap-1 rounded-xl border border-slate-200 bg-white/80 px-2 py-1">
+                  <div className="flex min-w-0 items-center gap-1 overflow-hidden rounded-xl border border-slate-200 bg-white/80 px-2 py-1">
                     <select
                       value={timeSigNum}
                       onChange={(event) => setTimeSigNum(Number(event.target.value))}
-                      className="min-w-0 flex-1 bg-transparent px-1 py-1 text-sm font-black text-slate-800 outline-none"
+                      className="min-w-0 flex-1 bg-transparent px-1 py-1 text-center text-sm font-black text-slate-800 outline-none"
                     >
                       {[2, 3, 4, 5, 6, 7, 8, 9, 12].map((value) => (
                         <option key={value} value={value} className="bg-white text-slate-900">
@@ -156,7 +156,7 @@ const ControlPanel = memo(() => {
                     <select
                       value={timeSigDen}
                       onChange={(event) => setTimeSigDen(Number(event.target.value))}
-                      className="min-w-0 flex-1 bg-transparent px-1 py-1 text-sm font-black text-slate-800 outline-none"
+                      className="min-w-0 flex-1 bg-transparent px-1 py-1 text-center text-sm font-black text-slate-800 outline-none"
                     >
                       {[2, 4, 8, 16].map((value) => (
                         <option key={value} value={value} className="bg-white text-slate-900">
@@ -167,7 +167,7 @@ const ControlPanel = memo(() => {
                   </div>
                 </div>
 
-                <div className="min-w-0 rounded-[22px] border border-slate-200/80 bg-slate-50/95 px-3 py-3 shadow-sm">
+                <div className="min-w-0 overflow-hidden rounded-[22px] border border-slate-200/80 bg-slate-50/95 px-3 py-3 shadow-sm sm:col-span-2 lg:col-span-1">
                   <div className="mb-2 truncate text-[10px] font-black tracking-[0.24em] text-slate-500">解析度</div>
                   <select
                     value={charResolution}
