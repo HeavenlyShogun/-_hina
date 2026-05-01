@@ -12,7 +12,7 @@ async function createFirebaseContext() {
 
   const firebaseConfig = getFirebaseConfig();
   if (!firebaseConfig) {
-    throw new Error('Firebase config 無法讀取，請檢查 .env 設定。');
+    throw new Error('Firebase 設定未載入。請檢查 `.env` 是否存在，並在重啟 Vite 後再試一次。');
   }
 
   const [
