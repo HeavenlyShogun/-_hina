@@ -33,7 +33,7 @@ export function useCloudScores() {
       .then((result) => {
         if (!result?.ctx) {
           setCloudStatus('unavailable');
-          setCloudError('Firebase config 尚未設定。');
+          setCloudError('Firebase 設定尚未完成。');
           return null;
         }
 
@@ -68,7 +68,7 @@ export function useCloudScores() {
     const unsubscribe = subscribeToScores(firebaseCtx, user.uid, setSavedScores, (error) => {
       console.error(error);
       setCloudStatus('error');
-      setCloudError(error?.message || 'Firestore 訂閱失敗，請檢查安全規則與專案權限。');
+      setCloudError(error?.message || 'Firestore 讀取失敗，請檢查權限規則與集合路徑。');
     });
     scoresUnsubscribeRef.current = unsubscribe;
     return () => unsubscribe();
@@ -97,7 +97,7 @@ export function useCloudScores() {
       return true;
     } catch (error) {
       console.error(error);
-      setCloudError(error?.message || 'Firestore 儲存失敗，請檢查安全規則。');
+      setCloudError(error?.message || 'Firestore 儲存失敗，請檢查權限規則。');
       return false;
     } finally {
       setIsSaving(false);
@@ -113,7 +113,7 @@ export function useCloudScores() {
       return true;
     } catch (error) {
       console.error(error);
-      setCloudError(error?.message || 'Firestore 刪除失敗，請檢查安全規則。');
+      setCloudError(error?.message || 'Firestore 刪除失敗，請檢查權限規則。');
       return false;
     }
   }, [getConnectedUser]);
@@ -127,7 +127,7 @@ export function useCloudScores() {
       return true;
     } catch (error) {
       console.error(error);
-      setCloudError(error?.message || 'Firestore 清空失敗，請檢查安全規則。');
+      setCloudError(error?.message || 'Firestore 清空失敗，請檢查權限規則。');
       return false;
     }
   }, [getConnectedUser, savedScores]);
@@ -141,7 +141,7 @@ export function useCloudScores() {
       return true;
     } catch (error) {
       console.error(error);
-      setCloudError(error?.message || 'Firestore 上傳失敗，請檢查安全規則。');
+      setCloudError(error?.message || 'Firestore 批次上傳失敗，請檢查權限規則。');
       return false;
     }
   }, [getConnectedUser]);
