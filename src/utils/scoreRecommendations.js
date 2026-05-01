@@ -1,11 +1,12 @@
 const RECOMMENDED_SCORES = [
   {
     matchers: ['i really want to stay at your house', '我永遠想待在你的房子裡'],
-    bpm: 125,
+    bpm: 128,
     globalKeyOffset: 6,
     scaleMode: 'major',
     timeSigNum: 4,
     timeSigDen: 4,
+    charResolution: 16,
     reverb: true,
   },
   {
@@ -15,6 +16,7 @@ const RECOMMENDED_SCORES = [
     scaleMode: 'major',
     timeSigNum: 4,
     timeSigDen: 4,
+    charResolution: 16,
     reverb: true,
   },
   {
@@ -114,8 +116,8 @@ export function applyScoreRecommendation(source = {}, options = {}) {
   }
 
   const next = { ...source };
-  ['bpm', 'globalKeyOffset', 'scaleMode', 'timeSigNum', 'timeSigDen', 'reverb'].forEach((key) => {
-    if (force || !hasExplicitValue(next[key])) {
+  ['bpm', 'globalKeyOffset', 'scaleMode', 'timeSigNum', 'timeSigDen', 'charResolution', 'reverb'].forEach((key) => {
+    if (recommendation[key] !== undefined && (force || !hasExplicitValue(next[key]))) {
       next[key] = recommendation[key];
     }
   });

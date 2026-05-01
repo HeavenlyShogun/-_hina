@@ -352,6 +352,151 @@ function parseLegacyLine(lineText, parserState) {
   };
 }
 
+function parseBeatLegacyScoreText(text, config = {}) {
+  const playback = createPlaybackState({
+    ...config,
+    resolution: PPQ,
+  });
+  const timing = resolveLegacyTextTiming(playback);
+  const cleanText = stripScoreComments(String(text ?? ''));
+  const events = [];
+  const lines = [];
+  let currentTick = 0;
+  let currentSegment = '';
+  let lineStartTick = 0;
+  let linePreview = '';
+  let lineIndex = 0;
+
+  const processSegment = (segment, forceAdvance = false) => {
+    const items = parseBeatItems(segment);
+
+    if (items.length === 0 && !forceAdvance) {
+      return false;
+    }
+
+    const itemSpacingTicks = items.length > 0
+      ? Math.max(Math.floor(timing.beatTicks / items.length), 1)
+      : timing.beatTicks;
+
+    items.forEach((item, itemIndex) => {
+      const tick = currentTick + (itemSpacingTicks * itemIndex);
+
+      if (item.type === 'rest') {
+        events.push(createNormalizedNoteEvent({
+          tick,
+          key: null,
+          durationTicks: itemSpacingTicks,
+          resolution: PPQ,
+          bpm: playback.bpm,
+          velocity: 0,
+          isRest: true,
+        }));
+        return;
+      }
+
+      if (item.type === 'chord') {
+        item.keys.forEach((key, chordIndex) => {
+          events.push(createNormalizedNoteEvent({
+            tick: tick + (timing.chordStrumTicks * chordIndex),
+            key,
+            durationTicks: Math.max(itemSpacingTicks, timing.unitTicks),
+            resolution: PPQ,
+            bpm: playback.bpm,
+            velocity: DEFAULT_NOTE_VELOCITY,
+          }));
+        });
+        return;
+      }
+
+      if (item.type === 'note') {
+        events.push(createNormalizedNoteEvent({
+          tick,
+          key: item.key,
+          durationTicks: Math.max(itemSpacingTicks, timing.unitTicks),
+          resolution: PPQ,
+          bpm: playback.bpm,
+          velocity: DEFAULT_NOTE_VELOCITY,
+        }));
+      }
+    });
+
+    currentTick += timing.beatTicks;
+    return true;
+  };
+
+  const finishLine = () => {
+    const preview = linePreview.replace(/\|/gu, '').trim();
+    if (preview && currentTick > lineStartTick) {
+      lines.push({
+        id: `beat-line-${lineIndex}`,
+        label: preview.length > 24 ? `${preview.slice(0, 24).trim()}...` : preview,
+        startTick: lineStartTick,
+        endTick: currentTick,
+      });
+    }
+
+    lineIndex += 1;
+    lineStartTick = currentTick;
+    linePreview = '';
+  };
+
+  for (let index = 0; index < cleanText.length; index += 1) {
+    const char = cleanText[index];
+
+    if (char === '/') {
+      processSegment(currentSegment, true);
+      linePreview += currentSegment + char;
+      currentSegment = '';
+      continue;
+    }
+
+    if (char === '\r') {
+      continue;
+    }
+
+    if (char === '\n') {
+      if (currentSegment.trim()) {
+        const processed = processSegment(currentSegment);
+        if (processed) {
+          linePreview += currentSegment;
+        }
+        currentSegment = '';
+      }
+      finishLine();
+      continue;
+    }
+
+    if (char === '|') {
+      continue;
+    }
+
+    currentSegment += char;
+  }
+
+  if (currentSegment.trim()) {
+    const processed = processSegment(currentSegment);
+    if (processed) {
+      linePreview += currentSegment;
+    }
+  }
+  finishLine();
+
+  const normalized = buildNormalizedResult(events, {
+    ...playback,
+    contentEndTick: currentTick,
+  });
+
+  return {
+    ...normalized,
+    structure: {
+      lines,
+      contentEndTick: currentTick,
+      unitTicks: timing.unitTicks,
+      beatTicks: timing.beatTicks,
+    },
+  };
+}
+
 export function analyzeLegacyScoreText(text, config = {}) {
   const playback = createPlaybackState({
     ...config,
@@ -519,6 +664,10 @@ export function parseScoreJson(scoreJson) {
 
 export function normalizeScoreSource(input, config = {}) {
   if (typeof input === 'string') {
+    if (config.legacyTimingMode === 'beat') {
+      return parseBeatLegacyScoreText(input, config);
+    }
+
     return parseLegacyScoreText(input, config);
   }
 

@@ -116,6 +116,7 @@ export function createScorePlaybackConfig(source = {}) {
     scaleMode: source.scaleMode ?? DEFAULT_SCORE_PARAMS.scaleMode,
     tone: source.tone ?? DEFAULT_SCORE_PARAMS.tone,
     reverb: source.reverb ?? DEFAULT_SCORE_PARAMS.reverb,
+    legacyTimingMode: source.legacyTimingMode,
   };
 }
 

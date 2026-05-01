@@ -29,16 +29,16 @@ N / (AD) / (ZB) /H J /
 (VQ) A /(AF) J /H (BSJ) /Q /
 N (DJ) /(DH) J /Q (BAW) /E R /
 Q /Q E /W Q /Q /
-/ / /E TE /
+/ / /ETE /
 
 
 
-(ZVW) (AQ) /(AFH)Q (AFW)/ (XB) /(SGE) TE /
+(ZVW) (AQ) /(AFH)Q (AFW)/ (XB) /(SGE)TE /
 (CNW) (DQ) /(DH)Q (CNQ)/ (ZB) /(AGE) (BT)E /
 (ZVW) A /(AFE)T (AFT)/ Y(XB) /(SGT)R(BE) /
 (CN) (DW)E/(DT)YE(CNW)/E (ZB) /(AGE) (BT)E /
 
-(ZVW) (AQ) /(AFH)Q (AFW)/ (XB) /(SGE) TE /
+(ZVW) (AQ) /(AFH)Q (AFW)/ (XB) /(SGE)TE /
 (CNW) (DQ) /(DH)Q (CNQ)/ (ZB) /(AGQ)J(BH)J /
 (ZVH) A /(AFW) (ZV)/J (XBH) /(SGJ) (BJ) /
 (ZVN) Q /(XBM) /(CNA) /XCNA /
@@ -75,15 +75,15 @@ V A /(AF) R /E (BSW) /(SQ) (BQ) /
 (ZVBA) /(BA) (BA)/ (BA)(ZV)/(BA) (ZV) /
 (ZVBS) /(BS) (BS)/ (BS)(ZV)/(BD) (ZV) /
 (XBG) GG /(BSG)GG(XBG) /HH(XBH)H /(BSQ)QQQ /
-(XBW)WWW /(BSE)EE(XBE) /TT(XBT)T /E TE /
+(XBW)WWW /(BSE)EE(XBE) /TT(XBT)T /ETE /
 
 
-(ZVW) (AQ) /(AFH)Q (AFW)/ (XB) /(SGE) TE /
+(ZVW) (AQ) /(AFH)Q (AFW)/ (XB) /(SGE)TE /
 (CNW) (DQ) /(DH)Q (CNQ)/ (ZB) /(AGE) (BT)E /
 (ZVW) A /(AFE)T (AFT)/ Y(XB) /(SGT)R(BE) /
 (CN) (DW)E/(DT)YE(CNW)/E (ZB) /(AGE) (BT)E /
 
-(ZVW) (AQ) /(AFH)Q (AFW)/ (XB) /(SGE) TE /
+(ZVW) (AQ) /(AFH)Q (AFW)/ (XB) /(SGE)TE /
 (CNW) (DQ) /(DH)Q (CNQ)/ (ZB) /(AGQ)J(BH)J /
 (ZVH) A /(AFW) (ZV)/J (XBG) /(SD) (BJ) /
 (ZVN) Q /(XBMQ) /(CNA) /XCNA /
@@ -116,15 +116,15 @@ V A /(AF) R /E (BSW) /(SQ) (BQ) /
 (VAH) /Q W / (BSJ) /G F /
 (ND) G /J Q / (BA) /Q J /
 (VAH) /Q /J (BSG) /G H /
-/ / /E TE /
+/ / /ETE /
 
 
-(ZVW) (AQ) /(AFH)Q (AFW)/ (XB) /(SGE) TE /
+(ZVW) (AQ) /(AFH)Q (AFW)/ (XB) /(SGE)TE /
 (CNW) (DQ) /(DH)Q (CNQ)/ (ZB) /(AGE) (BT)E /
 (ZVW) A /(AFE)T (AFT)/ Y(XB) /(SGT)R(BE) /
 (CN) (DW)E/(DT)YE(CNW)/E (ZB) /(AGE) (BT)E /
 
-(ZVW) (AQ) /(AFH)Q (AFW)/ (XB) /(SGE) TE /
+(ZVW) (AQ) /(AFH)Q (AFW)/ (XB) /(SGE)TE /
 (CNW) (DQ) /(DH)Q (CNQ)/ (ZB) /(AGQ)J(BH)J /
 (ZVH) A /(AFW) (ZV)/J (XBG) /(SD) (BJ) /
 (ZVN) Q /(XBM) /(CNA) /XCNA /

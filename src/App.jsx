@@ -181,7 +181,6 @@ function AppContent({
     seekToTick,
     scrubToTick,
     setPlaybackRate,
-    playScoreSourceAction,
     stopAll,
     handleKeyActivate,
     handleKeyDeactivate,
@@ -191,6 +190,7 @@ function AppContent({
     timeSigNum,
     timeSigDen,
     charResolution,
+    legacyTimingMode: scoreDocument.legacyTimingMode,
     audioConfig,
     accidentals,
     showToast,
@@ -341,7 +341,7 @@ function AppContent({
     showToast('已載入 JSON 範例', 'success');
   }, [loadScoreSource, showToast, stopAll]);
 
-  const handlePlayFeaturedScore = useCallback(async (featuredScore) => {
+  const handlePlayFeaturedScore = useCallback((featuredScore) => {
     const source = {
       title: featuredScore.title,
       rawText: featuredScore.rawText,
@@ -350,6 +350,7 @@ function AppContent({
       timeSigNum: featuredScore.timeSigNum,
       timeSigDen: featuredScore.timeSigDen,
       charResolution: featuredScore.charResolution,
+      legacyTimingMode: featuredScore.legacyTimingMode,
       globalKeyOffset: featuredScore.globalKeyOffset,
       scaleMode: featuredScore.scaleMode,
       reverb: featuredScore.reverb,
@@ -358,22 +359,9 @@ function AppContent({
     };
 
     loadScoreSource(applyScoreRecommendation(source, { force: true }));
-    showToast(`正在播放：${featuredScore.displayTitle ?? featuredScore.title}`, 'success');
-    await playScoreSourceAction({
-      score: featuredScore.rawText,
-      bpm: featuredScore.bpm,
-      timeSigNum: featuredScore.timeSigNum,
-      timeSigDen: featuredScore.timeSigDen,
-      charResolution: featuredScore.charResolution,
-      audioConfig: {
-        ...audioConfig,
-        tone: featuredScore.tone ?? audioConfig.tone,
-        reverb: featuredScore.reverb ?? audioConfig.reverb,
-        globalKeyOffset: featuredScore.globalKeyOffset ?? audioConfig.globalKeyOffset,
-      },
-      accidentals: featuredScore.accidentals,
-    });
-  }, [audioConfig, loadScoreSource, playScoreSourceAction, showToast]);
+    stopAll();
+    showToast(`已選擇：${featuredScore.displayTitle ?? featuredScore.title}`, 'success');
+  }, [loadScoreSource, showToast, stopAll]);
 
   const handleLoadLocalConvertedScore = useCallback((payload) => {
     loadScoreSource({

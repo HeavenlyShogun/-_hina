@@ -35,6 +35,7 @@ export function useScorePlayback({
   timeSigNum,
   timeSigDen,
   charResolution,
+  legacyTimingMode,
   audioConfig,
   accidentals,
   showToast,
@@ -54,6 +55,7 @@ export function useScorePlayback({
     timeSigNum,
     timeSigDen,
     charResolution,
+    legacyTimingMode,
     audioConfig,
     accidentals,
   });
@@ -65,10 +67,11 @@ export function useScorePlayback({
       timeSigNum,
       timeSigDen,
       charResolution,
+      legacyTimingMode,
       audioConfig,
       accidentals,
     };
-  }, [accidentals, audioConfig, bpm, charResolution, score, timeSigDen, timeSigNum]);
+  }, [accidentals, audioConfig, bpm, charResolution, legacyTimingMode, score, timeSigDen, timeSigNum]);
 
   useEffect(() => {
     isPlayingRef.current = playbackState.isPlaying;
@@ -148,6 +151,7 @@ export function useScorePlayback({
       timeSigNum: current.timeSigNum,
       timeSigDen: current.timeSigDen,
       charResolution: current.charResolution,
+      legacyTimingMode: current.legacyTimingMode,
     });
 
     playbackController.load(events, maxTime, playback);
