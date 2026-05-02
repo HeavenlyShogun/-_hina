@@ -1,4 +1,4 @@
-import { DEFAULT_SCORE_PARAMS, KEY_INFO_MAP } from '../constants/music';
+import { DEFAULT_SCORE_PARAMS } from '../constants/music';
 import { normalizeScoreSource } from './score';
 
 export const SCORE_SOURCE_TYPES = {
@@ -59,10 +59,6 @@ function resolveReferenceFields(source = {}, sourceType = SCORE_SOURCE_TYPES.TEX
   };
 }
 
-export function transposeFrequency(baseFrequency, semitoneOffset) {
-  return baseFrequency * 2 ** (semitoneOffset / 12);
-}
-
 export function serializeScoreContent(content, sourceType = SCORE_SOURCE_TYPES.TEXT) {
   if (typeof content === 'string') {
     return content;
@@ -117,6 +113,7 @@ export function createScorePlaybackConfig(source = {}) {
     tone: source.tone ?? DEFAULT_SCORE_PARAMS.tone,
     reverb: source.reverb ?? DEFAULT_SCORE_PARAMS.reverb,
     legacyTimingMode: source.legacyTimingMode,
+    textNotation: source.textNotation,
   };
 }
 
@@ -125,22 +122,19 @@ export function compileScoreEvents(rawText, options = {}) {
   const playback = createScorePlaybackConfig(options);
   const content = parseScoreContent(rawText, sourceType);
   const normalized = normalizeScoreSource(content, playback);
+  return normalized.events;
+}
 
-  return normalized.events.map((event) => {
-    const keyInfo = KEY_INFO_MAP[event.k];
-    const semitoneOffset =
-      Number(playback.globalKeyOffset) + (playback.accidentals?.[event.k] ? 1 : 0);
+function isCanonicalCompiledEvent(event) {
+  if (!event || typeof event !== 'object') {
+    return false;
+  }
 
-    return {
-      key: event.k,
-      note: keyInfo?.n || event.k,
-      frequency: keyInfo ? transposeFrequency(keyInfo.f, semitoneOffset) : undefined,
-      time: Number(event.time.toFixed(6)),
-      duration: Number((event.durationSec ?? 0.1).toFixed(6)),
-      velocity: Number((event.v ?? 0.85).toFixed(4)),
-      trackId: event.trackId || 'main',
-    };
-  });
+  return Number.isFinite(Number(event.tick))
+    && Number.isFinite(Number(event.durationTicks))
+    && Number.isFinite(Number(event.time))
+    && Number.isFinite(Number(event.durationSec))
+    && Number.isFinite(Number(event.v));
 }
 
 export function createScoreDocument(source = {}) {
@@ -151,6 +145,7 @@ export function createScoreDocument(source = {}) {
   const playback = createScorePlaybackConfig(source);
   const referenceFields = resolveReferenceFields(source, sourceType);
   const compiledEvents = Array.isArray(source.compiledEvents)
+    && source.compiledEvents.every(isCanonicalCompiledEvent)
     ? source.compiledEvents
     : compileScoreEvents(rawText, { ...playback, sourceType });
 

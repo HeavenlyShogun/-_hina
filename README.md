@@ -85,3 +85,9 @@ npm run preview:pages
 ```bash
 node scripts/normalize-score-files.mjs
 ```
+
+## 2026-05-02 Notes
+
+- Canonical event schema is unified as `tick`, `durationTicks`, `k`, `v`, `noteName`, `frequency`, `trackId`.
+- `playbackController` now consumes only canonical events and no longer depends on `startTick`, `pitch`, `velocity`, `key`, or other fallback aliases.
+- Score text normalization defaults to `numbered-text@1` with `textNotation: "jianpu"` and `ppq: 96`.

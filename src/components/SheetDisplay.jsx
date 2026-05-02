@@ -119,6 +119,8 @@ const SheetDisplay = memo(({
     timeSigNum,
     timeSigDen,
     charResolution,
+    textNotation,
+    legacyTimingMode,
     playbackState,
   } = usePlayback();
   const isJsonScore = typeof score === 'object' && score !== null;
@@ -133,12 +135,14 @@ const SheetDisplay = memo(({
         timeSigNum,
         timeSigDen,
         charResolution,
+        textNotation,
+        legacyTimingMode,
       });
       const maxTick = nextScore.events.reduce(
         (currentMax, event) => Math.max(
           currentMax,
           Number(event?.tick) || 0,
-          (Number(event?.tick) || 0) + (Number(event?.durationTicks ?? event?.durationTick) || 0),
+          (Number(event?.tick) || 0) + (Number(event?.durationTicks) || 0),
         ),
         0,
       );
@@ -162,7 +166,7 @@ const SheetDisplay = memo(({
         },
       };
     }
-  }, [bpm, charResolution, score, timeSigDen, timeSigNum]);
+  }, [bpm, charResolution, legacyTimingMode, score, textNotation, timeSigDen, timeSigNum]);
   const effectiveMaxTick = Math.max(Number(playbackState.maxTick) || 0, normalizedScore.maxTick || 0);
   const timelineResolution = Math.max(Number(normalizedScore.playback?.resolution) || PPQ, 1);
   const timelineBeatTick = Math.max(

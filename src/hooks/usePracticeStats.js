@@ -101,6 +101,8 @@ export default function usePracticeStats({
         timeSigNum: scoreDocument.timeSigNum,
         timeSigDen: scoreDocument.timeSigDen,
         charResolution: scoreDocument.charResolution,
+        legacyTimingMode: scoreDocument.legacyTimingMode,
+        textNotation: scoreDocument.textNotation,
       });
       const measureTicks = resolveMeasureTicks(normalized.playback);
       const notesPerMeasure = {};
@@ -112,11 +114,8 @@ export default function usePracticeStats({
           return;
         }
 
-        const startTick = Math.max(0, Math.round(Number(event.tick ?? event.startTick) || 0));
-        const durationTicks = Math.max(
-          1,
-          Math.round(Number(event.durationTicks ?? event.durationTick ?? event.duration) || 1),
-        );
+        const startTick = Math.max(0, Math.round(Number(event.tick) || 0));
+        const durationTicks = Math.max(1, Math.round(Number(event.durationTicks) || 1));
         const measureIndex = Math.floor(startTick / measureTicks);
 
         notesPerMeasure[measureIndex] = (notesPerMeasure[measureIndex] || 0) + 1;

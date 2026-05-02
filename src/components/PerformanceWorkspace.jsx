@@ -114,6 +114,8 @@ const PerformanceWorkspace = memo(({ score, scoreTitle }) => {
     timeSigNum,
     timeSigDen,
     charResolution,
+    textNotation,
+    legacyTimingMode,
     playbackState,
     onSeekToTick,
     onScrubToTick,
@@ -127,6 +129,8 @@ const PerformanceWorkspace = memo(({ score, scoreTitle }) => {
         timeSigNum,
         timeSigDen,
         charResolution,
+        textNotation,
+        legacyTimingMode,
       });
     } catch {
       return {
@@ -140,7 +144,7 @@ const PerformanceWorkspace = memo(({ score, scoreTitle }) => {
         },
       };
     }
-  }, [bpm, charResolution, score, timeSigDen, timeSigNum]);
+  }, [bpm, charResolution, legacyTimingMode, score, textNotation, timeSigDen, timeSigNum]);
 
   const effectiveMaxTick = useMemo(() => {
     const eventEndTick = normalizedScore.events.reduce((maxTick, event) => (
@@ -155,6 +159,16 @@ const PerformanceWorkspace = memo(({ score, scoreTitle }) => {
   }, [normalizedScore, playbackState.maxTick]);
 
   const timelineItems = useMemo(() => {
+    if (Array.isArray(normalizedScore?.structure?.lines) && normalizedScore.structure.lines.length > 0) {
+      return normalizedScore.structure.lines.map((line, index) => ({
+        id: line.id ?? `line-${index}`,
+        label: line.label ?? `Line ${index + 1}`,
+        content: line.content ?? line.label ?? '',
+        startTick: line.startTick,
+        endTick: line.endTick,
+      }));
+    }
+
     if (typeof score === 'string') {
       const legacyItems = buildLegacyTimelineItems(score, normalizedScore);
       if (legacyItems.length) {
