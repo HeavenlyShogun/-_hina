@@ -20,7 +20,9 @@ function buildDefaultMeta(title) {
     scaleMode: DEFAULT_SCORE_PARAMS.scaleMode,
     tone: DEFAULT_SCORE_PARAMS.tone,
     reverb: DEFAULT_SCORE_PARAMS.reverb,
-    storageFormat: 'legacy-text@1',
+    textNotation: 'jianpu',
+    ppq: 96,
+    storageFormat: 'numbered-text@1',
   };
 }
 

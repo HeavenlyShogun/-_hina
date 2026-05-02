@@ -1,0 +1,326 @@
+// [META] {"title":"CRY FOR ME","bpm":90,"timeSigNum":4,"timeSigDen":4,"charResolution":8,"globalKeyOffset":0,"accidentals":{},"scaleMode":"major","tone":"piano","reverb":true,"storageFormat":"legacy-text@1"}
+第一段：
+
+
+
+HQ(VE) /A  /(FT) /Y E /
+
+B  /(SW) /(GQ) /H  /
+
+(NW) /Q  /(QT) /(JE) /
+
+0 /G /(CT) /Y /
+
+
+
+(VE) /Z  /(AG) /H Q /
+
+B  /(XJ) /(SG) /D  /
+
+(NH) /D  /(CQ) /(AJ) /
+
+0 /(NAG) /0 / Q /
+
+
+
+第二段：
+
+
+
+(VJE) A /(FT) YE/B (SW) /(GQ) (HQ) /
+
+(NW) Q /(CT) (AE) / G /(XBT) (QY) /
+
+(VJE) A /(FT) YW/B (XU) /(SFT) (GE) /
+
+(NY) E /(NQ) (AU) / T /(XB) Q /
+
+
+
+(VJE) A /(FT) YE/B (SW) /(GQ) (HQ) /
+
+(NW) Q /(CT) (AE) / G /(XBT) (QY) /
+
+(VJE) A /(FT) YW/B (XU) /(SFT) (GE) /
+
+(NY) E /(CQ) (AU) / (HQT) /0 /
+
+
+
+第三段：
+
+
+
+V A /F (GQ) /(BQ) (XG) /(SG) (JW) /
+
+(NJ) (CQ) /A (DQ) / (NG) /(XBG) (SW) /
+
+(VJ) (ZQ) /A (DG) /(BQ) (XQ) /(SJ) (AG)G/
+
+N (CG) /A (DG) /Q (NQ) /(XBJ) (SG)G/
+
+
+
+V (AG) /F (GQ) /(BQ) (XG)G/(SG) (JW) /
+
+(NJ) (CQ) /A (DQ)Q/Q (NG)G/(XB)G(SW) /
+
+(VJ) (AQ) /F (GQ)J/(BJ) XQ/S (AG)G/
+
+(NG) (CQ) /(AJ) DQ/ (NQ) /(XBJ) SQ/
+
+
+
+第四段：
+
+
+
+V A /F (GE)E/(BE) SR/G (HR) /
+
+(NE) D /H (DQ)Q/(NQ)Q(DE) /(BW)Q(SJ)Q /
+
+V A /F (GE)E/(BE) (SE)R/(GE) HR/
+
+(NE) D /H (DQ)Q/(NQ) (DE) /(BW) SJ/
+
+
+
+(VQ) A /F (GE)R/(BE) (SR) /(GE) HR/
+
+(NE) D /H (DE)E/(NE) (DE)R/(BE) SR/
+
+(VE) A /F (GQ) /(BQ) (SE) /(GW) (HQ)Q/
+
+N (DQ)Q/(HQ) (DQ) /(NQ) (DE)W/BQ(SJ)Q /
+
+
+
+V AE/(FE)W(GQ)W /(BE) (SE) /G (HQ)Q/
+
+(NE)E(DE)E /(HE)E(DE)E /NW(DQ)E /B (SQ)Q/
+
+(VE) (AE)R/(FE) (GR)E/B S /G (HQ)Q/
+
+(NE)E(DE)R /(HE) (DE)E/NW(DQ)Q /B (SQ)Q/
+
+
+
+(VE) (AR) /(FE) (GR)E/BW(SQ)Q /G (HQ) /
+
+(NE) (DR) /(HE) (DE)E/NW(DQ)W /B (SQ) /
+
+(VE) (AR) /(FE) (GR)E/BW(SQ)Q /G (HQ)Q/
+
+(NE) (DR)E/HR(DR)E /NW(CQ)J /(XBQ) X /
+
+
+
+第五段：
+
+
+
+V A /F (GQ) /(BQ) (XG) /(SG) (JW) /
+
+(NJ) (CQ) /A (DQ) / (NG) /(XBG) (SW) /
+
+(VJ) (ZQ) /A (DG) /(BQ) (XQ) /(SJ) (AG)G/
+
+N (CG) /A (DG) /Q (NQ) /(XBJ) (SG)G/
+
+
+
+V (AG) /V (GQ) /(BQ) (XG)G/(SG) (JW) /
+
+(NJ) (CQ) /A (DQ)Q/Q (NG)G/(XB)G(SW) /
+
+(VJ) (AQ) /F (GQ)J/(BJ) XQ/S (AG)G/
+
+(NG) (CQ) /(AJ) DQ/ (NQ) /(XBJ) SQ/
+
+
+
+V A /F (GQ)Q/BG(XG)G /S (AG)W/
+
+(NJ) (CQ) /A D / N /(XB) S /
+
+V Z /A (DQ)Q/B (XG) /(SG) (AG) /
+
+(NG) (CQ) /(AJ) DG/H N /(XB) S /
+
+
+
+V A /F (GQ)Q/(BQ) (XG) /(SG) (AG)W/
+
+(NJ) (CQ) /A (DQ)Q/Q (NG) /(XBG) (SG)W/
+
+(VJ) (AQ) /F (GQ)Q/(BJ) XQ/S (AG)G/
+
+(NG) (CG) /(AG) (DG)/ (NQ) /(XBJ) SG/
+
+
+
+第六段：
+
+
+
+(AFH) / G /(SG) J/ Q /
+
+(NAD) GG/GGGG /(NW) Q /(BJ) JG/
+
+(AFH) / G /(SG) J/ Q /
+
+(NAD) GG/GGGG /(NG) Q /(BJ) JG/
+
+
+
+(VH) A /D G /(BG) (XQ) /(SJ) G/
+
+(NH) C /A G /(AG) (NQ) /(BJ) XG/
+
+(VH) A /D  /B (XG)G/(SG) G /
+
+(NG) C /(AG) G /(AW) (NQ) /(BJ) X /
+
+
+
+间奏：
+
+
+
+(VQE) A /(FT) (G)YE/B (SW) /(GQ) (SH) /
+
+(NW) (DQ) /(HT) (DE) / (DG) /(BT) (SY) /
+
+(VE) A /(FT) (GY)W/B (SU) /(GT) (HE) /
+
+(NY) (DE) /(HQ) (DU) /N (DT) /B (SQ) /
+
+
+
+(VJE) A /(FT) (GY)E/B (SW) /(GQ) (SHQ) /
+
+(NW) (DQ) /(HT) (DE) / (DG) /(BT) (SQY) /
+
+(VJE) A /(FT) (GY)W/B (SU) /(FT) (GE) /
+
+(NY) E /(CQ) (AU) / (NQT) /0 /
+
+
+
+第七段：
+
+
+
+V Z /V (BGQ) /(BGQ) (XDG) /(BDG) (NHW) /
+
+(NFJ) (CGQ) /A (NGQ) / (NDG) /(XBDG) (SHW) /
+
+(VFJ) (ZGQ) /A (DG) /(BGQ) (XGQ) /(SGJ) (ADG)(DG)/
+
+N (CDG) /A (DG) /(GQ) (NGQ) /(XBGJ) (ADG)(DG)/
+
+
+
+V A /F (GQ) /(BQ) (XG) /(SG) (JW) /
+
+(NJ) (CQ) /A (DQ)Q/Q (NG)G/(XB)G(SW) /
+
+(VJ) (AQ) /F (GQ)J/(BJ) XQ/S (AG)G/
+
+(NG) (CQ) /(AJ) DQ/ (NQ) /(XBJ) SQ/
+
+
+
+第八段：
+
+
+
+(VD) Z /G (HQ)D/(BQ) (SG) /(AW) (NW)Q/
+
+(NS) A /G D /N A /G H /
+
+(VD) A /G (HQ)S/B (GJ) /(GW) DW/
+
+(NH) D /(AW) J /(NQ) G /B S /
+
+
+
+(VD) Z /A (ZG) /(BQ) (SQ) /(AJ) (NG)G/
+
+N (CG) /A (DG) /Q (NJ) /(XBJ) S /
+
+(VQ) A /F G /B X /S J /
+
+N (CJ) /(AJ) DQ/ N /(XBW) S /
+
+
+
+第九段：
+
+
+
+(VDQ) Z /G HD/B S /A N /
+
+(NS) A /G D /N A /(GW)E(HW) /
+
+(VD) Z /G HS/B J /G (DJ) /
+
+(NHQ) D /Q J /N G /(BQ) (SJ) /
+
+
+
+(VD) (ZG) /G HD/B S /(AQ) (NJ) /
+
+(NS) A /G (DQ) /N A /(GQ) (HJ) /
+
+(VD) Z /G HS/B J /B (DG) /
+
+(NHY)Y(DE)E /(QT)T(JW)W /(NE)E(GQ)Q /(BW) (SQ)J/
+
+
+
+(VDW) Z /G HD/B S /A (NJ) /
+
+(NSQ) A /G D /N A /(GW)E(HW) /
+
+(VD) (ZE) /G (HQ)S/B J /G D /
+
+(NH) D /Q J /N G /B (SW)E/
+
+
+
+(VDW) Z /G (HQ)D/B S /(AQ) (NJ) /
+
+(NS) A /G (DG) /N A /(BH) NG/
+
+(VD) Z /G HS/B J /G D /
+
+(NH) D /Q J /N G /B S /
+
+
+
+结尾：
+
+
+
+(VE) A /(FT) YE/B (SW) /(GQ) H /
+
+(NW) Q /(CT) (AE) / G /(XBT) Y /
+
+(VE) A /(FT) YW/B (XU) /(ST) E /
+
+(NY) E /(NQ) (AU) / T /(XB) /
+
+
+
+(VE) A /(FT) YE/B (SW) /(GQ) H /
+
+(NW) Q /(CT) (AE) / G /(XBT) Y /
+
+(VE) A /(FT) YW/B (XU) /(ST) E /
+
+(NY) E /(NQ) (AU) / T /(XB) /
+
+
+
+(VHQE) /0 /0 /0 /

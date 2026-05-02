@@ -102,8 +102,8 @@ function classifyGrade(absDeltaTicks, perfectWindowTicks, hitWindowTicks) {
 }
 
 function createNoteId(event, index) {
-  const tick = Math.max(0, Math.round(Number(event?.tick ?? event?.startTick) || 0));
-  const key = event?.k ?? event?.key ?? 'unknown';
+  const tick = Math.max(0, Math.round(Number(event?.tick) || 0));
+  const key = event?.k ?? 'unknown';
   const trackId = event?.trackId ?? 'main';
 
   return event?.id ?? `${trackId}:${tick}:${key}:${index}`;
@@ -125,6 +125,8 @@ function buildNoteIndex(scoreDocument) {
       timeSigNum: scoreDocument.timeSigNum,
       timeSigDen: scoreDocument.timeSigDen,
       charResolution: scoreDocument.charResolution,
+      legacyTimingMode: scoreDocument.legacyTimingMode,
+      textNotation: scoreDocument.textNotation,
     });
     const measureTicks = resolveMeasureTicks(normalized.playback);
     const notesPerMeasure = {};
@@ -132,11 +134,8 @@ function buildNoteIndex(scoreDocument) {
       .filter((event) => !event?.isRest && event?.k)
       .map((event, index) => {
         const keyInfo = KEY_INFO_MAP[event.k];
-        const startTick = Math.max(0, Math.round(Number(event.tick ?? event.startTick) || 0));
-        const durationTicks = Math.max(
-          1,
-          Math.round(Number(event.durationTicks ?? event.durationTick ?? event.duration) || 1),
-        );
+        const startTick = Math.max(0, Math.round(Number(event.tick) || 0));
+        const durationTicks = Math.max(1, Math.round(Number(event.durationTicks) || 1));
         const measureIndex = Math.floor(startTick / measureTicks);
 
         notesPerMeasure[measureIndex] = (notesPerMeasure[measureIndex] || 0) + 1;
@@ -144,7 +143,7 @@ function buildNoteIndex(scoreDocument) {
         return {
           id: createNoteId(event, index),
           key: event.k,
-          noteName: event.noteName ?? event.note ?? keyInfo?.n ?? event.k,
+          noteName: event.noteName ?? keyInfo?.n ?? event.k,
           startTick,
           durationTicks,
           endTick: startTick + durationTicks,

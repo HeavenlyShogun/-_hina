@@ -151,6 +151,7 @@ export function useScoreState() {
     reverb: scoreDocument.reverb,
     sourceType: scoreDocument.sourceType,
     legacyTimingMode: scoreDocument.legacyTimingMode,
+    textNotation: scoreDocument.textNotation,
   }), [scoreDocument]);
 
   return {

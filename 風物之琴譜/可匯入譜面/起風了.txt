@@ -1,11 +1,9 @@
-// [META] {"title":"起風了","bpm":90,"timeSigNum":4,"timeSigDen":4,"charResolution":8,"globalKeyOffset":0,"accidentals":{},"scaleMode":"major","tone":"piano","reverb":true,"storageFormat":"legacy-text@1"}
-
-(VJ)Q(AW)ED TE B S G /
-(CJ)Q(MW)ED TE (NW)E(AQ)W(DJ)QG /
-(VJ)Q(AW)ED TE B S G /
-(CJ)Q(MW)ED TE (NDW)EQW(BSJ)QG /
-
-(VJ)Q(AW)ED (AT)EB S G S /
-(CJ)Q(MW)ED (MT)E (NW)E(AQ)W(DJ)QG /
-(VJ)Q(AW)ED (AT)EB S G /
-(NDWY)EWH DNSDN /
+// [META] {"title":"起風了","bpm":90,"timeSigNum":4,"timeSigDen":4,"charResolution":8,"globalKeyOffset":0,"accidentals":{},"scaleMode":"major","tone":"piano","reverb":true,"storageFormat":"numbered-text@1","textNotation":"jianpu","ppq":96}
+M: 4,- 7- 1'- 1- 2'- 3'- 3- 5'- 3'- 5,- 2- 5- 3,- 7- 1'- 7,-
+M: 2'- 3'- 3- 5'- 3'- 6,- 2'- 3'- 1- 1'- 2'- 3- 7- 1'- 5- 4,-
+M: 7- 1'- 1- 2'- 3'- 3- 5'- 3'- 5,- 2- 5- 3,- 7- 1'- 7,- 2'-
+M: 3'- 3- 5'- 3'- 6,- 3- 2'- 3'- 1'- 2'- 5,- 2- 7- 1'- 5- 4,-
+M: 7- 1'- 1- 2'- 3'- 3- 1- 5'- 3'- 5,- 2- 5- 2- 3,- 7- 1'-
+M: 7,- 2'- 3'- 3- 7,- 5'- 3'- 6,- 2'- 3'- 1- 1'- 2'- 3- 7- 1'-
+M: 5- 4,- 7- 1'- 1- 2'- 3'- 3- 1- 5'- 3'- 5,- 2- 5- 6,- 3-
+M: 2'- 6'- 3'- 2'- 6- 3- 6,- 2- 3- 6,-

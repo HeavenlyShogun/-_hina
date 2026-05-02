@@ -17,6 +17,28 @@ function transposeFrequency(baseFrequency, semitoneOffset) {
   return baseFrequency * 2 ** (semitoneOffset / 12);
 }
 
+function noteNameToFrequency(noteName) {
+  const match = /^([A-G])([#b]?)(-?\d+)$/u.exec(String(noteName || ''));
+  if (!match) {
+    return NaN;
+  }
+
+  const [, letter, accidental, octaveText] = match;
+  const semitones = {
+    C: 0,
+    D: 2,
+    E: 4,
+    F: 5,
+    G: 7,
+    A: 9,
+    B: 11,
+  };
+  let midi = (Number(octaveText) + 1) * 12 + semitones[letter];
+  if (accidental === '#') midi += 1;
+  if (accidental === 'b') midi -= 1;
+  return 440 * 2 ** ((midi - 69) / 12);
+}
+
 function normalizePlaybackRate(rate) {
   const numericRate = Number(rate);
   if (!Number.isFinite(numericRate) || numericRate <= 0) {
@@ -57,17 +79,10 @@ function normalizeEvents(events, timing) {
 
   return [...events]
     .map((event, index) => {
-      const rawTick = Number(event?.tick);
-      const rawTime = Number(event?.time);
-      const tick = Number.isFinite(rawTick)
-        ? roundTick(rawTick)
-        : roundTick(secondsToTicks(rawTime, timing));
+      const tick = roundTick(event?.tick);
       const time = ticksToSeconds(tick, timing);
-      const rawDurationTicks = Number(event?.durationTick ?? event?.durationTicks ?? event?.duration);
       const durationTicks = Math.max(
-        Number.isFinite(rawDurationTicks)
-          ? roundTick(rawDurationTicks)
-          : roundTick(secondsToTicks(Number(event?.durationSec) || 0.1, timing)),
+        roundTick(event?.durationTicks),
         1,
       );
       const durationSec = Math.max(ticksToSeconds(durationTicks, timing), 0.02);
@@ -82,12 +97,13 @@ function normalizeEvents(events, timing) {
         tick,
         durationSec,
         durationTicks,
-        k: event?.k ?? event?.key ?? null,
-        isRest: Boolean(event?.isRest || event?.type === 'rest'),
+        k: event?.k ?? null,
+        isRest: Boolean(event?.isRest),
         v: Number.isFinite(Number(event?.v)) ? Number(event.v) : 0.85,
         importance: Number.isFinite(Number(event?.importance)) ? Number(event.importance) : 100,
         trackId: event?.trackId ?? 'main',
         frequency: Number.isFinite(Number(event?.frequency)) ? Number(event.frequency) : null,
+        noteName: event?.noteName ?? null,
       };
     })
     .filter(Boolean)
@@ -173,9 +189,9 @@ class PlaybackController {
       roundTick(secondsToTicks(maxTime, this.timing)),
       this.events.reduce((result, event) => Math.max(result, event.tick), 0),
     );
-    this.maxTick = Math.max(this.playbackEndTick, 0);
-    this.maxTime = Math.max(Number(maxTime) || 0, ticksToSeconds(this.maxTick, this.timing));
     this.eventTailTick = Math.max(eventEndTick, this.playbackEndTick);
+    this.maxTick = Math.max(this.eventTailTick, 0);
+    this.maxTime = Math.max(Number(maxTime) || 0, ticksToSeconds(this.maxTick, this.timing));
     this.currentPointer = 0;
     this.currentAudioTime = 0;
     this.transport = {
@@ -631,13 +647,20 @@ class PlaybackController {
       importance: event.importance ?? 100,
       outputGain: this.snapshot.vol,
       reverb: this.snapshot.reverb,
-      velocity: event.v ?? 0.85,
+      velocity: Number.isFinite(Number(event.v)) ? Number(event.v) : 0.85,
     });
   }
 
   resolveEventFrequency(event) {
     if (Number.isFinite(event.frequency) && event.frequency > 0) {
       return event.frequency;
+    }
+
+    if (event.noteName) {
+      const noteFrequency = noteNameToFrequency(event.noteName);
+      if (Number.isFinite(noteFrequency) && noteFrequency > 0) {
+        return noteFrequency;
+      }
     }
 
     const keyInfo = event.k ? KEY_INFO_MAP[event.k] : null;
