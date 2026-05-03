@@ -3,12 +3,15 @@ import { DEFAULT_SCORE_PARAMS, mapKey } from '../constants/music.js';
 const OCTAVE_PREFIXES = new Set(['+', '-', '??', '??']);
 const DEFAULT_TRACK_ID = 'main';
 const DEFAULT_NOTE_VELOCITY = 0.85;
+const MELODY_TRACK_VELOCITY = 0.9;
+const ACCOMPANIMENT_TRACK_VELOCITY = 0.72;
 const DEFAULT_CHORD_STRUM_MS = 12;
 const DEFAULT_JIANPU_OCTAVE = 4;
 const MAJOR_SCALE_INTERVALS = [0, 2, 4, 5, 7, 9, 11];
 const MINOR_SCALE_INTERVALS = [0, 2, 3, 5, 7, 8, 10];
 const NUMBERED_TRACK_PREFIX = /^([A-Za-z][\w-]*)\s*:\s*(.*)$/u;
 export const PPQ = 96;
+const EIGHTH_TICKS = PPQ / 2;
 
 function stripScoreComments(text) {
   // Score spacing carries timing data, so only strip inline comments.
@@ -61,8 +64,10 @@ function toFiniteOrNull(value) {
 
 function sortEvents(events) {
   return [...events].sort((left, right) => {
-    if (left.tick !== right.tick) return left.tick - right.tick;
-    return left.k.localeCompare(right.k);
+    const leftTick = Number(left?.startTick ?? left?.tick) || 0;
+    const rightTick = Number(right?.startTick ?? right?.tick) || 0;
+    if (leftTick !== rightTick) return leftTick - rightTick;
+    return String(left?.k ?? '').localeCompare(String(right?.k ?? ''));
   });
 }
 
@@ -139,14 +144,14 @@ function midiToNoteName(midi) {
   return `${semitoneToNoteName(pitchClass)}${octave}`;
 }
 
-function parseDurationModifiers(modifiers, quarterTicks = PPQ) {
-  const safeQuarterTicks = Math.max(Math.round(Number(quarterTicks) || PPQ), 1);
+function parseDurationModifiers(modifiers, baseTicks = EIGHTH_TICKS) {
+  const safeBaseTicks = Math.max(Math.round(Number(baseTicks) || EIGHTH_TICKS), 1);
   const suffix = String(modifiers ?? '');
   const addQuarterCount = (suffix.match(/-/g) ?? []).length;
   const halveCount = (suffix.match(/_/g) ?? []).length;
   const dotCount = (suffix.match(/\./g) ?? []).length;
 
-  let duration = safeQuarterTicks + (addQuarterCount * safeQuarterTicks);
+  let duration = safeBaseTicks + (addQuarterCount * safeBaseTicks);
   duration /= 2 ** halveCount;
 
   let dottedDuration = duration;
@@ -238,7 +243,7 @@ function parseNumberedToken(rawToken, playback) {
 
     return {
       type: 'chord',
-      durationTicks: parseDurationModifiers(modifiers, PPQ),
+      durationTicks: parseDurationModifiers(modifiers, playback?.resolution / 2),
       notes,
     };
   }
@@ -255,7 +260,7 @@ function parseNumberedToken(rawToken, playback) {
 
   return {
     type: note.isRest ? 'rest' : 'note',
-    durationTicks: parseDurationModifiers(noteMatch.groups?.modifiers, PPQ),
+    durationTicks: parseDurationModifiers(noteMatch.groups?.modifiers, playback?.resolution / 2),
     note,
   };
 }
@@ -368,29 +373,59 @@ function parseTrackDeclaration(rawLine) {
   };
 }
 
+function resolveTrackVelocity(trackId) {
+  const normalizedTrackId = String(trackId ?? DEFAULT_TRACK_ID).trim().toLowerCase();
+
+  if (!normalizedTrackId || normalizedTrackId === DEFAULT_TRACK_ID) {
+    return DEFAULT_NOTE_VELOCITY;
+  }
+
+  if (['m', 'melody', 'lead', 'solo'].includes(normalizedTrackId)) {
+    return MELODY_TRACK_VELOCITY;
+  }
+
+  if (['c', 'chord', 'chords', 'acc', 'accompaniment', 'backing', 'pad'].includes(normalizedTrackId)) {
+    return ACCOMPANIMENT_TRACK_VELOCITY;
+  }
+
+  return DEFAULT_NOTE_VELOCITY;
+}
+
 export function parseNumberedMusicalNotation(text, config = {}) {
   const playback = createPlaybackState({
     ...config,
     resolution: PPQ,
   });
   const lines = [];
+  const tokenLines = [];
   const events = [];
   let lineIndex = 0;
   const trackCursors = new Map();
 
-  const appendLine = (rawLine, trackId, startTick, endTick) => {
+  const appendLine = (rawLine, trackId, startTick, endTick, tokens = []) => {
     const label = String(rawLine ?? '').trim().replace(NUMBERED_TRACK_PREFIX, '$2').trim();
     if (!label || endTick <= startTick) {
       return;
     }
 
+    const lineId = `jianpu-line-${lineIndex}`;
+
     lines.push({
-      id: `jianpu-line-${lineIndex}`,
+      id: lineId,
       trackId,
       label: label.length > 24 ? `${label.slice(0, 24).trim()}...` : label,
       content: rawLine,
       startTick,
       endTick,
+    });
+    tokenLines.push({
+      id: lineId,
+      trackId,
+      label,
+      content: rawLine,
+      startTick,
+      endTick,
+      tokens,
     });
     lineIndex += 1;
   };
@@ -404,17 +439,33 @@ export function parseNumberedMusicalNotation(text, config = {}) {
       }
 
       const { trackId, body } = declaration;
-      const tokens = tokenizeStructuredTextLine(body).filter((token) => token !== '|');
+      const tokens = tokenizeStructuredTextLine(body);
       let currentTick = trackCursors.get(trackId) ?? 0;
       const lineStartTick = currentTick;
+      const lineTokens = [];
+      const trackVelocity = resolveTrackVelocity(trackId);
 
-      tokens.forEach((token) => {
+      tokens.forEach((token, tokenIndex) => {
+        if (token === '|') {
+          lineTokens.push({
+            id: `${trackId}-${lineIndex}-${tokenIndex}`,
+            text: token,
+            startTick: currentTick,
+            endTick: currentTick,
+            trackId,
+            isBar: true,
+            isRest: false,
+          });
+          return;
+        }
+
         const parsedToken = parseNumberedToken(token, playback);
         if (!parsedToken) {
           return;
         }
 
         if (parsedToken.type === 'rest') {
+          const endTick = currentTick + parsedToken.durationTicks;
           events.push(createNormalizedNoteEvent({
             tick: currentTick,
             key: null,
@@ -425,11 +476,21 @@ export function parseNumberedMusicalNotation(text, config = {}) {
             isRest: true,
             trackId,
           }));
-          currentTick += parsedToken.durationTicks;
+          lineTokens.push({
+            id: `${trackId}-${lineIndex}-${tokenIndex}`,
+            text: token,
+            startTick: currentTick,
+            endTick,
+            trackId,
+            isBar: false,
+            isRest: true,
+          });
+          currentTick = endTick;
           return;
         }
 
         if (parsedToken.type === 'chord') {
+          const endTick = currentTick + parsedToken.durationTicks;
           parsedToken.notes.forEach((note) => {
             events.push(createNormalizedNoteEvent({
               tick: currentTick,
@@ -437,7 +498,7 @@ export function parseNumberedMusicalNotation(text, config = {}) {
               durationTicks: parsedToken.durationTicks,
               resolution: playback.resolution,
               bpm: playback.bpm,
-              velocity: DEFAULT_NOTE_VELOCITY,
+              velocity: trackVelocity,
               trackId,
               frequency: note.frequency,
               noteName: note.noteName,
@@ -446,17 +507,27 @@ export function parseNumberedMusicalNotation(text, config = {}) {
               octave: note.octave,
             }));
           });
-          currentTick += parsedToken.durationTicks;
+          lineTokens.push({
+            id: `${trackId}-${lineIndex}-${tokenIndex}`,
+            text: token,
+            startTick: currentTick,
+            endTick,
+            trackId,
+            isBar: false,
+            isRest: false,
+          });
+          currentTick = endTick;
           return;
         }
 
+        const endTick = currentTick + parsedToken.durationTicks;
         const event = createNormalizedNoteEvent({
           tick: currentTick,
           key: parsedToken.note.mappedKey,
           durationTicks: parsedToken.durationTicks,
           resolution: playback.resolution,
           bpm: playback.bpm,
-          velocity: DEFAULT_NOTE_VELOCITY,
+          velocity: trackVelocity,
           trackId,
           frequency: parsedToken.note.frequency,
           noteName: parsedToken.note.noteName,
@@ -465,11 +536,20 @@ export function parseNumberedMusicalNotation(text, config = {}) {
           octave: parsedToken.note.octave,
         });
         events.push(event);
-        currentTick += parsedToken.durationTicks;
+        lineTokens.push({
+          id: `${trackId}-${lineIndex}-${tokenIndex}`,
+          text: token,
+          startTick: currentTick,
+          endTick,
+          trackId,
+          isBar: false,
+          isRest: false,
+        });
+        currentTick = endTick;
       });
 
       trackCursors.set(trackId, currentTick);
-      appendLine(rawLine, trackId, lineStartTick, currentTick);
+      appendLine(rawLine, trackId, lineStartTick, currentTick, lineTokens);
     });
 
   const contentEndTick = [...trackCursors.values()].reduce(
@@ -486,11 +566,39 @@ export function parseNumberedMusicalNotation(text, config = {}) {
     ...normalized,
     structure: {
       lines,
+      tokenLines,
       contentEndTick,
       unitTicks: PPQ,
       beatTicks: PPQ,
     },
   };
+}
+
+export function findActiveTokenLine(tokenLines, currentTick) {
+  if (!Array.isArray(tokenLines) || tokenLines.length === 0) {
+    return null;
+  }
+
+  const safeTick = Math.max(0, Math.round(Number(currentTick) || 0));
+  return tokenLines.find((line) => safeTick >= line.startTick && safeTick < line.endTick)
+    ?? tokenLines[tokenLines.length - 1]
+    ?? null;
+}
+
+export function findActiveTokens(tokenLines, currentTick) {
+  if (!Array.isArray(tokenLines) || tokenLines.length === 0) {
+    return [];
+  }
+
+  const safeTick = Math.max(0, Math.round(Number(currentTick) || 0));
+
+  return tokenLines.flatMap((line) => (
+    Array.isArray(line.tokens)
+      ? line.tokens.filter((token) => (
+        !token.isBar && safeTick >= token.startTick && safeTick < token.endTick
+      ))
+      : []
+  ));
 }
 
 function parseJianpuScoreText(text, config = {}) {
@@ -517,12 +625,14 @@ function createNormalizedNoteEvent({
 
   return {
     time: ticksToSeconds(safeTick, bpm, resolution),
+    startTick: safeTick,
     tick: safeTick,
     k: key,
     isRest,
     durationSec: ticksToSeconds(safeDurationTicks, bpm, resolution),
     durationTick: safeDurationTicks,
     durationTicks: safeDurationTicks,
+    endTick: safeTick + safeDurationTicks,
     resolution,
     v: clampVelocity(velocity),
     trackId,
@@ -967,6 +1077,10 @@ export function parseLegacyScoreText(text, config = {}) {
       beatTicks: analysis.timing.beatTicks,
     },
   };
+}
+
+export function legacyParser(text, config = {}) {
+  return parseLegacyScoreText(text, config);
 }
 
 function normalizeJsonEvent(event, context) {

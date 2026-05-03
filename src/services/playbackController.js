@@ -79,10 +79,10 @@ function normalizeEvents(events, timing) {
 
   return [...events]
     .map((event, index) => {
-      const tick = roundTick(event?.tick);
+      const tick = roundTick(event?.startTick ?? event?.tick);
       const time = ticksToSeconds(tick, timing);
       const durationTicks = Math.max(
-        roundTick(event?.durationTicks),
+        roundTick(event?.durationTicks ?? event?.durationTick),
         1,
       );
       const durationSec = Math.max(ticksToSeconds(durationTicks, timing), 0.02);
@@ -93,6 +93,7 @@ function normalizeEvents(events, timing) {
 
       return {
         id: event?.id ?? `event-${index}`,
+        startTick: tick,
         time,
         tick,
         durationSec,
