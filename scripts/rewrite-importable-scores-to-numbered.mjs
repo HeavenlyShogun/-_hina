@@ -7,6 +7,8 @@ const META_PREFIX = '// [META] ';
 const DEFAULT_VELOCITY = 0.75;
 const DEFAULT_SCALE_MODE = 'major';
 const DEFAULT_GLOBAL_KEY_OFFSET = 0;
+const DRY_RUN = process.env.DRY_RUN === '1';
+const SCORE_FILTER = process.env.SCORE_FILTER ? String(process.env.SCORE_FILTER).toLowerCase() : '';
 
 const MAJOR_SCALE_INTERVALS = [0, 2, 4, 5, 7, 9, 11];
 const MINOR_SCALE_INTERVALS = [0, 2, 3, 5, 7, 8, 10];
@@ -66,7 +68,13 @@ function getScaleIntervals(scaleMode) {
   return scaleMode === 'minor' ? MINOR_SCALE_INTERVALS : MAJOR_SCALE_INTERVALS;
 }
 
-function createPlaybackConfig(meta = {}) {
+function looksLikeBeatLegacyText(content = '') {
+  return /\//u.test(String(content));
+}
+
+function createPlaybackConfig(meta = {}, content = '') {
+  const legacyTimingMode = meta.legacyTimingMode ?? (looksLikeBeatLegacyText(content) ? 'beat' : undefined);
+
   return {
     bpm: Number(meta.bpm) || 120,
     timeSigNum: Number(meta.timeSigNum) || 4,
@@ -74,8 +82,8 @@ function createPlaybackConfig(meta = {}) {
     charResolution: Number(meta.charResolution) || 8,
     globalKeyOffset: Number(meta.globalKeyOffset) || DEFAULT_GLOBAL_KEY_OFFSET,
     scaleMode: meta.scaleMode ?? DEFAULT_SCALE_MODE,
-    legacyTimingMode: meta.legacyTimingMode,
-    textNotation: meta.legacyTimingMode === 'beat' ? 'legacy-beat' : 'legacy',
+    legacyTimingMode,
+    textNotation: legacyTimingMode === 'beat' ? 'legacy-beat' : 'legacy',
   };
 }
 
@@ -160,13 +168,14 @@ function midiToNumberedToken(midi, playback) {
   return `${accidental}${degreeIndex + 1}${octaveMarks}`;
 }
 
-function buildDurationCandidates() {
+function buildDurationCandidates(playback) {
   const candidates = [];
+  const baseTicks = Math.max(Math.round(PPQ / 2), 1);
 
   for (let dashCount = 0; dashCount <= 8; dashCount += 1) {
     for (let underscoreCount = 0; underscoreCount <= 4; underscoreCount += 1) {
       for (let dotCount = 0; dotCount <= 2; dotCount += 1) {
-        const base = (PPQ * (1 + dashCount)) / (2 ** underscoreCount);
+        const base = (baseTicks * (1 + dashCount)) / (2 ** underscoreCount);
         let total = base;
         for (let dotIndex = 0; dotIndex < dotCount; dotIndex += 1) {
           total += base / (2 ** (dotIndex + 1));
@@ -192,9 +201,8 @@ function buildDurationCandidates() {
     });
 }
 
-const DURATION_CANDIDATES = buildDurationCandidates();
-
-function findDurationPieces(targetTicks) {
+function findDurationPieces(targetTicks, playback) {
+  const durationCandidates = buildDurationCandidates(playback);
   const cache = new Map();
 
   function solve(remaining) {
@@ -208,7 +216,7 @@ function findDurationPieces(targetTicks) {
 
     let best = null;
 
-    for (const candidate of DURATION_CANDIDATES) {
+    for (const candidate of durationCandidates) {
       if (candidate.ticks > remaining) {
         continue;
       }
@@ -237,7 +245,7 @@ function findDurationPieces(targetTicks) {
 }
 
 function stringifyEventToken(notes, durationTicks, playback) {
-  const durationPieces = findDurationPieces(durationTicks);
+  const durationPieces = findDurationPieces(durationTicks, playback);
   if (!durationPieces.length) {
     return [];
   }
@@ -257,10 +265,69 @@ function stringifyEventToken(notes, durationTicks, playback) {
   });
 }
 
+function partitionEventsIntoVoices(events) {
+  const sorted = [...events].sort((left, right) => {
+    if (left.tick !== right.tick) {
+      return left.tick - right.tick;
+    }
+
+    return (left.durationTicks ?? 0) - (right.durationTicks ?? 0);
+  });
+  const grouped = [];
+
+  sorted.forEach((event) => {
+    if (event?.isRest) {
+      return;
+    }
+
+    const tick = Math.max(0, Math.round(Number(event.tick) || 0));
+    const durationTicks = Math.max(1, Math.round(Number(event.durationTicks) || 1));
+    const lastGroup = grouped[grouped.length - 1];
+
+    if (lastGroup && lastGroup.tick === tick && lastGroup.durationTicks === durationTicks) {
+      lastGroup.events.push(event);
+      return;
+    }
+
+    grouped.push({
+      tick,
+      durationTicks,
+      endTick: tick + durationTicks,
+      events: [event],
+    });
+  });
+
+  const voices = [];
+
+  grouped.forEach((group) => {
+    let targetVoice = voices.find((voice) => voice.availableAt <= group.tick);
+
+    if (!targetVoice) {
+      targetVoice = {
+        id: voices.length === 0 ? 'M' : `C${voices.length}`,
+        availableAt: 0,
+        events: [],
+      };
+      voices.push(targetVoice);
+    }
+
+    group.events.forEach((event) => {
+      targetVoice.events.push({
+        ...event,
+        trackId: targetVoice.id,
+      });
+    });
+    targetVoice.availableAt = group.endTick;
+  });
+
+  return voices.flatMap((voice) => voice.events);
+}
+
 function convertEventsToNumberedText(normalized, playback) {
+  const canonicalEvents = partitionEventsIntoVoices(normalized.events);
   const grouped = new Map();
 
-  normalized.events.forEach((event) => {
+  canonicalEvents.forEach((event) => {
     if (event?.isRest) {
       return;
     }
@@ -339,9 +406,21 @@ async function migrateFile(entryName) {
 
   const rawText = await readFile(sourcePath, 'utf8');
   const { meta, content } = parseMetaAndContent(rawText, entryName);
-  const playback = createPlaybackConfig(meta);
+  const playback = createPlaybackConfig(meta, content);
   const normalized = normalizeScoreSource(content, playback);
   const numberedText = convertEventsToNumberedText(normalized, playback);
+  const roundTrip = normalizeScoreSource(numberedText, {
+    ...playback,
+    textNotation: 'jianpu',
+  });
+  const sourceMaxTick = normalized.events.reduce(
+    (maxTick, event) => Math.max(maxTick, Number(event.tick) || 0, (Number(event.tick) || 0) + (Number(event.durationTicks) || 0)),
+    0,
+  );
+  const roundTripMaxTick = roundTrip.events.reduce(
+    (maxTick, event) => Math.max(maxTick, Number(event.tick) || 0, (Number(event.tick) || 0) + (Number(event.durationTicks) || 0)),
+    0,
+  );
 
   const nextMeta = {
     ...meta,
@@ -351,15 +430,26 @@ async function migrateFile(entryName) {
     ppq: PPQ,
   };
 
-  if (sourcePath === filePath) {
-    await copyFile(filePath, backupPath);
+  if (!DRY_RUN) {
+    if (sourcePath === filePath) {
+      await copyFile(filePath, backupPath);
+    }
+    await writeFile(filePath, `${META_PREFIX}${JSON.stringify(nextMeta)}\n${numberedText}\n`, 'utf8');
   }
-  await writeFile(filePath, `${META_PREFIX}${JSON.stringify(nextMeta)}\n${numberedText}\n`, 'utf8');
 
   return {
     file: entryName,
     backup: path.basename(backupPath),
     tokens: numberedText.split(/\s+/u).filter(Boolean).length,
+    trackIds: [...new Set(
+      numberedText
+        .split('\n')
+        .map((line) => /^([A-Za-z][\w-]*)\s*:/u.exec(line)?.[1] ?? null)
+        .filter(Boolean),
+    )],
+    sourceMaxTick,
+    roundTripMaxTick,
+    preview: numberedText.split('\n').slice(0, 4),
   };
 }
 
@@ -367,6 +457,7 @@ async function main() {
   const entries = await readdir(SCORE_DIR, { withFileTypes: true });
   const targets = entries
     .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.txt') && !entry.name.endsWith('.legacy.bak.txt'))
+    .filter((entry) => !SCORE_FILTER || entry.name.toLowerCase().includes(SCORE_FILTER))
     .map((entry) => entry.name);
 
   const summary = [];
