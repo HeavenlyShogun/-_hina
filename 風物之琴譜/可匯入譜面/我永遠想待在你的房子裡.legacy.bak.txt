@@ -1,4 +1,4 @@
-// [META] {"title":"我永遠想待在你的房子裡","bpm":90,"timeSigNum":4,"timeSigDen":4,"charResolution":8,"globalKeyOffset":0,"accidentals":{},"scaleMode":"major","tone":"piano","reverb":true,"storageFormat":"legacy-text@1"}
+// [META] {"title":"我永遠想待在你的房子裡","bpm":125,"timeSigNum":4,"timeSigDen":4,"charResolution":16,"globalKeyOffset":0,"accidentals":{},"scaleMode":"major","tone":"piano","reverb":true,"storageFormat":"legacy-text@1"}
 (VA) / M / (MG) /(AG) Q /
 (BAQ) G /G (MD) /D (MS) /(AD) S /
 (NAD) S / M / M /A /

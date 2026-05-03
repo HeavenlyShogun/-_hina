@@ -1,9 +1,16 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BookOpen, ChevronRight, Download, Edit3, FolderOpen, Link2, Plus, RotateCcw, Trash2, UploadCloud } from 'lucide-react';
 import { usePlayback } from '../contexts/PlaybackContext';
+import useLivePlaybackFrame from '../hooks/useLivePlaybackFrame';
 import { usePlayheadSync } from '../hooks/usePlayheadSync';
 import playbackController from '../services/playbackController';
-import { analyzeLegacyScoreText, normalizeScoreSource, PPQ } from '../utils/score';
+import {
+  analyzeLegacyScoreText,
+  findActiveTokenLine,
+  findActiveTokens,
+  normalizeScoreSource,
+  PPQ,
+} from '../utils/score';
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -123,6 +130,7 @@ const SheetDisplay = memo(({
     legacyTimingMode,
     playbackState,
   } = usePlayback();
+  const livePlaybackState = useLivePlaybackFrame();
   const isJsonScore = typeof score === 'object' && score !== null;
   const scoreEditorValue = useMemo(
     () => (typeof score === 'string' ? score : JSON.stringify(score, null, 2)),
@@ -220,6 +228,14 @@ const SheetDisplay = memo(({
   const activeSegmentIndex = useMemo(
     () => findActiveSegmentIndex(sectionSegments, playbackState.currentTick),
     [playbackState.currentTick, sectionSegments],
+  );
+  const activeTokenTick = livePlaybackState.currentTick;
+  const activeTokenIds = useMemo(() => new Set(
+    findActiveTokens(normalizedScore?.structure?.tokenLines, activeTokenTick).map((token) => token.id),
+  ), [activeTokenTick, normalizedScore?.structure?.tokenLines]);
+  const activeTokenLineId = useMemo(
+    () => findActiveTokenLine(normalizedScore?.structure?.tokenLines, activeTokenTick)?.id ?? null,
+    [activeTokenTick, normalizedScore?.structure?.tokenLines],
   );
 
   const syncPlayheadPosition = useCallback((nextTick) => {
@@ -569,7 +585,57 @@ const SheetDisplay = memo(({
           onClick={handlePreviewClick}
           className="max-h-[240px] overflow-y-auto rounded-[20px] border border-white/10 bg-black/25 p-3 custom-scrollbar"
         >
-          {sectionSegments.length === 0 ? (
+          {Array.isArray(normalizedScore?.structure?.tokenLines) && normalizedScore.structure.tokenLines.length > 0 ? (
+            <div className="space-y-3">
+              {normalizedScore.structure.tokenLines.map((line) => {
+                const isLineActive = line.id === activeTokenLineId;
+
+                return (
+                  <div
+                    key={line.id}
+                    className={`rounded-2xl border px-4 py-3 transition-colors ${
+                      isLineActive
+                        ? 'border-amber-300/35 bg-amber-400/10'
+                        : 'border-white/8 bg-black/30'
+                    }`}
+                  >
+                    <div className="mb-2 flex items-center justify-between gap-3 text-[10px] uppercase tracking-[0.18em] text-white/35">
+                      <span>{line.trackId}</span>
+                      <span>{Math.round(line.startTick)}-{Math.round(line.endTick)} tick</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2 text-sm leading-relaxed text-emerald-100/80">
+                      {line.tokens.map((token) => {
+                        const isActive = activeTokenIds.has(token.id);
+
+                        if (token.isBar) {
+                          return (
+                            <span key={token.id} className="px-1 text-white/30">
+                              {token.text}
+                            </span>
+                          );
+                        }
+
+                        return (
+                          <button
+                            key={token.id}
+                            type="button"
+                            data-seek-tick={token.startTick}
+                            className={`rounded-lg px-2 py-1 font-mono transition-colors ${
+                              isActive
+                                ? 'bg-amber-300 text-slate-950 shadow-[0_0_18px_rgba(252,211,77,0.35)]'
+                                : 'bg-white/5 text-emerald-100/75 hover:bg-emerald-500/12'
+                            }`}
+                          >
+                            {token.text}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : sectionSegments.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-white/10 px-4 py-6 text-center text-[11px] text-emerald-100/40">
               這份琴譜目前沒有可點擊段落。
             </div>
