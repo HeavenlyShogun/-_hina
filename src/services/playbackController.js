@@ -72,10 +72,12 @@ function roundTick(value) {
   return Math.max(0, Math.round(Number(value) || 0));
 }
 
-function normalizeEvents(events, timing) {
+function normalizeEvents(events, timing, articulationRatio = 1) {
   if (!Array.isArray(events)) {
     return [];
   }
+
+  const safeArticulationRatio = normalizeArticulationRatio(articulationRatio, 1);
 
   return [...events]
     .map((event, index) => {
@@ -86,6 +88,14 @@ function normalizeEvents(events, timing) {
         1,
       );
       const durationSec = Math.max(ticksToSeconds(durationTicks, timing), 0.02);
+      const playDurationTicks = Math.min(
+        durationTicks,
+        Math.max(roundTick(durationTicks * safeArticulationRatio), 1),
+      );
+      const playDurationSec = Math.min(
+        durationSec,
+        Math.max(ticksToSeconds(playDurationTicks, timing), 0.02),
+      );
 
       if (!Number.isFinite(time) || time < 0 || !Number.isFinite(tick) || tick < 0) {
         return null;
@@ -98,6 +108,8 @@ function normalizeEvents(events, timing) {
         tick,
         durationSec,
         durationTicks,
+        playDurationSec,
+        playDurationTicks,
         k: event?.k ?? null,
         isRest: Boolean(event?.isRest),
         v: Number.isFinite(Number(event?.v)) ? Number(event.v) : 0.85,
@@ -117,6 +129,15 @@ function normalizeEvents(events, timing) {
     });
 }
 
+function normalizeArticulationRatio(value, fallback = 1) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return fallback;
+  }
+
+  return clamp(numeric, 0.1, 1);
+}
+
 class PlaybackController {
   constructor(engine = audioEngine) {
     this.audioEngine = engine;
@@ -127,6 +148,7 @@ class PlaybackController {
     this.currentPointer = 0;
     this.currentAudioTime = 0;
     this.timing = createTimingModel();
+    this.articulationRatio = 1;
     this.transport = this.createTransportState();
     this.snapshot = this.createSnapshot();
     this.callbacks = {
@@ -180,7 +202,8 @@ class PlaybackController {
     this.stop({ preserveLoadedEvents: false });
 
     this.timing = createTimingModel(playback);
-    this.events = normalizeEvents(events, this.timing);
+    this.articulationRatio = normalizeArticulationRatio(playback?.articulationRatio, 1);
+    this.events = normalizeEvents(events, this.timing, this.articulationRatio);
     const eventEndTick = this.events.reduce(
       (result, event) => Math.max(result, event.tick + event.durationTicks),
       0,
@@ -269,8 +292,12 @@ class PlaybackController {
     return event.tick + event.durationTicks;
   }
 
+  getEventSoundEndTick(event) {
+    return event.tick + Math.max(roundTick(event?.playDurationTicks), 1);
+  }
+
   getScheduledDurationSec(event, startTick = event.tick) {
-    const remainingTicks = Math.max(this.getEventEndTick(event) - startTick, 0);
+    const remainingTicks = Math.max(this.getEventSoundEndTick(event) - startTick, 0);
     if (remainingTicks <= 0) {
       return 0;
     }
@@ -632,7 +659,7 @@ class PlaybackController {
     this.emitState();
   }
 
-  scheduleEvent(event, absoluteTime, durationSec = event.durationSec) {
+  scheduleEvent(event, absoluteTime, durationSec = event.playDurationSec ?? event.durationSec) {
     if (event?.isRest) {
       return;
     }

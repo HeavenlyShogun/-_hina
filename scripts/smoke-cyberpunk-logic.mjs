@@ -52,8 +52,8 @@ function runExcerptSmokeTest() {
   assert(melody[1].tick === 72, `Expected M:5_ to start at tick 72, got ${melody[1].tick}.`);
   assert(accompaniment[1].tick === 96, `Expected C:3- to align on beat 2 at tick 96, got ${accompaniment[1].tick}.`);
   assert(melody[2].tick === accompaniment[1].tick, `Expected M third note and C second note to align at tick 96, got M=${melody[2].tick}, C=${accompaniment[1].tick}.`);
-  assert(Math.abs((melody[0].v ?? 0) - 0.9) < 0.0001, `Expected melody velocity 0.9, got ${melody[0].v}.`);
-  assert(Math.abs((accompaniment[0].v ?? 0) - 0.72) < 0.0001, `Expected accompaniment velocity 0.72, got ${accompaniment[0].v}.`);
+  assert(Math.abs((melody[0].v ?? 0) - 0.85) < 0.0001, `Expected melody velocity 0.85, got ${melody[0].v}.`);
+  assert(Math.abs((accompaniment[0].v ?? 0) - 0.85) < 0.0001, `Expected accompaniment velocity 0.85, got ${accompaniment[0].v}.`);
 
   return {
     melody,

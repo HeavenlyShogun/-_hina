@@ -3,10 +3,9 @@ import { DEFAULT_SCORE_PARAMS, mapKey } from '../constants/music.js';
 const OCTAVE_PREFIXES = new Set(['+', '-', '??', '??']);
 const DEFAULT_TRACK_ID = 'main';
 const DEFAULT_NOTE_VELOCITY = 0.85;
-const MELODY_TRACK_VELOCITY = 0.9;
-const ACCOMPANIMENT_TRACK_VELOCITY = 0.72;
 const DEFAULT_CHORD_STRUM_MS = 12;
 const DEFAULT_JIANPU_OCTAVE = 4;
+const DEFAULT_NUMBERED_ARTICULATION_RATIO = 0.85;
 const MAJOR_SCALE_INTERVALS = [0, 2, 4, 5, 7, 9, 11];
 const MINOR_SCALE_INTERVALS = [0, 2, 3, 5, 7, 8, 10];
 const NUMBERED_TRACK_PREFIX = /^([A-Za-z][\w-]*)\s*:\s*(.*)$/u;
@@ -82,9 +81,14 @@ function createPlaybackState(overrides = {}) {
     timeSigDen,
     charResolution,
     resolution,
+    scaleMode: overrides.scaleMode ?? DEFAULT_SCORE_PARAMS.scaleMode,
     tone: overrides.tone ?? DEFAULT_SCORE_PARAMS.tone,
     globalKeyOffset: Number(overrides.globalKeyOffset) || DEFAULT_SCORE_PARAMS.globalKeyOffset,
     reverb: overrides.reverb ?? DEFAULT_SCORE_PARAMS.reverb,
+    textNotation: overrides.textNotation ?? null,
+    articulationRatio: Number.isFinite(Number(overrides.articulationRatio))
+      ? Math.min(1, Math.max(Number(overrides.articulationRatio), 0.1))
+      : 1,
   };
 }
 
@@ -374,20 +378,9 @@ function parseTrackDeclaration(rawLine) {
 }
 
 function resolveTrackVelocity(trackId) {
-  const normalizedTrackId = String(trackId ?? DEFAULT_TRACK_ID).trim().toLowerCase();
-
-  if (!normalizedTrackId || normalizedTrackId === DEFAULT_TRACK_ID) {
-    return DEFAULT_NOTE_VELOCITY;
-  }
-
-  if (['m', 'melody', 'lead', 'solo'].includes(normalizedTrackId)) {
-    return MELODY_TRACK_VELOCITY;
-  }
-
-  if (['c', 'chord', 'chords', 'acc', 'accompaniment', 'backing', 'pad'].includes(normalizedTrackId)) {
-    return ACCOMPANIMENT_TRACK_VELOCITY;
-  }
-
+  // Keep converted numbered scores balanced with legacy playback.
+  // Inferring dynamics from track labels made M/C tracks sound different
+  // even when the source chart intended equal weight.
   return DEFAULT_NOTE_VELOCITY;
 }
 
@@ -395,6 +388,8 @@ export function parseNumberedMusicalNotation(text, config = {}) {
   const playback = createPlaybackState({
     ...config,
     resolution: PPQ,
+    textNotation: 'jianpu',
+    articulationRatio: config.articulationRatio ?? DEFAULT_NUMBERED_ARTICULATION_RATIO,
   });
   const lines = [];
   const tokenLines = [];
@@ -602,7 +597,11 @@ export function findActiveTokens(tokenLines, currentTick) {
 }
 
 function parseJianpuScoreText(text, config = {}) {
-  return parseNumberedMusicalNotation(text, config);
+  return parseNumberedMusicalNotation(text, {
+    ...config,
+    textNotation: 'jianpu',
+    articulationRatio: config.articulationRatio ?? DEFAULT_NUMBERED_ARTICULATION_RATIO,
+  });
 }
 
 function createNormalizedNoteEvent({
@@ -879,6 +878,8 @@ function parseBeatLegacyScoreText(text, config = {}) {
   const playback = createPlaybackState({
     ...config,
     resolution: PPQ,
+    textNotation: 'legacy-beat',
+    articulationRatio: 1,
   });
   const timing = resolveLegacyTextTiming(playback);
   const cleanText = stripScoreComments(String(text ?? ''));
@@ -1024,6 +1025,8 @@ export function analyzeLegacyScoreText(text, config = {}) {
   const playback = createPlaybackState({
     ...config,
     resolution: PPQ,
+    textNotation: config.textNotation ?? 'legacy',
+    articulationRatio: 1,
   });
   const timing = resolveLegacyTextTiming(playback);
   const parserState = {
