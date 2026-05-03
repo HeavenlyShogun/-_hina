@@ -6,16 +6,17 @@ import { normalizeScoreSource } from '../src/utils/score.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
+const scoreDir = path.join(repoRoot, '風物之琴譜', '可匯入譜面');
 
-const CYBERPUNK_NUMBERED_PATH = path.join(repoRoot, '風物之琴譜', '可匯入譜面', '我永遠想待在你的房子裡.txt');
-const CYBERPUNK_LEGACY_PATH = path.join(repoRoot, '風物之琴譜', '可匯入譜面', '我永遠想待在你的房子裡.legacy.bak.txt');
+const CYBERPUNK_NUMBERED_PATH = path.join(scoreDir, '我永遠想待在你的房子裡.txt');
+const CYBERPUNK_LEGACY_PATH = path.join(scoreDir, '我永遠想待在你的房子裡.legacy.bak.txt');
 
 const playbackConfig = {
   bpm: 125,
   timeSigNum: 4,
   timeSigDen: 4,
   charResolution: 16,
-  globalKeyOffset: 6,
+  globalKeyOffset: 0,
   scaleMode: 'major',
   tone: 'piano',
   reverb: true,
@@ -27,28 +28,8 @@ function assert(condition, message) {
   }
 }
 
-function summarizeMismatch(numberedEvent, legacyEvent, index) {
-  return {
-    index,
-    numbered: numberedEvent
-      ? {
-        tick: numberedEvent.tick,
-        durationTicks: numberedEvent.durationTicks,
-        key: numberedEvent.k,
-        noteName: numberedEvent.noteName,
-        frequency: Number(numberedEvent.frequency?.toFixed?.(3) ?? numberedEvent.frequency ?? 0),
-      }
-      : null,
-    legacy: legacyEvent
-      ? {
-        tick: legacyEvent.tick,
-        durationTicks: legacyEvent.durationTicks,
-        key: legacyEvent.k,
-        noteName: legacyEvent.noteName,
-        frequency: Number(legacyEvent.frequency?.toFixed?.(3) ?? legacyEvent.frequency ?? 0),
-      }
-      : null,
-  };
+function stripMeta(rawText) {
+  return String(rawText ?? '').replace(/^\uFEFF/u, '').split(/\r?\n/u).slice(1).join('\n');
 }
 
 function runExcerptSmokeTest() {
@@ -67,7 +48,6 @@ function runExcerptSmokeTest() {
 
   assert(melody.length === 5, `Expected 5 melody events, got ${melody.length}.`);
   assert(accompaniment.length === 4, `Expected 4 accompaniment events, got ${accompaniment.length}.`);
-
   assert(melody[0].durationTicks === 72, `Expected M:5. to last 72 ticks, got ${melody[0].durationTicks}.`);
   assert(melody[1].tick === 72, `Expected M:5_ to start at tick 72, got ${melody[1].tick}.`);
   assert(accompaniment[1].tick === 96, `Expected C:3- to align on beat 2 at tick 96, got ${accompaniment[1].tick}.`);
@@ -83,51 +63,51 @@ function runExcerptSmokeTest() {
 }
 
 async function runCyberpunkComparison() {
-  const [numberedText, legacyText] = await Promise.all([
+  const [numberedRaw, legacyRaw] = await Promise.all([
     readFile(CYBERPUNK_NUMBERED_PATH, 'utf8'),
     readFile(CYBERPUNK_LEGACY_PATH, 'utf8'),
   ]);
 
-  const numbered = normalizeScoreSource(numberedText, {
+  const numbered = normalizeScoreSource(stripMeta(numberedRaw), {
     ...playbackConfig,
     textNotation: 'jianpu',
   });
-  const legacy = normalizeScoreSource(legacyText, {
+  const legacy = normalizeScoreSource(stripMeta(legacyRaw), {
     ...playbackConfig,
     textNotation: 'legacy-beat',
     legacyTimingMode: 'beat',
   });
 
-  const mismatches = [];
-  const compareLength = Math.min(numbered.events.length, legacy.events.length);
+  const numberedEvents = numbered.events.filter((event) => !event.isRest);
+  const legacyEvents = legacy.events.filter((event) => !event.isRest);
 
-  for (let index = 0; index < compareLength; index += 1) {
-    const left = numbered.events[index];
-    const right = legacy.events[index];
+  assert(numberedEvents.length === legacyEvents.length, `Expected numbered/legacy event counts to match, got ${numberedEvents.length} vs ${legacyEvents.length}.`);
+  assert(numberedEvents.length > 900, `Expected dense multi-track arrangement, got only ${numberedEvents.length} note events.`);
+  assert(numbered.maxTime >= legacy.maxTime * 0.99, `Expected numbered score length to stay close to legacy, got ${numbered.maxTime} vs ${legacy.maxTime}.`);
 
-    if (
-      left.tick !== right.tick
-      || left.durationTicks !== right.durationTicks
-      || left.k !== right.k
-    ) {
-      mismatches.push(summarizeMismatch(left, right, index));
-      if (mismatches.length >= 8) {
-        break;
-      }
-    }
-  }
+  const trackIds = [...new Set(numbered.events.map((event) => event.trackId).filter(Boolean))];
+  assert(trackIds.includes('M'), `Expected numbered score to contain melody track M, got ${trackIds.join(', ')}.`);
+  assert(trackIds.includes('C1'), `Expected numbered score to retain accompaniment track C1, got ${trackIds.join(', ')}.`);
+  assert(trackIds.includes('C2'), `Expected numbered score to retain accompaniment track C2, got ${trackIds.join(', ')}.`);
+
+  const openingWindow = numberedEvents.filter((event) => event.tick <= 2);
+  assert(openingWindow.length >= 2, `Expected opening chord overlap to survive conversion, got ${openingWindow.length} events in the first 2 ticks.`);
+  const openingKeys = openingWindow.map((event) => event.k).sort().join(',');
+  assert(openingKeys === 'a,v', `Expected opening overlap to be keys a and v, got ${openingKeys}.`);
+
+  const firstMelodyEvent = numbered.events.find((event) => event.trackId === 'M' && !event.isRest);
+  assert(firstMelodyEvent?.noteName === 'F3', `Expected first melody note to resolve to F3, got ${firstMelodyEvent?.noteName}.`);
+  assert(Math.abs(Number(firstMelodyEvent?.frequency ?? 0) - 174.614) < 0.01, `Expected first melody note frequency to stay near 174.614 Hz, got ${firstMelodyEvent?.frequency}.`);
 
   return {
-    numbered,
-    legacy,
-    parity: {
-      exactEventParity: mismatches.length === 0
-        && numbered.events.length === legacy.events.length
-        && numbered.maxTick === legacy.maxTick,
-      mismatchSample: mismatches,
-      reason: mismatches.length === 0
-        ? 'Numbered and legacy event streams are aligned.'
-        : 'Legacy backup contains accompaniment/chord texture, while numbered score is melody-only M-track content.',
+    numberedEvents,
+    legacyEvents,
+    trackIds,
+    firstMelodyEvent: {
+      key: firstMelodyEvent?.k ?? null,
+      noteName: firstMelodyEvent?.noteName ?? null,
+      frequency: Number(firstMelodyEvent?.frequency?.toFixed?.(3) ?? firstMelodyEvent?.frequency ?? 0),
+      trackId: firstMelodyEvent?.trackId ?? null,
     },
   };
 }
@@ -135,7 +115,6 @@ async function runCyberpunkComparison() {
 async function main() {
   const excerpt = runExcerptSmokeTest();
   const comparison = await runCyberpunkComparison();
-  const firstNumberedEvent = comparison.numbered.events[0];
 
   console.log(JSON.stringify({
     excerpt: {
@@ -144,19 +123,10 @@ async function main() {
       tokenLines: excerpt.tokenLines.length,
     },
     cyberpunk: {
-      numberedEvents: comparison.numbered.events.length,
-      legacyEvents: comparison.legacy.events.length,
-      numberedMaxTick: comparison.numbered.maxTick,
-      legacyMaxTick: comparison.legacy.maxTick,
-      maxTime: Number(comparison.numbered.maxTime.toFixed(3)),
-      firstEvent: {
-        key: firstNumberedEvent?.k ?? null,
-        noteName: firstNumberedEvent?.noteName ?? null,
-        frequency: Number(firstNumberedEvent?.frequency?.toFixed?.(3) ?? 0),
-        velocity: firstNumberedEvent?.v ?? null,
-      },
-      parity: comparison.parity,
-      playbackConfig,
+      numberedEvents: comparison.numberedEvents.length,
+      legacyEvents: comparison.legacyEvents.length,
+      firstEvent: comparison.firstMelodyEvent,
+      trackIds: comparison.trackIds,
     },
   }, null, 2));
 }
