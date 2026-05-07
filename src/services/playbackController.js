@@ -48,24 +48,152 @@ function normalizePlaybackRate(rate) {
   return clamp(numericRate, 0.25, 4);
 }
 
+function normalizeTempoMap(tempoMap, bpm, resolution) {
+  const fallbackSecondsPerTick = (60 / bpm) / resolution;
+  const normalized = (Array.isArray(tempoMap) ? tempoMap : [])
+    .map((entry) => {
+      const entryBpm = Number(entry?.bpm);
+      const beatSeconds = Number(entry?.beatSeconds);
+      const secondsPerTick = Number(entry?.secondsPerTick);
+
+      return {
+        startTick: roundTick(entry?.startTick),
+        secondsPerTick:
+          Number.isFinite(secondsPerTick) && secondsPerTick > 0
+            ? secondsPerTick
+            : Number.isFinite(beatSeconds) && beatSeconds > 0
+              ? beatSeconds / resolution
+              : Number.isFinite(entryBpm) && entryBpm > 0
+                ? (60 / entryBpm) / resolution
+                : fallbackSecondsPerTick,
+      };
+    })
+    .filter((entry) => Number.isFinite(entry.secondsPerTick) && entry.secondsPerTick > 0)
+    .sort((left, right) => left.startTick - right.startTick);
+
+  if (normalized.length === 0 || normalized[0].startTick !== 0) {
+    normalized.unshift({
+      startTick: 0,
+      secondsPerTick: fallbackSecondsPerTick,
+    });
+  }
+
+  return normalized.filter((entry, index) => {
+    if (index === 0) {
+      return true;
+    }
+
+    const previous = normalized[index - 1];
+    return (
+      entry.startTick !== previous.startTick
+      || Math.abs(entry.secondsPerTick - previous.secondsPerTick) > 1e-9
+    );
+  });
+}
+
 function createTimingModel(playback = {}) {
   const bpm = Math.max(Number(playback?.bpm) || DEFAULT_BPM, 1);
   const resolution = Math.max(Number(playback?.resolution) || PPQ, 1);
   const secondsPerTick = (60 / bpm) / resolution;
+  const tempoMap = normalizeTempoMap(playback?.tempoMap, bpm, resolution);
 
   return {
     bpm,
     resolution,
     secondsPerTick,
+    tempoMap,
   };
 }
 
-function ticksToSeconds(ticks, timing) {
-  return Math.max(Number(ticks) || 0, 0) * timing.secondsPerTick;
+function findTempoSegmentIndex(scoreTick, timing) {
+  const safeTick = Math.max(Number(scoreTick) || 0, 0);
+  const tempoMap = Array.isArray(timing?.tempoMap) ? timing.tempoMap : [];
+
+  if (tempoMap.length <= 1) {
+    return 0;
+  }
+
+  for (let index = tempoMap.length - 1; index >= 0; index -= 1) {
+    if (safeTick >= tempoMap[index].startTick) {
+      return index;
+    }
+  }
+
+  return 0;
 }
 
-function secondsToTicks(seconds, timing) {
-  return Math.max(Number(seconds) || 0, 0) / timing.secondsPerTick;
+function ticksBetweenToSeconds(startTick, endTick, timing) {
+  const safeStartTick = Math.max(Number(startTick) || 0, 0);
+  const safeEndTick = Math.max(Number(endTick) || 0, 0);
+  if (safeEndTick <= safeStartTick) {
+    return 0;
+  }
+
+  const tempoMap = Array.isArray(timing?.tempoMap) ? timing.tempoMap : [];
+  if (tempoMap.length <= 1) {
+    return (safeEndTick - safeStartTick) * timing.secondsPerTick;
+  }
+
+  let totalSeconds = 0;
+  let currentTick = safeStartTick;
+  let tempoIndex = findTempoSegmentIndex(currentTick, timing);
+
+  while (currentTick < safeEndTick) {
+    const segment = tempoMap[tempoIndex] ?? tempoMap[tempoMap.length - 1];
+    const nextStartTick = tempoMap[tempoIndex + 1]?.startTick ?? Infinity;
+    const segmentEndTick = Math.min(safeEndTick, nextStartTick);
+    totalSeconds += Math.max(segmentEndTick - currentTick, 0) * segment.secondsPerTick;
+    currentTick = segmentEndTick;
+
+    if (currentTick >= nextStartTick) {
+      tempoIndex += 1;
+    }
+  }
+
+  return totalSeconds;
+}
+
+function ticksToSeconds(ticks, timing) {
+  return ticksBetweenToSeconds(0, ticks, timing);
+}
+
+function secondsToTicks(seconds, timing, startTick = 0) {
+  const safeSeconds = Math.max(Number(seconds) || 0, 0);
+  const safeStartTick = Math.max(Number(startTick) || 0, 0);
+  const tempoMap = Array.isArray(timing?.tempoMap) ? timing.tempoMap : [];
+
+  if (tempoMap.length <= 1) {
+    return safeSeconds / timing.secondsPerTick;
+  }
+
+  let remainingSeconds = safeSeconds;
+  let currentTick = safeStartTick;
+  let tempoIndex = findTempoSegmentIndex(currentTick, timing);
+
+  while (remainingSeconds > 0) {
+    const segment = tempoMap[tempoIndex] ?? tempoMap[tempoMap.length - 1];
+    const nextStartTick = tempoMap[tempoIndex + 1]?.startTick ?? Infinity;
+    const ticksUntilNextSegment = nextStartTick - currentTick;
+
+    if (!Number.isFinite(ticksUntilNextSegment)) {
+      return currentTick + (remainingSeconds / segment.secondsPerTick) - safeStartTick;
+    }
+
+    const secondsUntilNextSegment = Math.max(ticksUntilNextSegment, 0) * segment.secondsPerTick;
+    if (remainingSeconds < secondsUntilNextSegment) {
+      return currentTick + (remainingSeconds / segment.secondsPerTick) - safeStartTick;
+    }
+
+    currentTick = nextStartTick;
+    remainingSeconds -= secondsUntilNextSegment;
+    tempoIndex += 1;
+  }
+
+  return currentTick - safeStartTick;
+}
+
+function tickSpanToSeconds(startTick, durationTicks, timing) {
+  return ticksBetweenToSeconds(startTick, startTick + durationTicks, timing);
 }
 
 function roundTick(value) {
@@ -87,14 +215,14 @@ function normalizeEvents(events, timing, articulationRatio = 1) {
         roundTick(event?.durationTicks ?? event?.durationTick),
         1,
       );
-      const durationSec = Math.max(ticksToSeconds(durationTicks, timing), 0.02);
+      const durationSec = Math.max(tickSpanToSeconds(tick, durationTicks, timing), 0.02);
       const playDurationTicks = Math.min(
         durationTicks,
         Math.max(roundTick(durationTicks * safeArticulationRatio), 1),
       );
       const playDurationSec = Math.min(
         durationSec,
-        Math.max(ticksToSeconds(playDurationTicks, timing), 0.02),
+        Math.max(tickSpanToSeconds(tick, playDurationTicks, timing), 0.02),
       );
 
       if (!Number.isFinite(time) || time < 0 || !Number.isFinite(tick) || tick < 0) {
@@ -279,7 +407,11 @@ class PlaybackController {
 
     const now = this.audioEngine.getCurrentTime();
     const elapsedAudio = Math.max(0, now - this.transport.anchorAudioTime);
-    const elapsedTicks = secondsToTicks(elapsedAudio * this.transport.playbackRate, this.timing);
+    const elapsedTicks = secondsToTicks(
+      elapsedAudio * this.transport.playbackRate,
+      this.timing,
+      this.transport.anchorTick,
+    );
 
     return clamp(this.transport.anchorTick + elapsedTicks, 0, this.maxTick);
   }
@@ -303,7 +435,7 @@ class PlaybackController {
     }
 
     return Math.max(
-      ticksToSeconds(remainingTicks, this.timing) / this.transport.playbackRate,
+      tickSpanToSeconds(startTick, remainingTicks, this.timing) / this.transport.playbackRate,
       0.02,
     );
   }
@@ -311,7 +443,8 @@ class PlaybackController {
   getEventAbsoluteTime(scoreTick) {
     return (
       this.transport.anchorAudioTime +
-      ticksToSeconds(scoreTick - this.transport.anchorTick, this.timing) / this.transport.playbackRate
+      ticksBetweenToSeconds(this.transport.anchorTick, scoreTick, this.timing)
+        / this.transport.playbackRate
     );
   }
 
@@ -549,7 +682,11 @@ class PlaybackController {
     const nowAudioTime = this.audioEngine.getCurrentTime();
     const nowTick = this.getCurrentTick();
     const nowScoreTime = ticksToSeconds(nowTick, this.timing);
-    const lookaheadTicks = secondsToTicks(SCHEDULE_AHEAD_SEC * this.transport.playbackRate, this.timing);
+    const lookaheadTicks = secondsToTicks(
+      SCHEDULE_AHEAD_SEC * this.transport.playbackRate,
+      this.timing,
+      nowTick,
+    );
     const scheduleUntilTick = nowTick + lookaheadTicks;
 
     while (this.currentPointer < this.events.length) {
@@ -767,7 +904,11 @@ class PlaybackController {
   getVisualOffTick(event) {
     const visualHoldTick = Math.max(
       1,
-      roundTick(secondsToTicks(Math.min(event.durationSec ?? 0.2, MAX_VISUAL_HOLD_SEC), this.timing)),
+      roundTick(secondsToTicks(
+        Math.min(event.durationSec ?? 0.2, MAX_VISUAL_HOLD_SEC),
+        this.timing,
+        event.tick,
+      )),
     );
     return event.tick + visualHoldTick;
   }

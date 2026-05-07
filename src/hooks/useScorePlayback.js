@@ -154,6 +154,8 @@ export function useScorePlayback({
       timeSigNum: current.timeSigNum,
       timeSigDen: current.timeSigDen,
       charResolution: current.charResolution,
+      globalKeyOffset: current.audioConfig?.globalKeyOffset,
+      scaleMode: current.audioConfig?.scaleMode,
       legacyTimingMode: current.legacyTimingMode,
       textNotation: current.textNotation,
     });
@@ -169,6 +171,14 @@ export function useScorePlayback({
       timeSigNum: source?.timeSigNum ?? DEFAULT_SCORE_PARAMS.timeSigNum,
       timeSigDen: source?.timeSigDen ?? DEFAULT_SCORE_PARAMS.timeSigDen,
       charResolution: source?.charResolution ?? DEFAULT_SCORE_PARAMS.charResolution,
+      globalKeyOffset:
+        source?.audioConfig?.globalKeyOffset
+        ?? source?.globalKeyOffset
+        ?? DEFAULT_SCORE_PARAMS.globalKeyOffset,
+      scaleMode:
+        source?.audioConfig?.scaleMode
+        ?? source?.scaleMode
+        ?? DEFAULT_SCORE_PARAMS.scaleMode,
       textNotation: source?.textNotation,
     });
 
