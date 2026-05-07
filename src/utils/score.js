@@ -1,4 +1,5 @@
 import { DEFAULT_SCORE_PARAMS, mapKey } from '../constants/music.js';
+import { looksLikeKeshifuText, parseKeshifuToCanonical } from './keshifuScoreParser.js';
 
 const OCTAVE_PREFIXES = new Set(['+', '-', '??', '??']);
 const DEFAULT_TRACK_ID = 'main';
@@ -168,12 +169,13 @@ function parseDurationModifiers(modifiers, baseTicks = EIGHTH_TICKS) {
 
 function parseNumberedPitchToken(rawToken, playback) {
   const normalized = String(rawToken ?? '').trim();
-  const match = /^(?<accidental>[#bn]?)(?<degree>[0-7])(?<octaveSuffix>['',]*?)$/u.exec(normalized);
+  const match = /^(?<accidental>[#bn]?)(?<octavePrefix>[+-]*)(?<degree>[0-7])(?<octaveSuffix>['',]*?)$/u.exec(normalized);
   if (!match) {
     return null;
   }
 
   const degree = Number(match.groups?.degree ?? 0);
+  const octavePrefix = match.groups?.octavePrefix ?? '';
   const octaveSuffix = match.groups?.octaveSuffix ?? '';
   const accidentalSymbol = match.groups?.accidental ?? '';
   const accidental = accidentalSymbol === '#'
@@ -181,7 +183,12 @@ function parseNumberedPitchToken(rawToken, playback) {
     : accidentalSymbol === 'b'
       ? -1
       : 0;
-  const octaveShift = (octaveSuffix.match(/'/g) ?? []).length - (octaveSuffix.match(/,/g) ?? []).length;
+  const octaveShift = (
+    (octavePrefix.match(/\+/g) ?? []).length
+    - (octavePrefix.match(/-/g) ?? []).length
+    + (octaveSuffix.match(/'/g) ?? []).length
+    - (octaveSuffix.match(/,/g) ?? []).length
+  );
 
   if (degree === 0) {
     return {
@@ -221,7 +228,7 @@ function parseNumberedPitchToken(rawToken, playback) {
     noteName,
     pitchClass: noteName.replace(/-?\d+$/u, ''),
     octave,
-    pitch: `${accidentalSymbol}${degree}${naturalKeyToken}`,
+    pitch: `${accidentalSymbol}${octaveShift > 0 ? '+'.repeat(octaveShift) : octaveShift < 0 ? '-'.repeat(Math.abs(octaveShift)) : ''}${degree}${naturalKeyToken}`,
   };
 }
 
@@ -235,7 +242,7 @@ function parseNumberedToken(rawToken, playback) {
   if (chordMatch) {
     const body = chordMatch.groups?.body ?? '';
     const modifiers = chordMatch.groups?.modifiers ?? '';
-    const noteTokens = body.match(/[#bn]?[0-7]['',]*/gu) ?? [];
+    const noteTokens = body.match(/[#bn]?[+-]*[0-7]['',]*/gu) ?? [];
     const notes = noteTokens
       .map((entry) => parseNumberedPitchToken(entry, playback))
       .filter(Boolean)
@@ -252,7 +259,7 @@ function parseNumberedToken(rawToken, playback) {
     };
   }
 
-  const noteMatch = /^(?<pitch>[#bn]?[0-7]['',]*)(?<modifiers>[-_.]*)$/u.exec(token);
+  const noteMatch = /^(?<pitch>[#bn]?[+-]*[0-7]['',]*)(?<modifiers>[-_.]*)$/u.exec(token);
   if (!noteMatch) {
     return null;
   }
@@ -1194,6 +1201,16 @@ export function parseScoreJson(scoreJson) {
 
 export function normalizeScoreSource(input, config = {}) {
   if (typeof input === 'string') {
+    if (config.textNotation === 'keshifu') {
+      return parseKeshifuToCanonical(
+        input,
+        config.bpm ?? DEFAULT_SCORE_PARAMS.bpm,
+        config.globalKeyOffset ?? DEFAULT_SCORE_PARAMS.globalKeyOffset,
+        config.scaleMode ?? DEFAULT_SCORE_PARAMS.scaleMode,
+        PPQ,
+      );
+    }
+
     if (config.textNotation === 'jianpu') {
       return parseJianpuScoreText(input, config);
     }
@@ -1204,6 +1221,16 @@ export function normalizeScoreSource(input, config = {}) {
 
     if (config.textNotation === 'legacy') {
       return parseLegacyScoreText(input, config);
+    }
+
+    if (looksLikeKeshifuText(input)) {
+      return parseKeshifuToCanonical(
+        input,
+        config.bpm ?? DEFAULT_SCORE_PARAMS.bpm,
+        config.globalKeyOffset ?? DEFAULT_SCORE_PARAMS.globalKeyOffset,
+        config.scaleMode ?? DEFAULT_SCORE_PARAMS.scaleMode,
+        PPQ,
+      );
     }
 
     if (looksLikeJianpuText(input)) {
