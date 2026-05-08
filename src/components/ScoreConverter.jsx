@@ -1,7 +1,8 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Copy, Download, FileUp, HardDriveDownload, RefreshCcw, Sparkles, Upload, Wand2 } from 'lucide-react';
+import { Copy, Download, FileUp, HardDriveDownload, Music2, RefreshCcw, Sparkles, Upload, Wand2 } from 'lucide-react';
 import { normalizeScoreSource } from '../utils/score';
 import { parseMidiToV2 } from '../utils/midiToV2';
+import { scoreJsonToMidiBytes } from '../utils/scoreToMidi';
 import { SCORE_SOURCE_TYPES } from '../utils/scoreDocument';
 import {
   buildAiConversionPrompt,
@@ -17,6 +18,8 @@ const EXTERNAL_INPUT_TYPES = {
 };
 const OUTPUT_FORMATS = {
   LEGACY_TEXT: 'legacy-text',
+  TIMED_TOKEN: 'timed-token',
+  NUMBERED_GRID: 'numbered-grid',
   JSON_V2: 'json-v2',
 };
 
@@ -135,6 +138,18 @@ function downloadJsonFile(filename, payload) {
   const blob = new Blob([JSON.stringify(payload, null, 2)], {
     type: 'application/json;charset=utf-8',
   });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function downloadBinaryFile(filename, bytes, mimeType) {
+  const blob = new Blob([bytes], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
@@ -316,6 +331,19 @@ const ScoreConverter = memo(({
     }
   }, [buildPayload, scoreTitle, showToast]);
 
+  const handleDownloadMidi = useCallback(() => {
+    try {
+      const payload = buildPayload();
+      const bytes = scoreJsonToMidiBytes(payload, { ppq: 480 });
+      const filename = `${slugifyFilename(scoreTitle || payload.meta?.title || 'score')}.mid`;
+      downloadBinaryFile(filename, bytes, 'audio/midi');
+      showToast?.(`已下載 MIDI Type 1：${filename}`, 'success');
+    } catch (error) {
+      console.error(error);
+      showToast?.('MIDI 匯出失敗', 'error');
+    }
+  }, [buildPayload, scoreTitle, showToast]);
+
   const savePayloadLocal = useCallback((payload, successMessage = '已儲存轉換琴譜到本機') => {
     const next = readLocalSavedScores();
     next.unshift({
@@ -428,7 +456,7 @@ const ScoreConverter = memo(({
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
+        <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto_auto]">
           <button
             type="button"
             onClick={handleSyncCurrent}
@@ -444,6 +472,14 @@ const ScoreConverter = memo(({
           >
             <Download size={14} />
             下載 JSON
+          </button>
+          <button
+            type="button"
+            onClick={handleDownloadMidi}
+            className="flex items-center justify-center gap-2 rounded-2xl border border-violet-300/20 bg-violet-500/10 px-4 py-3 text-[11px] font-black tracking-[0.22em] text-violet-100 transition-colors hover:bg-violet-500/18"
+          >
+            <Music2 size={14} />
+            下載 MIDI
           </button>
           <button
             type="button"
@@ -477,6 +513,8 @@ const ScoreConverter = memo(({
               className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-xs text-amber-50 outline-none"
             >
               <option value={OUTPUT_FORMATS.LEGACY_TEXT}>文字譜</option>
+              <option value={OUTPUT_FORMATS.TIMED_TOKEN}>音名時值譜</option>
+              <option value={OUTPUT_FORMATS.NUMBERED_GRID}>1/16 或 1/32 數字格譜</option>
               <option value={OUTPUT_FORMATS.JSON_V2}>Project Hina JSON</option>
             </select>
           </label>

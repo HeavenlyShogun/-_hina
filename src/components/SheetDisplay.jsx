@@ -392,6 +392,10 @@ const SheetDisplay = memo(({
                 <b className="text-emerald-300">JSON Score</b>
                 可透過上方的 `JSON DEMO` 或匯入 `.json` 檔進行測試；載入後播放器會自動同步 BPM、音色、殘響與移調設定。
               </p>
+              <p>
+                <b className="text-emerald-300">Numbered Grid</b>
+                第二套數字譜可在第一行寫 `@grid 1/16` 或 `@grid 1/32`。每小節用固定格數記錄：4/4 的 1/16 是 16 格、1/32 是 32 格；`1-7` 代表音、`0` 或 `R` 代表休止、`-` 代表延續上一格。
+              </p>
             </div>
             <div>
               <h4 className="text-emerald-300 font-bold mb-3 border-b border-white/10 pb-1">快速對照</h4>
@@ -635,13 +639,25 @@ const SheetDisplay = memo(({
                             key={token.id}
                             type="button"
                             data-seek-tick={token.startTick}
-                            className={`rounded-lg px-2 py-1 font-mono transition-colors ${
+                            title={`${token.text}${token.durationLabel ? ` | ${token.durationLabel} 拍` : ''}`}
+                            className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 font-mono transition-colors ${
                               isActive
                                 ? 'bg-amber-300 text-slate-950 shadow-[0_0_18px_rgba(252,211,77,0.35)]'
-                                : 'bg-white/5 text-emerald-100/75 hover:bg-emerald-500/12'
+                                : token.isRest
+                                  ? 'bg-slate-500/10 text-slate-200/65 hover:bg-slate-400/15'
+                                  : 'bg-white/5 text-emerald-100/75 hover:bg-emerald-500/12'
                             }`}
                           >
-                            {token.text}
+                            <span>{token.displayText ?? token.text}</span>
+                            {token.durationLabel && !String(token.displayText ?? token.text).includes(token.durationLabel) ? (
+                              <span className={`rounded px-1 text-[9px] ${
+                                isActive
+                                  ? 'bg-slate-950/10 text-slate-950/70'
+                                  : 'bg-black/25 text-white/45'
+                              }`}>
+                                {token.durationLabel}
+                              </span>
+                            ) : null}
                           </button>
                         );
                       })}

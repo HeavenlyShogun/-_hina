@@ -8,13 +8,13 @@ const BPM_MIN = 20;
 const BPM_MAX = 300;
 
 const RESOLUTION_OPTIONS = [
-  { value: 4, label: '四分音符' },
-  { value: 8, label: '八分音符' },
-  { value: 16, label: '十六分音符' },
-  { value: 32, label: '三十二分音符' },
+  { value: 4, label: '1/4 beat grid' },
+  { value: 8, label: '1/8 beat grid' },
+  { value: 16, label: '1/16 beat grid' },
+  { value: 32, label: '1/32 beat grid' },
 ];
 
-const ControlPanel = memo(({ embedded = false }) => {
+const ControlPanel = memo(({ embedded = false, compact = false }) => {
   const {
     vol,
     setVol,
@@ -72,8 +72,8 @@ const ControlPanel = memo(({ embedded = false }) => {
 
   return (
     <section className={embedded ? 'w-full' : 'z-30 my-8 w-full max-w-6xl px-4 sm:my-10 sm:px-6'}>
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.28fr)_minmax(280px,0.9fr)]">
-        <div className="relative min-w-0 overflow-hidden rounded-[28px] border border-white/70 bg-white/88 p-4 text-slate-900 shadow-[0_20px_70px_rgba(15,23,42,0.10)] backdrop-blur-xl sm:p-5">
+      <div className={`grid gap-4 ${compact ? 'xl:grid-cols-[minmax(0,1fr)_minmax(280px,0.82fr)]' : 'xl:grid-cols-[minmax(0,1.28fr)_minmax(280px,0.9fr)]'}`}>
+        <div className={`relative min-w-0 overflow-hidden border border-white/70 bg-white/88 text-slate-900 shadow-[0_20px_70px_rgba(15,23,42,0.10)] backdrop-blur-xl ${compact ? 'rounded-[24px] p-3 sm:p-4' : 'rounded-[28px] p-4 sm:p-5'}`}>
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.12),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.9),rgba(248,250,252,0.78))]" />
           <div className="relative flex min-w-0 flex-col gap-4">
             <div className="flex min-w-0 items-center gap-3">
@@ -186,7 +186,7 @@ const ControlPanel = memo(({ embedded = false }) => {
           </div>
         </div>
 
-        <div className="relative min-w-0 overflow-hidden rounded-[28px] border border-white/70 bg-white/88 p-4 text-slate-900 shadow-[0_20px_70px_rgba(15,23,42,0.10)] backdrop-blur-xl sm:p-5">
+        <div className={`relative min-w-0 overflow-hidden border border-white/70 bg-white/88 text-slate-900 shadow-[0_20px_70px_rgba(15,23,42,0.10)] backdrop-blur-xl ${compact ? 'rounded-[24px] p-3 sm:p-4' : 'rounded-[28px] p-4 sm:p-5'}`}>
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(16,185,129,0.10),transparent_32%),radial-gradient(circle_at_20%_100%,rgba(99,102,241,0.10),transparent_26%)]" />
           <div className="relative flex h-full min-w-0 flex-col gap-4">
             <div className="flex min-w-0 items-center gap-3">

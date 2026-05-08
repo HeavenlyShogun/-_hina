@@ -1,4 +1,4 @@
-// [META] {"title":"?瑹?,"bpm":90,"timeSigNum":4,"timeSigDen":4,"charResolution":8,"globalKeyOffset":0,"accidentals":{},"scaleMode":"major","tone":"piano","reverb":true,"storageFormat":"legacy-text@1"}
+// [META] {"title":"千本櫻","bpm":90,"timeSigNum":4,"timeSigDen":4,"charResolution":8,"globalKeyOffset":0,"accidentals":{},"scaleMode":"major","tone":"piano","reverb":true,"storageFormat":"legacy-text@1"}
 (NDH) (NDH) / (BSG) (NDH) / (NDH) (BSG) /
 (NDH) (NDH) / (BSG) (NDH) / (ND) Q / (ND) /
 (NDH) (NDH) / (BSG) (NDH) / (NDH) (BSG) /

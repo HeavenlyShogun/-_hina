@@ -1,4 +1,4 @@
-// [META] {"title":"皞?,"bpm":90,"timeSigNum":4,"timeSigDen":4,"charResolution":8,"globalKeyOffset":0,"accidentals":{},"scaleMode":"major","tone":"piano","reverb":true,"storageFormat":"legacy-text@1"}
+// [META] {"title":"溯","bpm":90,"timeSigNum":4,"timeSigDen":4,"charResolution":8,"globalKeyOffset":0,"accidentals":{},"scaleMode":"major","tone":"piano","reverb":true,"storageFormat":"legacy-text@1"}
 (VA) G / D S / (BA) A / G D /
 (NA) G / D S / (BM) M / G D / S A /
 

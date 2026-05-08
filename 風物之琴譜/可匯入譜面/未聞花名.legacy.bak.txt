@@ -1,4 +1,4 @@
-// [META] {"title":"?芾??勗?","bpm":90,"timeSigNum":4,"timeSigDen":4,"charResolution":8,"globalKeyOffset":0,"accidentals":{},"scaleMode":"major","tone":"piano","reverb":true,"storageFormat":"legacy-text@1"}
+// [META] {"title":"未聞花名","bpm":90,"timeSigNum":4,"timeSigDen":4,"charResolution":8,"globalKeyOffset":0,"accidentals":{},"scaleMode":"major","tone":"piano","reverb":true,"storageFormat":"legacy-text@1"}
 (VADQ) Q / Q Q / Q Q / Q Q / J G /
 (BMS) G / (NADQ) Q / Q Q / Q Q / Q Q / J G /
 (BMS) G / (VADQ) Q / Q Q / Q Q / W (BMS) / G G /

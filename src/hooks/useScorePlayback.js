@@ -4,6 +4,9 @@ import audioEngine from '../services/audioEngine';
 import playbackController from '../services/playbackController';
 import { normalizeScoreSource } from '../utils/score';
 
+const LIVE_NOTE_MIN_HOLD_SEC = 0.22;
+const LIVE_NOTE_RELEASE_SEC = 0.16;
+
 function transposeFrequency(baseFrequency, semitoneOffset) {
   return baseFrequency * 2 ** (semitoneOffset / 12);
 }
@@ -104,6 +107,11 @@ export function useScorePlayback({
     queuedSeekJobRef.current = null;
     seekLoopPromiseRef.current = null;
     playbackController.stop();
+    activeLiveVoicesRef.current.forEach((activeVoice) => {
+      if (activeVoice?.releaseTimer) {
+        window.clearTimeout(activeVoice.releaseTimer);
+      }
+    });
     activeLiveVoicesRef.current.clear();
     audioEngine.stopAll();
   }, []);
@@ -189,6 +197,11 @@ export function useScorePlayback({
   const stopAll = useCallback(() => {
     queuedSeekJobRef.current = null;
     playbackController.stop();
+    activeLiveVoicesRef.current.forEach((activeVoice) => {
+      if (activeVoice?.releaseTimer) {
+        window.clearTimeout(activeVoice.releaseTimer);
+      }
+    });
     activeLiveVoicesRef.current.clear();
     audioEngine.stopAll();
   }, []);
@@ -373,6 +386,13 @@ export function useScorePlayback({
         Number(current.audioConfig?.globalKeyOffset || 0) + (current.accidentals?.[keyK] ? 1 : 0);
       const frequency = info ? transposeFrequency(info.f, semitoneOffset) : null;
 
+      const activeVoice = activeLiveVoicesRef.current.get(keyK);
+      if (activeVoice?.releaseTimer) {
+        window.clearTimeout(activeVoice.releaseTimer);
+        activeLiveVoicesRef.current.delete(keyK);
+        audioEngine.releaseLiveVoice(activeVoice.voice ?? keyK, LIVE_NOTE_RELEASE_SEC);
+      }
+
       if (info && frequency && !activeLiveVoicesRef.current.has(keyK)) {
         await audioEngine.prepareTone(current.audioConfig?.tone);
         await audioEngine.resume();
@@ -385,7 +405,11 @@ export function useScorePlayback({
         });
 
         if (voice) {
-          activeLiveVoicesRef.current.set(keyK, voice);
+          activeLiveVoicesRef.current.set(keyK, {
+            voice,
+            startedAt: audioEngine.getCurrentTime(),
+            releaseTimer: null,
+          });
         }
       }
 
@@ -396,10 +420,33 @@ export function useScorePlayback({
   }, [onKeyVisualAttack]);
 
   const handleKeyDeactivate = useCallback((keyK) => {
-    const voice = activeLiveVoicesRef.current.get(keyK);
-    activeLiveVoicesRef.current.delete(keyK);
-    audioEngine.releaseLiveVoice(voice ?? keyK);
-    onKeyVisualRelease(keyK);
+    const activeVoice = activeLiveVoicesRef.current.get(keyK);
+    if (!activeVoice) {
+      onKeyVisualRelease(keyK);
+      return;
+    }
+
+    const now = audioEngine.getCurrentTime();
+    const elapsed = Math.max(now - (Number(activeVoice.startedAt) || now), 0);
+    const releaseAfterMs = Math.max((LIVE_NOTE_MIN_HOLD_SEC - elapsed) * 1000, 0);
+
+    const release = () => {
+      const latestVoice = activeLiveVoicesRef.current.get(keyK);
+      if (latestVoice !== activeVoice) {
+        return;
+      }
+
+      activeLiveVoicesRef.current.delete(keyK);
+      audioEngine.releaseLiveVoice(activeVoice.voice ?? keyK, LIVE_NOTE_RELEASE_SEC);
+      onKeyVisualRelease(keyK);
+    };
+
+    if (releaseAfterMs > 0) {
+      activeVoice.releaseTimer = window.setTimeout(release, releaseAfterMs);
+      return;
+    }
+
+    release();
   }, [onKeyVisualRelease]);
 
   return {

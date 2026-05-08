@@ -1,4 +1,4 @@
-// [META] {"title":"溯","textNotation":"jianpu","storageFormat":"numbered-text@1","ppq":96}
+// [META] {"title":"溯","bpm":90,"timeSigNum":4,"timeSigDen":4,"charResolution":8,"globalKeyOffset":0,"accidentals":{},"scaleMode":"major","tone":"piano","reverb":true,"storageFormat":"numbered-text@1","textNotation":"jianpu","ppq":96}
 M: -7--- 5--- |
 M: 2--- 1--- |
 M: 3--- 5--- |

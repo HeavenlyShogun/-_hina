@@ -122,6 +122,24 @@ export function buildAiConversionPrompt({
       'If a pitch is outside the 21-key range C3-B5, transpose by octave into range and keep a note in meta.referenceNotes.',
       'If the original includes sharps/flats not playable on the natural 21-key layout, choose the closest musical substitute and mention the substitution in meta.referenceNotes.',
     ]
+    : safeOutputFormat === 'numbered-grid'
+      ? [
+        'Output plain numbered-grid score only. No markdown fences, no explanation.',
+        'The first line must be either `@grid 1/16` or `@grid 1/32`. Prefer 1/16; use 1/32 only when the rhythm needs finer subdivision.',
+        'Use one independent line per hand or part, for example `Right:` and `Left:`.',
+        'Separate measures with `|`. In 4/4, each 1/16 measure must contain exactly 16 cells; each 1/32 measure must contain exactly 32 cells.',
+        'Each cell is one fixed rhythmic unit. Use `1-7` for scale degrees, `0` or `R` for rests, `-` to sustain the previous note/rest, and `[135]` for chords.',
+        'Use # or b before a scale degree only when the source requires an accidental, for example `#4` or `b7`.',
+      ]
+      : safeOutputFormat === 'timed-token'
+      ? [
+        'Output plain timed-token score only. No markdown fences, no explanation.',
+        'Use one independent line per hand or part, for example `Right:` and `Left:`.',
+        'Use `(NoteName, beats)` for notes, for example `(C4, 1.0)` or `(G4, 0.25)`.',
+        'Use `Rbeats` for rests outside parentheses, for example `R0.5`.',
+        'Every 4/4 measure must sum to exactly 4.0 beats. Separate measures with `|`.',
+        'Allowed durations are 4, 2, 1, 0.5, 0.25, and 0.125 beats unless the source clearly requires a dotted value.',
+      ]
     : [
       'Output plain legacy text score only. No markdown fences, no explanation.',
       'Use "/" to separate beats or beat slots.',
