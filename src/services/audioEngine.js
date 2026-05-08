@@ -4,6 +4,7 @@ const DEFAULT_RENDER_CONFIG = {
   outputGain: 0.65,
   reverbAmount: 0.45,
 };
+const LIVE_NOTE_RELEASE_SEC = 0.16;
 
 const TONE_ALIASES = {
   lyre: 'lyre-long',
@@ -339,7 +340,7 @@ class AudioEngine {
     return voice;
   }
 
-  releaseLiveVoice(voiceOrKey, releaseTime = 0.08) {
+  releaseLiveVoice(voiceOrKey, releaseTime = LIVE_NOTE_RELEASE_SEC) {
     const key = typeof voiceOrKey === 'string' || typeof voiceOrKey === 'number'
       ? voiceOrKey
       : voiceOrKey?.liveVoiceKey;
@@ -354,7 +355,7 @@ class AudioEngine {
     this.releaseVoice(voice, now, stopAt, true);
   }
 
-  stopAll(releaseTime = 0.08) {
+  stopAll(releaseTime = LIVE_NOTE_RELEASE_SEC) {
     if (!this.audioContext || this.activeVoices.size === 0) return;
 
     const now = this.audioContext.currentTime;

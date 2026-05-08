@@ -10,6 +10,7 @@ const DEFAULT_NUMBERED_ARTICULATION_RATIO = 0.85;
 const TIMED_TOKEN_PPQ = 480;
 const GRID_UNIT_PATTERN = /^@(?:grid|unit)\s*[:=]?\s*(?:1\/)?(?<unit>16|32)\s*$/iu;
 const GRID_HOLD_TOKENS = new Set(['-', '_', '~']);
+const GRID_NOTE_WITH_HOLD_PATTERN = /^(?<body>(?:\[(?:[^\]]+)\]|[#bn]?[+-]*[1-7]['',]*))(?<holds>[-_~]+)$/u;
 const MAJOR_SCALE_INTERVALS = [0, 2, 4, 5, 7, 9, 11];
 const MINOR_SCALE_INTERVALS = [0, 2, 3, 5, 7, 8, 10];
 const NUMBERED_TRACK_PREFIX = /^([A-Za-z][\w-]*)\s*:\s*(.*)$/u;
@@ -926,6 +927,19 @@ function parseNumberedGridToken(rawToken, playback) {
     return { type: 'rest' };
   }
 
+  const sustainedMatch = GRID_NOTE_WITH_HOLD_PATTERN.exec(token);
+  if (sustainedMatch) {
+    const baseParsed = parseNumberedGridToken(sustainedMatch.groups.body, playback);
+    if (!baseParsed || baseParsed.type === 'rest' || baseParsed.type === 'hold') {
+      return baseParsed;
+    }
+
+    return {
+      ...baseParsed,
+      holdUnits: (sustainedMatch.groups.holds ?? '').length,
+    };
+  }
+
   const chordMatch = /^\[(?<body>[^\]]+)\]$/u.exec(token);
   if (chordMatch) {
     const noteTokens = chordMatch.groups.body.match(/[#bn]?[+-]*[1-7]['',]*/gu) ?? [];
@@ -1010,7 +1024,9 @@ function parseNumberedGridNotation(text, config = {}) {
         cells.forEach((cell, cellIndex) => {
           const parsed = parseNumberedGridToken(cell, playback);
           const startTick = currentTick;
-          const endTick = currentTick + unitTicks;
+          const holdUnits = Math.max(Number(parsed?.holdUnits) || 0, 0);
+          const totalUnits = 1 + holdUnits;
+          const endTick = currentTick + (unitTicks * totalUnits);
           const tokenBase = {
             id: `${trackId}-${lineIndex}-${measureOffset}-${cellIndex}`,
             text: cell,
@@ -1018,7 +1034,7 @@ function parseNumberedGridNotation(text, config = {}) {
             endTick,
             trackId,
             isBar: false,
-            durationBeats: 4 / unit,
+            durationBeats: (4 / unit) * totalUnits,
             durationLabel: `1/${unit}`,
             measureIndex: measureOffset + 1,
           };
@@ -1040,7 +1056,7 @@ function parseNumberedGridNotation(text, config = {}) {
             const event = createNormalizedNoteEvent({
               tick: startTick,
               key: null,
-              durationTicks: unitTicks,
+              durationTicks: unitTicks * totalUnits,
               resolution: playback.resolution,
               bpm: playback.bpm,
               velocity: 0,
@@ -1064,7 +1080,7 @@ function parseNumberedGridNotation(text, config = {}) {
               const event = createNormalizedNoteEvent({
                 tick: startTick,
                 key: note.mappedKey,
-                durationTicks: unitTicks,
+                durationTicks: unitTicks * totalUnits,
                 resolution: playback.resolution,
                 bpm: playback.bpm,
                 velocity: DEFAULT_NOTE_VELOCITY,
@@ -1091,7 +1107,7 @@ function parseNumberedGridNotation(text, config = {}) {
           const event = createNormalizedNoteEvent({
             tick: startTick,
             key: parsed.note.mappedKey,
-            durationTicks: unitTicks,
+            durationTicks: unitTicks * totalUnits,
             resolution: playback.resolution,
             bpm: playback.bpm,
             velocity: DEFAULT_NOTE_VELOCITY,

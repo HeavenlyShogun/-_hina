@@ -38,8 +38,8 @@ const PianoRoom = memo(({
       onToggleSharp={onToggleSharp}
       progressBarRef={progressBarRef}
     />
-    <InstrumentSelector />
-    <div className="relative z-20 mt-4 w-full max-w-6xl px-4 sm:mt-5">
+    <div className="relative z-20 mt-4 flex w-full max-w-6xl flex-col gap-4 px-3 sm:mt-5 sm:px-4">
+      <InstrumentSelector />
       <ControlPanel embedded compact />
     </div>
   </>
