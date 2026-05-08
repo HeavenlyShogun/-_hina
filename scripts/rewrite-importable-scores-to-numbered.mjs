@@ -4,7 +4,6 @@ import { normalizeScoreSource, PPQ } from '../src/utils/score.js';
 
 const SCORE_DIR = path.resolve(process.cwd(), '風物之琴譜', '可匯入譜面');
 const META_PREFIX = '// [META] ';
-const DEFAULT_VELOCITY = 0.75;
 const DEFAULT_SCALE_MODE = 'major';
 const DEFAULT_GLOBAL_KEY_OFFSET = 0;
 const DRY_RUN = process.env.DRY_RUN === '1';
@@ -161,11 +160,11 @@ function midiToNumberedToken(midi, playback) {
     accidental = '';
   }
 
-  const octaveMarks = octaveShift > 0
-    ? "'".repeat(octaveShift)
-    : ','.repeat(Math.abs(octaveShift));
+  const octavePrefix = octaveShift > 0
+    ? '+'.repeat(octaveShift)
+    : '-'.repeat(Math.abs(octaveShift));
 
-  return `${accidental}${degreeIndex + 1}${octaveMarks}`;
+  return `${accidental}${octavePrefix}${degreeIndex + 1}`;
 }
 
 function buildDurationCandidates(playback) {

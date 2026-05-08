@@ -276,75 +276,6 @@ function parseNumberedToken(rawToken, playback) {
   };
 }
 
-function parseJianpuPitchToken(rawToken, playback) {
-  const normalized = String(rawToken ?? '').trim();
-  const match = /^(?<accidental>[#bn]?)(?<octavePrefix>[+-]*)(?<degree>[0-7])(?<octaveSuffix>['',]*)(?<modifiers>[\/_.]*)$/u.exec(normalized);
-  if (!match) {
-    return null;
-  }
-
-  const accidentalSymbol = match.groups?.accidental ?? '';
-  const degree = Number(match.groups?.degree ?? 0);
-  const modifiers = match.groups?.modifiers ?? '';
-  const octavePrefix = match.groups?.octavePrefix ?? '';
-  const octaveSuffix = match.groups?.octaveSuffix ?? '';
-  const accidental = accidentalSymbol === '#'
-    ? 1
-    : accidentalSymbol === 'b'
-      ? -1
-      : 0;
-  const octaveShift = (
-    (octavePrefix.match(/\+/g) ?? []).length
-    - (octavePrefix.match(/-/g) ?? []).length
-    + (octaveSuffix.match(/'/g) ?? []).length
-    - (octaveSuffix.match(/,/g) ?? []).length
-  );
-
-  return {
-    degree,
-    isRest: degree === 0,
-    modifiers,
-    accidental,
-    octaveShift,
-    frequency: degree === 0
-      ? null
-      : buildJianpuFrequency({
-        degree,
-        accidental,
-        octaveShift,
-        playback,
-      }),
-    mappedKey: accidental === 0 ? mapKey(`${octaveShift > 0 ? '+' : octaveShift < 0 ? '-' : ''}${degree}`) : null,
-  };
-}
-
-function parseJianpuChordToken(rawToken, playback) {
-  const normalized = String(rawToken ?? '').trim();
-  const match = /^\((?<content>[^)]+)\)(?<modifiers>[\/_.]*)$/u.exec(normalized);
-  if (!match) {
-    return null;
-  }
-
-  const content = match.groups?.content ?? '';
-  const modifiers = match.groups?.modifiers ?? '';
-  const pitchTokens = content
-    .match(/[#bn]?[+-]*[0-7]['',]*/gu)
-    ?? [];
-  const notes = pitchTokens
-    .map((token) => parseJianpuPitchToken(token, playback))
-    .filter((item) => item && !item.isRest);
-
-  if (!notes.length) {
-    return null;
-  }
-
-  return {
-    type: 'chord',
-    modifiers,
-    notes,
-  };
-}
-
 function tokenizeStructuredTextLine(lineText) {
   return String(lineText ?? '')
     .trim()
@@ -648,33 +579,6 @@ function createNormalizedNoteEvent({
     pitchClass: pitchClass ?? null,
     octave: toFiniteOrNull(octave),
   };
-}
-
-function splitBeatSegments(text) {
-  const beatSegments = [];
-  let currentSegment = '';
-
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-
-    if (char === '/') {
-      beatSegments.push(currentSegment);
-      currentSegment = '';
-      continue;
-    }
-
-    if (char === '\r' || char === '\n' || char === '|') {
-      continue;
-    }
-
-    currentSegment += char;
-  }
-
-  if (currentSegment.trim().length > 0) {
-    beatSegments.push(currentSegment);
-  }
-
-  return beatSegments;
 }
 
 function parseBeatItems(segment) {
@@ -1202,13 +1106,13 @@ export function parseScoreJson(scoreJson) {
 export function normalizeScoreSource(input, config = {}) {
   if (typeof input === 'string') {
     if (config.textNotation === 'keshifu') {
-      return parseKeshifuToCanonical(
-        input,
-        config.bpm ?? DEFAULT_SCORE_PARAMS.bpm,
-        config.globalKeyOffset ?? DEFAULT_SCORE_PARAMS.globalKeyOffset,
-        config.scaleMode ?? DEFAULT_SCORE_PARAMS.scaleMode,
-        PPQ,
-      );
+      return parseKeshifuToCanonical(input, {
+        defaultBPM: config.bpm ?? DEFAULT_SCORE_PARAMS.bpm,
+        globalKeyOffset: config.globalKeyOffset ?? DEFAULT_SCORE_PARAMS.globalKeyOffset,
+        scaleMode: config.scaleMode ?? DEFAULT_SCORE_PARAMS.scaleMode,
+        ppq: PPQ,
+        arpeggioAcceleration: config.arpeggioAcceleration ?? 0,
+      });
     }
 
     if (config.textNotation === 'jianpu') {
@@ -1224,13 +1128,13 @@ export function normalizeScoreSource(input, config = {}) {
     }
 
     if (looksLikeKeshifuText(input)) {
-      return parseKeshifuToCanonical(
-        input,
-        config.bpm ?? DEFAULT_SCORE_PARAMS.bpm,
-        config.globalKeyOffset ?? DEFAULT_SCORE_PARAMS.globalKeyOffset,
-        config.scaleMode ?? DEFAULT_SCORE_PARAMS.scaleMode,
-        PPQ,
-      );
+      return parseKeshifuToCanonical(input, {
+        defaultBPM: config.bpm ?? DEFAULT_SCORE_PARAMS.bpm,
+        globalKeyOffset: config.globalKeyOffset ?? DEFAULT_SCORE_PARAMS.globalKeyOffset,
+        scaleMode: config.scaleMode ?? DEFAULT_SCORE_PARAMS.scaleMode,
+        ppq: PPQ,
+        arpeggioAcceleration: config.arpeggioAcceleration ?? 0,
+      });
     }
 
     if (looksLikeJianpuText(input)) {
