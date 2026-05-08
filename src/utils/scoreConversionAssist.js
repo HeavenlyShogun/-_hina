@@ -1,3 +1,4 @@
+
 const NOTE_LAYOUT_GUIDE = [
   'Low:  z=C3 x=D3 c=E3 v=F3 b=G3 n=A3 m=B3',
   'Mid:  a=C4 s=D4 d=E4 f=F4 g=G4 h=A4 j=B4',
