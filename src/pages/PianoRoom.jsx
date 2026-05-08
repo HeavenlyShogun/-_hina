@@ -1,9 +1,7 @@
 import React, { memo } from 'react';
 import AppHeader from '../components/AppHeader';
-import ControlPanel from '../components/ControlPanel';
 import InstrumentSelector from '../components/InstrumentSelector';
 import PianoKeys from '../components/PianoKeys';
-import PerformanceWorkspace from '../components/PerformanceWorkspace';
 
 const PianoRoom = memo(({
   playHotkey,
@@ -39,12 +37,7 @@ const PianoRoom = memo(({
       onToggleSharp={onToggleSharp}
       progressBarRef={progressBarRef}
     />
-    <PerformanceWorkspace
-      score={score}
-      scoreTitle={scoreTitle}
-    />
     <InstrumentSelector />
-    <ControlPanel />
   </>
 ));
 
