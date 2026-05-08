@@ -653,15 +653,17 @@ export function parseNumberedMusicalNotation(text, config = {}) {
 
   trackMeasureBeats.forEach((measureBeats, trackId) => {
     const measureIndex = trackMeasureIndexes.get(trackId) ?? 1;
-    if (measureIndex <= 1 && Math.abs(measureBeats) <= MEASURE_BEAT_EPSILON) {
+    if (Math.abs(measureBeats) <= MEASURE_BEAT_EPSILON) {
       return;
     }
 
-    if (Math.abs(measureBeats) > MEASURE_BEAT_EPSILON) {
-      throw new Error(
-        `Invalid measure duration: track ${trackId}, measure ${measureIndex} is incomplete with ${measureBeats.toFixed(6)} beats; expected ${expectedMeasureBeats}.`,
-      );
+    if (Math.abs(measureBeats - expectedMeasureBeats) <= MEASURE_BEAT_EPSILON) {
+      return;
     }
+
+    throw new Error(
+      `Invalid measure duration: track ${trackId}, measure ${measureIndex} is incomplete with ${measureBeats.toFixed(6)} beats; expected ${expectedMeasureBeats}.`,
+    );
   });
 
   const contentEndTick = [...trackCursors.values()].reduce(
