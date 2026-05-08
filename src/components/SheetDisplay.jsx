@@ -97,6 +97,42 @@ function findActiveSegmentIndex(segments, currentTick) {
   return 0;
 }
 
+function buildCompactTokenLineGroups(tokenLines) {
+  if (!Array.isArray(tokenLines) || tokenLines.length === 0) {
+    return [];
+  }
+
+  return tokenLines.reduce((groups, line) => {
+    const previousGroup = groups[groups.length - 1];
+    if (previousGroup && previousGroup.trackId === line.trackId) {
+      previousGroup.lines.push(line);
+      previousGroup.endTick = Math.max(previousGroup.endTick, line.endTick);
+      return groups;
+    }
+
+    groups.push({
+      id: `${line.trackId}-${groups.length}`,
+      trackId: line.trackId,
+      startTick: line.startTick,
+      endTick: line.endTick,
+      lines: [line],
+    });
+    return groups;
+  }, []);
+}
+
+function shouldHidePreviewToken(token) {
+  if (!token) {
+    return true;
+  }
+
+  if (token.isBar) {
+    return true;
+  }
+
+  return token.isHold && /^-+$/u.test(String(token.displayText ?? token.text ?? '').trim());
+}
+
 const SheetDisplay = memo(({
   score,
   setScore,
@@ -242,6 +278,10 @@ const SheetDisplay = memo(({
   const activeTokenLineId = useMemo(
     () => findActiveTokenLine(normalizedScore?.structure?.tokenLines, activeTokenTick)?.id ?? null,
     [activeTokenTick, normalizedScore?.structure?.tokenLines],
+  );
+  const compactTokenLineGroups = useMemo(
+    () => buildCompactTokenLineGroups(normalizedScore?.structure?.tokenLines),
+    [normalizedScore?.structure?.tokenLines],
   );
 
   const syncPlayheadPosition = useCallback((nextTick) => {
@@ -604,26 +644,26 @@ const SheetDisplay = memo(({
           onClick={handlePreviewClick}
           className="max-h-[240px] overflow-y-auto rounded-[20px] border border-white/10 bg-black/25 p-3 custom-scrollbar"
         >
-          {Array.isArray(normalizedScore?.structure?.tokenLines) && normalizedScore.structure.tokenLines.length > 0 ? (
-            <div className="space-y-3">
-              {normalizedScore.structure.tokenLines.map((line) => {
-                const isLineActive = line.id === activeTokenLineId;
+          {compactTokenLineGroups.length > 0 ? (
+            <div className="space-y-4">
+              {compactTokenLineGroups.map((group) => {
+                const isGroupActive = group.lines.some((line) => line.id === activeTokenLineId);
 
                 return (
                   <div
-                    key={line.id}
+                    key={group.id}
                     className={`rounded-2xl border px-4 py-3 transition-colors ${
-                      isLineActive
+                      isGroupActive
                         ? 'border-amber-300/35 bg-amber-400/10'
                         : 'border-white/8 bg-black/30'
                     }`}
                   >
                     <div className="mb-2 flex items-center justify-between gap-3 text-[10px] uppercase tracking-[0.18em] text-white/35">
-                      <span>{line.trackId}</span>
-                      <span>{Math.round(line.startTick)}-{Math.round(line.endTick)} tick</span>
+                      <span>{group.trackId}</span>
+                      <span>{Math.round(group.startTick)}-{Math.round(group.endTick)} tick</span>
                     </div>
-                    <div className="flex flex-wrap gap-2 text-sm leading-relaxed text-emerald-100/80">
-                      {line.tokens.map((token) => {
+                    <div className="flex flex-wrap items-start gap-2 text-sm leading-relaxed text-emerald-100/80">
+                      {group.lines.flatMap((line) => line.tokens).filter((token) => !shouldHidePreviewToken(token)).map((token) => {
                         const isActive = activeTokenIds.has(token.id);
 
                         if (token.isBar) {

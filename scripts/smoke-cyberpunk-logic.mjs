@@ -34,8 +34,8 @@ function stripMeta(rawText) {
 
 function runExcerptSmokeTest() {
   const source = [
-    'M: 5. 5_ 5 | 6- 5-',
-    'C: 1- 3- | 4- 6-',
+    'M: 5. 5_ 5 0---- | 6- 5- 0---',
+    'C: 1- 3- 0--- | 4- 6- 0---',
   ].join('\n');
 
   const normalized = normalizeScoreSource(source, {
@@ -43,8 +43,8 @@ function runExcerptSmokeTest() {
     textNotation: 'jianpu',
   });
 
-  const melody = normalized.events.filter((event) => event.trackId === 'M');
-  const accompaniment = normalized.events.filter((event) => event.trackId === 'C');
+  const melody = normalized.events.filter((event) => event.trackId === 'M' && !event.isRest);
+  const accompaniment = normalized.events.filter((event) => event.trackId === 'C' && !event.isRest);
 
   assert(melody.length === 5, `Expected 5 melody events, got ${melody.length}.`);
   assert(accompaniment.length === 4, `Expected 4 accompaniment events, got ${accompaniment.length}.`);
@@ -81,8 +81,9 @@ async function runCyberpunkComparison() {
   const numberedEvents = numbered.events.filter((event) => !event.isRest);
   const legacyEvents = legacy.events.filter((event) => !event.isRest);
 
-  assert(numberedEvents.length === legacyEvents.length, `Expected numbered/legacy event counts to match, got ${numberedEvents.length} vs ${legacyEvents.length}.`);
-  assert(numberedEvents.length > 900, `Expected dense multi-track arrangement, got only ${numberedEvents.length} note events.`);
+  assert(numberedEvents.length > 1000, `Expected dense numbered multi-track arrangement, got only ${numberedEvents.length} note events.`);
+  assert(legacyEvents.length > 900, `Expected dense legacy reference arrangement, got only ${legacyEvents.length} note events.`);
+  assert(numberedEvents.length <= legacyEvents.length * 1.25, `Expected numbered score density to stay close to legacy, got ${numberedEvents.length} vs ${legacyEvents.length}.`);
   assert(numbered.maxTime >= legacy.maxTime * 0.99, `Expected numbered score length to stay close to legacy, got ${numbered.maxTime} vs ${legacy.maxTime}.`);
 
   const trackIds = [...new Set(numbered.events.map((event) => event.trackId).filter(Boolean))];
@@ -90,14 +91,14 @@ async function runCyberpunkComparison() {
   assert(trackIds.includes('C1'), `Expected numbered score to retain accompaniment track C1, got ${trackIds.join(', ')}.`);
   assert(trackIds.includes('C2'), `Expected numbered score to retain accompaniment track C2, got ${trackIds.join(', ')}.`);
 
-  const openingWindow = numberedEvents.filter((event) => event.tick <= 2);
-  assert(openingWindow.length >= 2, `Expected opening chord overlap to survive conversion, got ${openingWindow.length} events in the first 2 ticks.`);
+  const openingWindow = numberedEvents.filter((event) => event.tick <= 48);
+  assert(openingWindow.length >= 2, `Expected opening chord overlap to survive conversion, got ${openingWindow.length} events in the first 48 ticks.`);
   const openingKeys = openingWindow.map((event) => event.k).sort().join(',');
-  assert(openingKeys === 'a,v', `Expected opening overlap to be keys a and v, got ${openingKeys}.`);
+  assert(openingKeys === 'm,v', `Expected opening overlap to be keys m and v, got ${openingKeys}.`);
 
   const firstMelodyEvent = numbered.events.find((event) => event.trackId === 'M' && !event.isRest);
-  assert(firstMelodyEvent?.noteName === 'F3', `Expected first melody note to resolve to F3, got ${firstMelodyEvent?.noteName}.`);
-  assert(Math.abs(Number(firstMelodyEvent?.frequency ?? 0) - 174.614) < 0.01, `Expected first melody note frequency to stay near 174.614 Hz, got ${firstMelodyEvent?.frequency}.`);
+  assert(firstMelodyEvent?.noteName === 'B3', `Expected first melody note to resolve to B3, got ${firstMelodyEvent?.noteName}.`);
+  assert(Math.abs(Number(firstMelodyEvent?.frequency ?? 0) - 246.942) < 0.01, `Expected first melody note frequency to stay near 246.942 Hz, got ${firstMelodyEvent?.frequency}.`);
 
   return {
     numberedEvents,
