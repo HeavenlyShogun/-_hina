@@ -1,5 +1,5 @@
-import { DEFAULT_SCORE_PARAMS } from '../constants/music';
-import { SCORE_SOURCE_TYPES } from '../utils/scoreDocument';
+import { DEFAULT_SCORE_PARAMS } from '../constants/music.js';
+import { SCORE_SOURCE_TYPES } from '../utils/scoreDocument.js';
 
 const META_PREFIX = '// [META] ';
 

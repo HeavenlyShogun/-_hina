@@ -1,5 +1,5 @@
-import { DEFAULT_SCORE_PARAMS } from '../constants/music';
-import { normalizeScoreSource } from './score';
+import { DEFAULT_SCORE_PARAMS } from '../constants/music.js';
+import { normalizeScoreSource } from './score.js';
 
 export const SCORE_SOURCE_TYPES = {
   TEXT: 'text',

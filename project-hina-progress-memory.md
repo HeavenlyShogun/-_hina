@@ -1,5 +1,11 @@
 # Project Hina Progress Memory
 
+## 2026-05-08
+
+- 新增 `專案記憶/` 作為集中記憶資料夾。
+- 新增 `專案記憶/鋼琴彈奏邏輯版本記憶.md`：把舊版鍵位譜 slash cell 邏輯定義為 1 版，把新版 canonical event / 簡譜時值邏輯定義為 2 版，3 版先保留為未來版本座標。
+- 新增 `專案記憶/檔案專案執行記憶模式.md`：集中保存檔案處理、專案執行、驗證與後續記憶追加規則。
+
 ## 2026-05-07
 
 - 修正 `jianpu` 播放調性鏈路：`useScorePlayback.js` 現在在 `loadCurrentScore` / `loadProvidedScore` 解析譜面時，會把 `globalKeyOffset` 與 `scaleMode` 一併傳入 `normalizeScoreSource(...)`。

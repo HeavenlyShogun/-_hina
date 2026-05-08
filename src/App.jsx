@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle } from 'lucide-react';
-import ControlPanel from './components/ControlPanel';
 import ScoreConverter from './components/ScoreConverter';
 import ScoreEditor from './components/ScoreEditor';
 import ScoreLibrary from './components/ScoreLibrary';
@@ -583,7 +582,6 @@ function AppContent({
                 showGuidePanel={false}
                 showReferencePanel={false}
               />
-              <ControlPanel embedded />
               <PerformanceWorkspace
                 embedded
                 score={editorScore}

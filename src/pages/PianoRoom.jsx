@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
 import AppHeader from '../components/AppHeader';
+import ControlPanel from '../components/ControlPanel';
 import InstrumentSelector from '../components/InstrumentSelector';
 import PianoKeys from '../components/PianoKeys';
 
@@ -38,6 +39,9 @@ const PianoRoom = memo(({
       progressBarRef={progressBarRef}
     />
     <InstrumentSelector />
+    <div className="relative z-20 mt-4 w-full max-w-6xl px-4 sm:mt-5">
+      <ControlPanel embedded compact />
+    </div>
   </>
 ));
 

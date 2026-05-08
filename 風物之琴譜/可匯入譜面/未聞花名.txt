@@ -1,4 +1,4 @@
-// [META] {"title":"?芾??勗?","bpm":90,"timeSigNum":4,"timeSigDen":4,"charResolution":8,"globalKeyOffset":0,"accidentals":{},"scaleMode":"major","tone":"piano","reverb":true,"storageFormat":"numbered-text@1","textNotation":"jianpu","ppq":96}
+// [META] {"title":"未聞花名","bpm":90,"timeSigNum":4,"timeSigDen":4,"charResolution":8,"globalKeyOffset":0,"accidentals":{},"scaleMode":"major","tone":"piano","reverb":true,"storageFormat":"numbered-text@1","textNotation":"jianpu","ppq":96}
 M: -7--- +1--- |
 M: +1--- +1--- |
 M: +1--- 5--- |
