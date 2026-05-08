@@ -17,10 +17,12 @@ import { useScorePlayback } from './hooks/useScorePlayback';
 import { useScoreState } from './hooks/useScoreState';
 import {
   createScoreDocument,
+  createScoreTextMeta,
   parseScoreContent,
   SCORE_SOURCE_TYPES,
 } from './utils/scoreDocument';
 import { applyScoreRecommendation } from './utils/scoreRecommendations';
+import { buildScoreTextWithMeta } from './utils/scoreTextMeta';
 
 function getFileTitle(filename) {
   return filename.replace(/\.[^/.]+$/, '');
@@ -42,20 +44,6 @@ async function readImportedScore(file) {
     title: getFileTitle(file.name),
     rawText: raw,
     sourceType: SCORE_SOURCE_TYPES.TEXT,
-  };
-}
-
-function createImportDefaults(scoreDocument, audioConfig) {
-  return {
-    bpm: scoreDocument?.bpm,
-    timeSigNum: scoreDocument?.timeSigNum,
-    timeSigDen: scoreDocument?.timeSigDen,
-    charResolution: scoreDocument?.charResolution,
-    globalKeyOffset: audioConfig?.globalKeyOffset ?? scoreDocument?.globalKeyOffset,
-    scaleMode: audioConfig?.scaleMode ?? scoreDocument?.scaleMode,
-    reverb: audioConfig?.reverb ?? scoreDocument?.reverb,
-    tone: audioConfig?.tone ?? scoreDocument?.tone,
-    accidentals: scoreDocument?.accidentals,
   };
 }
 
@@ -157,10 +145,6 @@ function AppContent({
     page.style.setProperty('--cursor-y', `${event.clientY}px`);
   }, []);
 
-  const importDefaults = useMemo(
-    () => createImportDefaults(scoreDocument, audioConfig),
-    [audioConfig, scoreDocument],
-  );
   const selectableScores = useMemo(
     () => [...FEATURED_SCORES, ...IMPORTABLE_SCORE_FILES],
     [],
@@ -292,10 +276,11 @@ function AppContent({
     try {
       if (files.length === 1) {
         const source = await readImportedScore(files[0]);
-        loadScoreSource(applyScoreRecommendation({
-          ...importDefaults,
-          ...source,
-        }, { force: true }));
+        loadScoreSource(
+          source.sourceType === SCORE_SOURCE_TYPES.JSON
+            ? applyScoreRecommendation(source)
+            : source,
+        );
         stopAll();
         showToast(`已載入 ${source.title}`, 'success');
       } else {
@@ -304,10 +289,11 @@ function AppContent({
             const source = await readImportedScore(file);
             return {
               title: source.title,
-              payload: createScoreDocument(applyScoreRecommendation({
-                ...importDefaults,
-                ...source,
-              }, { force: true })),
+              payload: createScoreDocument(
+                source.sourceType === SCORE_SOURCE_TYPES.JSON
+                  ? applyScoreRecommendation(source)
+                  : source,
+              ),
             };
           }),
         );
@@ -324,12 +310,21 @@ function AppContent({
     } finally {
       event.target.value = '';
     }
-  }, [importDefaults, loadScoreSource, showToast, stopAll, uploadCloudScores]);
+  }, [loadScoreSource, showToast, stopAll, uploadCloudScores]);
 
   const handleExportLocal = useCallback(() => {
     const extension = scoreDocument.sourceType === SCORE_SOURCE_TYPES.JSON ? 'json' : 'txt';
     const filename = `${scoreTitle.trim() || 'score'}.${extension}`;
-    const blob = new Blob([scoreDocument.rawText], { type: 'text/plain;charset=utf-8' });
+    const payload = scoreDocument.sourceType === SCORE_SOURCE_TYPES.JSON
+      ? scoreDocument.rawText
+      : buildScoreTextWithMeta(
+        scoreDocument.rawText,
+        createScoreTextMeta({
+          ...scoreDocument,
+          title: scoreTitle.trim() || scoreDocument.title,
+        }),
+      );
+    const blob = new Blob([payload], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -339,7 +334,7 @@ function AppContent({
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
     showToast(`已匯出 ${filename}`, 'success');
-  }, [scoreDocument.rawText, scoreDocument.sourceType, scoreTitle, showToast]);
+  }, [scoreDocument, scoreTitle, showToast]);
 
   const handleResetScore = useCallback(() => {
     resetScoreState();

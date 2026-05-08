@@ -10,6 +10,7 @@ function createDefaultState() {
     title: DEFAULT_SCORE_TITLE,
     rawText: DEFAULT_SCORE,
     sourceType: SCORE_SOURCE_TYPES.TEXT,
+    textNotation: 'legacy',
     ...DEFAULT_SCORE_PARAMS,
   }, { force: true }));
 }
