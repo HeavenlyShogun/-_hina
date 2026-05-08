@@ -1,5 +1,6 @@
 import { DEFAULT_SCORE_PARAMS } from '../constants/music.js';
 import { normalizeScoreSource } from './score.js';
+import { buildScoreMetaPayload, parseScoreMetaHeader } from './scoreTextMeta.js';
 
 export const SCORE_SOURCE_TYPES = {
   TEXT: 'text',
@@ -155,21 +156,38 @@ export function createScoreDocument(source = {}) {
   const rawText = typeof source.rawText === 'string'
     ? source.rawText
     : serializeScoreContent(source.content, sourceType);
-  const playback = createScorePlaybackConfig(source);
+  const textMeta = sourceType === SCORE_SOURCE_TYPES.TEXT ? parseScoreMetaHeader(rawText) : null;
+  const mergedSource = textMeta?.hasMeta && !textMeta?.error
+    ? { ...source, ...textMeta.meta }
+    : source;
+  const playback = createScorePlaybackConfig(mergedSource);
   const referenceFields = resolveReferenceFields(source, sourceType);
   const compiledEvents = Array.isArray(source.compiledEvents)
     && source.compiledEvents.every(isCanonicalCompiledEvent)
     ? source.compiledEvents
     : compileScoreEvents(rawText, { ...playback, sourceType });
+  const resolvedTitle = String(mergedSource.title ?? source.title ?? 'Untitled Score').trim() || 'Untitled Score';
 
   return {
-    id: source.id ?? source.title ?? '',
+    id: mergedSource.id ?? mergedSource.title ?? source.id ?? source.title ?? '',
     title: String(source.title ?? '未命名琴譜').trim() || '未命名琴譜',
     rawText,
     compiledEvents,
     sourceType,
     references: referenceFields.references,
     referenceNotes: referenceFields.referenceNotes,
+    title: resolvedTitle,
     ...playback,
   };
+}
+
+export function createScoreTextMeta(source = {}) {
+  return buildScoreMetaPayload({
+    ...source,
+    storageFormat:
+      source.storageFormat
+      ?? (source.textNotation === 'legacy' ? 'legacy-text@1' : source.textNotation === 'legacy-beat' ? 'legacy-beat@1' : 'numbered-text@1'),
+    textNotation: source.textNotation ?? 'jianpu',
+    ppq: source.ppq ?? 96,
+  });
 }

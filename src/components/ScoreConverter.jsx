@@ -211,6 +211,8 @@ const ScoreConverter = memo(({
     timeSigNum,
     timeSigDen,
     charResolution,
+    textNotation: scoreDocument.textNotation,
+    legacyTimingMode: scoreDocument.legacyTimingMode,
     tone: audioConfig?.tone,
     globalKeyOffset: audioConfig?.globalKeyOffset,
     reverb: audioConfig?.reverb,
@@ -224,6 +226,8 @@ const ScoreConverter = memo(({
     audioConfig?.tone,
     bpm,
     charResolution,
+    scoreDocument.legacyTimingMode,
+    scoreDocument.textNotation,
     timeSigDen,
     timeSigNum,
   ]);

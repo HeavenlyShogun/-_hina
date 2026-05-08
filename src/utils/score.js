@@ -1,5 +1,6 @@
 import { ALL_KEYS_FLAT, DEFAULT_SCORE_PARAMS, mapKey } from '../constants/music.js';
-import { looksLikeKeshifuText, parseKeshifuToCanonical } from './keshifuScoreParser.js';
+import { parseKeshifuToCanonical } from './keshifuScoreParser.js';
+import { parseScoreMetaHeader } from './scoreTextMeta.js';
 
 const OCTAVE_PREFIXES = new Set(['+', '-', '??', '??']);
 const DEFAULT_TRACK_ID = 'main';
@@ -1754,63 +1755,59 @@ export function parseScoreJson(scoreJson) {
 
 export function normalizeScoreSource(input, config = {}) {
   if (typeof input === 'string') {
-    if (config.textNotation === 'keshifu') {
+    const explicitNotation = config.textNotation;
+    const routeConfig = { ...config };
+
+    if (!explicitNotation) {
+      const metaHeader = parseScoreMetaHeader(input);
+
+      if (metaHeader.error) {
+        throw new Error('譜面首行 [META] JSON 格式解析失敗，請檢查語法。');
+      }
+
+      if (!metaHeader.hasMeta) {
+        throw new Error('缺少強制格式宣告！請在首行加入 // [META] {"textNotation":"jianpu"} 或 {"textNotation":"legacy"}。');
+      }
+
+      if (!metaHeader.meta?.textNotation) {
+        throw new Error("META 中缺少 'textNotation' 屬性，無法判別譜面格式。");
+      }
+
+      Object.assign(routeConfig, metaHeader.meta);
+    }
+
+    if (routeConfig.textNotation === 'keshifu') {
       return parseKeshifuToCanonical(input, {
-        defaultBPM: config.bpm ?? DEFAULT_SCORE_PARAMS.bpm,
-        globalKeyOffset: config.globalKeyOffset ?? DEFAULT_SCORE_PARAMS.globalKeyOffset,
-        scaleMode: config.scaleMode ?? DEFAULT_SCORE_PARAMS.scaleMode,
+        defaultBPM: routeConfig.bpm ?? DEFAULT_SCORE_PARAMS.bpm,
+        globalKeyOffset: routeConfig.globalKeyOffset ?? DEFAULT_SCORE_PARAMS.globalKeyOffset,
+        scaleMode: routeConfig.scaleMode ?? DEFAULT_SCORE_PARAMS.scaleMode,
         ppq: PPQ,
-        arpeggioAcceleration: config.arpeggioAcceleration ?? 0,
+        arpeggioAcceleration: routeConfig.arpeggioAcceleration ?? 0,
       });
     }
 
-    if (config.textNotation === 'jianpu') {
-      return parseJianpuScoreText(input, config);
+    if (routeConfig.textNotation === 'jianpu') {
+      return parseJianpuScoreText(input, routeConfig);
     }
 
-    if (config.textNotation === 'timed-token') {
-      return parseTimedTokenNotation(input, config);
+    if (routeConfig.textNotation === 'timed-token') {
+      return parseTimedTokenNotation(input, routeConfig);
     }
 
-    if (config.textNotation === 'numbered-grid') {
-      return parseNumberedGridNotation(input, config);
+    if (routeConfig.textNotation === 'numbered-grid') {
+      return parseNumberedGridNotation(input, routeConfig);
     }
 
-    if (config.textNotation === 'legacy-beat' || config.legacyTimingMode === 'beat') {
-      return parseBeatLegacyScoreText(input, config);
+    if (routeConfig.textNotation === 'legacy-beat' || routeConfig.legacyTimingMode === 'beat') {
+      console.warn('Deprecated score format: legacy-beat. Migrate this score to jianpu when possible.');
+      return parseBeatLegacyScoreText(input, routeConfig);
     }
 
-    if (config.textNotation === 'legacy') {
-      return parseLegacyScoreText(input, config);
+    if (routeConfig.textNotation === 'legacy') {
+      return parseLegacyScoreText(input, routeConfig);
     }
 
-    if (looksLikeKeshifuText(input)) {
-      return parseKeshifuToCanonical(input, {
-        defaultBPM: config.bpm ?? DEFAULT_SCORE_PARAMS.bpm,
-        globalKeyOffset: config.globalKeyOffset ?? DEFAULT_SCORE_PARAMS.globalKeyOffset,
-        scaleMode: config.scaleMode ?? DEFAULT_SCORE_PARAMS.scaleMode,
-        ppq: PPQ,
-        arpeggioAcceleration: config.arpeggioAcceleration ?? 0,
-      });
-    }
-
-    if (looksLikeTimedTokenText(input)) {
-      return parseTimedTokenNotation(input, config);
-    }
-
-    if (looksLikeNumberedGridText(input)) {
-      return parseNumberedGridNotation(input, config);
-    }
-
-    if (looksLikeJianpuText(input)) {
-      return parseJianpuScoreText(input, config);
-    }
-
-    if (config.legacyTimingMode === 'beat') {
-      return parseBeatLegacyScoreText(input, config);
-    }
-
-    return parseLegacyScoreText(input, config);
+    throw new Error(`不支援的譜面格式宣告：${routeConfig.textNotation}`);
   }
 
   if (input && typeof input === 'object') {

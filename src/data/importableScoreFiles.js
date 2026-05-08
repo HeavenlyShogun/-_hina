@@ -1,7 +1,6 @@
 import { DEFAULT_SCORE_PARAMS } from '../constants/music.js';
 import { SCORE_SOURCE_TYPES } from '../utils/scoreDocument.js';
-
-const META_PREFIX = '// [META] ';
+import { getNotationDisplayName, parseScoreMetaHeader } from '../utils/scoreTextMeta.js';
 
 const scoreModules = import.meta.glob('../../風物之琴譜/可匯入譜面/*.txt', {
   eager: true,
@@ -29,38 +28,29 @@ function idFromFilename(filename) {
 function getImportableFormat(filename, meta = {}) {
   const storageFormat = String(meta.storageFormat ?? '').toLowerCase();
   const isLegacy = /\.legacy\.bak\.txt$/iu.test(filename) || storageFormat.startsWith('legacy');
+  const notationLabel = getNotationDisplayName(meta.textNotation ?? (isLegacy ? 'legacy' : 'jianpu'));
 
   return isLegacy
     ? {
       version: 'legacy',
-      versionLabel: '舊版',
-      groupLabel: '舊版可匯入譜面',
+      versionLabel: notationLabel,
+      groupLabel: 'Legacy 匯入譜面',
       storageFormat: meta.storageFormat ?? 'legacy-text@1',
       legacyTimingMode: meta.legacyTimingMode ?? 'beat',
       textNotation: meta.textNotation ?? 'legacy-beat',
     }
     : {
       version: 'modern',
-      versionLabel: '新版',
-      groupLabel: '新版可匯入譜面',
+      versionLabel: notationLabel,
+      groupLabel: 'Modern 匯入譜面',
       storageFormat: meta.storageFormat ?? 'numbered-text@1',
       textNotation: meta.textNotation ?? 'jianpu',
     };
 }
 
 function parseMeta(rawText) {
-  const [firstLine] = String(rawText ?? '').replace(/^\uFEFF/u, '').split(/\r?\n/u);
-
-  if (!firstLine.startsWith(META_PREFIX)) {
-    return {};
-  }
-
-  try {
-    const parsed = JSON.parse(firstLine.slice(META_PREFIX.length));
-    return parsed && typeof parsed === 'object' ? parsed : {};
-  } catch {
-    return {};
-  }
+  const header = parseScoreMetaHeader(rawText);
+  return header.hasMeta && !header.error ? header.meta : {};
 }
 
 export const IMPORTABLE_SCORE_FILES = Object.entries(scoreModules)
@@ -74,7 +64,7 @@ export const IMPORTABLE_SCORE_FILES = Object.entries(scoreModules)
       id: idFromFilename(filename),
       filename,
       fileContent: rawText,
-      subtitle: `${format.versionLabel}資料夾譜面`,
+      subtitle: `${format.versionLabel} import`,
       rawText,
       sourceType: SCORE_SOURCE_TYPES.TEXT,
       ...DEFAULT_SCORE_PARAMS,
@@ -96,12 +86,12 @@ export const IMPORTABLE_SCORE_FILES = Object.entries(scoreModules)
 export const IMPORTABLE_SCORE_GROUPS = [
   {
     id: 'modern',
-    label: '新版可匯入譜面',
+    label: 'Modern 匯入譜面',
     files: IMPORTABLE_SCORE_FILES.filter((score) => score.version === 'modern'),
   },
   {
     id: 'legacy',
-    label: '舊版可匯入譜面',
+    label: 'Legacy 匯入譜面',
     files: IMPORTABLE_SCORE_FILES.filter((score) => score.version === 'legacy'),
   },
 ];

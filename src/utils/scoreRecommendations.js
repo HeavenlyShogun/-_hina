@@ -1,6 +1,10 @@
 const RECOMMENDED_SCORES = [
   {
-    matchers: ['i really want to stay at your house', '我永遠想待在你的房子裡'],
+    matchers: [
+      'i really want to stay at your house',
+      '我永遠想待在你的房子裡',
+      '我永遠想待在你房子裡',
+    ],
     bpm: 125,
     globalKeyOffset: 6,
     scaleMode: 'major',
@@ -11,7 +15,7 @@ const RECOMMENDED_SCORES = [
     reverb: true,
   },
   {
-    matchers: ['打上花火'],
+    matchers: ['打上花火', 'uchiage hanabi'],
     bpm: 96,
     globalKeyOffset: 5,
     scaleMode: 'major',
@@ -75,7 +79,7 @@ const RECOMMENDED_SCORES = [
     reverb: true,
   },
   {
-    matchers: ['千本櫻'],
+    matchers: ['千本櫻', 'senbonzakura'],
     bpm: 154,
     globalKeyOffset: 2,
     scaleMode: 'minor',
@@ -87,9 +91,10 @@ const RECOMMENDED_SCORES = [
 
 function normalizeText(value) {
   return String(value ?? '')
+    .normalize('NFKC')
     .trim()
     .toLowerCase()
-    .replace(/[~〜～]/g, ' ')
+    .replace(/[~、,，/]/g, ' ')
     .replace(/\s+/g, ' ');
 }
 
