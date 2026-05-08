@@ -8,6 +8,7 @@ import PianoRoom from './pages/PianoRoom';
 import { AudioConfigProvider, useAudioConfig } from './contexts/AudioConfigContext';
 import { PlaybackProvider } from './contexts/PlaybackContext';
 import { FEATURED_SCORES } from './data/featuredScores';
+import { IMPORTABLE_SCORE_FILES } from './data/importableScoreFiles';
 import demoScore from './data/scores/demo.json';
 import { useCloudScores } from './hooks/useCloudScores';
 import useKeyboardMatcher from './hooks/useKeyboardMatcher';
@@ -158,6 +159,10 @@ function AppContent({
   const importDefaults = useMemo(
     () => createImportDefaults(scoreDocument, audioConfig),
     [audioConfig, scoreDocument],
+  );
+  const selectableScores = useMemo(
+    () => [...FEATURED_SCORES, ...IMPORTABLE_SCORE_FILES],
+    [],
   );
 
   const playbackScore = useMemo(() => {
@@ -455,7 +460,7 @@ function AppContent({
         <PianoRoom
           playHotkey={playHotkey}
           setPlayHotkey={setPlayHotkey}
-          featuredScores={FEATURED_SCORES}
+          featuredScores={selectableScores}
           onPlayFeaturedScore={handlePlayFeaturedScore}
           activeKeys={activeKeys}
           accidentals={accidentals}

@@ -5,12 +5,25 @@ const DEFAULT_VELOCITY = 0.85;
 const DEFAULT_TIME_SIG_NUM = 4;
 const DEFAULT_TIME_SIG_DEN = 4;
 const TRACK_PREFIX = /^([A-Za-z][\w-]*)\s*:\s*(.*)$/u;
-const FLOAT_TOKEN_PATTERN = /^\d+\.\d+$/u;
-const KESHIFU_KEY_PATTERN = /[QWERTYUIASDFGHJKLZXCVBNM1234567]/iu;
+const FLOAT_TOKEN_PATTERN = /^\d+(?:\.\d+)?$/u;
+const KESHIFU_KEY_PATTERN = /(?:[+-]?[1-7]|[QWERTYUIASDFGHJKLZXCVBNM])/iu;
 const REST_TOKENS = new Set(['L', 'l', '0']);
 
 function stripScoreComments(text) {
   return String(text ?? '').replace(/\/\/.*$/gm, '');
+}
+
+function preprocessKeshifuText(rawText) {
+  return String(rawText ?? '')
+    .replace(/^\uFEFF/u, '')
+    .replace(/\\+/gu, '')
+    .replace(/<\/?(?:br|div|p|span)[^>]*>/giu, '\n')
+    .replace(/<[^>]+>/gu, ' ')
+    .replace(/\r\n?/gu, '\n')
+    .replace(/\u00A0/gu, ' ')
+    .replace(/\u3000/gu, ' ')
+    .replace(/[ \t]+\n/gu, '\n')
+    .replace(/\n{3,}/gu, '\n\n');
 }
 
 function clampVelocity(value, fallback = DEFAULT_VELOCITY) {
@@ -285,6 +298,12 @@ function tokenizeBeatUnits(segmentText) {
       continue;
     }
 
+    if ((char === '+' || char === '-') && /[1-7]/u.test(segmentText[index + 1] ?? '')) {
+      tokens.push({ type: 'note', raw: `${char}${segmentText[index + 1]}` });
+      index += 2;
+      continue;
+    }
+
     if (/[A-Za-z0-9]/u.test(char)) {
       tokens.push({ type: 'note', raw: char });
       index += 1;
@@ -298,9 +317,10 @@ function tokenizeBeatUnits(segmentText) {
 }
 
 function tokenizeGroupNotes(groupBody) {
-  return Array.from(String(groupBody ?? ''))
-    .filter((char) => /[A-Za-z0-9]/u.test(char))
-    .filter((char) => !REST_TOKENS.has(char));
+  return String(groupBody ?? '')
+    .match(/[+-]?[1-7]|[A-Za-z0-9]/gu)
+    ?.filter((token) => !REST_TOKENS.has(token))
+    ?? [];
 }
 
 function resolvePitchToken(rawToken, globalKeyOffset, scaleMode) {
@@ -374,7 +394,7 @@ function createTokenPreview(token, startTick, endTick, trackId, beatIndex) {
 }
 
 export function looksLikeKeshifuText(rawText) {
-  const cleaned = stripScoreComments(rawText);
+  const cleaned = stripScoreComments(preprocessKeshifuText(rawText));
   const slashCount = (cleaned.match(/\//gu) ?? []).length;
   if (slashCount < 2) {
     return false;
@@ -399,9 +419,22 @@ export function parseKeshifuToCanonical(
   globalKeyOffset = 0,
   scaleMode = 'major',
   ppq = 96,
+  arpeggioAcceleration = 0,
 ) {
-  const safePpq = Math.max(1, Math.round(Number(ppq) || 96));
-  const { beatSeconds: initialBeatSeconds, bodyText } = parseInitialBeatSeconds(rawText, defaultBPM);
+  let options = null;
+  if (defaultBPM && typeof defaultBPM === 'object' && !Array.isArray(defaultBPM)) {
+    options = defaultBPM;
+  }
+
+  const resolvedDefaultBPM = options?.defaultBPM ?? options?.bpm ?? defaultBPM;
+  const resolvedGlobalKeyOffset = options?.globalKeyOffset ?? globalKeyOffset;
+  const resolvedScaleMode = options?.scaleMode ?? scaleMode;
+  const resolvedPpq = options?.ppq ?? options?.resolution ?? ppq;
+  const resolvedArpeggioAcceleration = options?.arpeggioAcceleration ?? arpeggioAcceleration;
+  const safePpq = Math.max(1, Math.round(Number(resolvedPpq) || 96));
+  const safeArpeggioAcceleration = Math.min(1, Math.max(0, Number(resolvedArpeggioAcceleration) || 0));
+  const cleanText = preprocessKeshifuText(rawText);
+  const { beatSeconds: initialBeatSeconds, bodyText } = parseInitialBeatSeconds(cleanText, resolvedDefaultBPM);
   const initialBpm = 60 / initialBeatSeconds;
   const tempoMap = [buildTempoEntry(0, initialBeatSeconds, safePpq)];
   const trackCursors = new Map();
@@ -461,7 +494,7 @@ export function parseKeshifuToCanonical(
           }
 
           if (unit.type === 'note') {
-            const pitch = resolvePitchToken(unit.raw, globalKeyOffset, scaleMode);
+            const pitch = resolvePitchToken(unit.raw, resolvedGlobalKeyOffset, resolvedScaleMode);
             if (!pitch) {
               lineTokens.push(createTokenPreview(unit.raw, unitStartTick, unitEndTick, trackId, beatIndex));
               return;
@@ -485,7 +518,7 @@ export function parseKeshifuToCanonical(
 
           if (unit.type === 'chord') {
             const chordNotes = tokenizeGroupNotes(unit.raw)
-              .map((token) => resolvePitchToken(token, globalKeyOffset, scaleMode))
+              .map((token) => resolvePitchToken(token, resolvedGlobalKeyOffset, resolvedScaleMode))
               .filter(Boolean);
 
             chordNotes.forEach((pitch) => {
@@ -508,11 +541,19 @@ export function parseKeshifuToCanonical(
 
           if (unit.type === 'arpeggio') {
             const arpeggioNotes = tokenizeGroupNotes(unit.raw)
-              .map((token) => resolvePitchToken(token, globalKeyOffset, scaleMode))
+              .map((token) => resolvePitchToken(token, resolvedGlobalKeyOffset, resolvedScaleMode))
               .filter(Boolean);
 
+            const maxSpreadTicks = Math.max(0, Math.min(
+              durationTicks - 1,
+              Math.round(durationTicks * 0.5 * safeArpeggioAcceleration),
+            ));
+            const perNoteOffset = arpeggioNotes.length > 1
+              ? maxSpreadTicks / (arpeggioNotes.length - 1)
+              : 0;
+
             arpeggioNotes.forEach((pitch, noteIndex) => {
-              const noteStartTick = unitStartTick + Math.round((noteIndex * durationTicks) / arpeggioNotes.length);
+              const noteStartTick = unitStartTick + Math.round(noteIndex * perNoteOffset);
               const noteDurationTicks = Math.max(1, unitEndTick - noteStartTick);
 
               events.push({
@@ -589,8 +630,8 @@ export function parseKeshifuToCanonical(
       timeSigNum: DEFAULT_TIME_SIG_NUM,
       timeSigDen: DEFAULT_TIME_SIG_DEN,
       resolution: safePpq,
-      globalKeyOffset: Number(globalKeyOffset) || 0,
-      scaleMode: scaleMode ?? 'major',
+      globalKeyOffset: Number(resolvedGlobalKeyOffset) || 0,
+      scaleMode: resolvedScaleMode ?? 'major',
       textNotation: 'keshifu',
       tempoMap: normalizedTempoMap,
     },
