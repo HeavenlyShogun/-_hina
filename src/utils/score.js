@@ -1413,6 +1413,8 @@ function parseLegacyLine(lineText, parserState) {
   while (index < cleanLine.length) {
     const char = cleanLine[index];
 
+    // True legacy timing is absolute-step based: spaces and notes each advance one unit,
+    // while "/" only snaps the cursor forward to the next beat boundary.
     if (char === ' ' || char === '\t' || char === '\u3000') {
       parserState.currentTick += parserState.unitTicks;
       index += 1;
