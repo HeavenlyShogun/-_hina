@@ -9,6 +9,7 @@ const PianoRoom = memo(({
   playHotkey,
   setPlayHotkey,
   featuredScores,
+  scoreGroups,
   onPlayFeaturedScore,
   activeKeys,
   accidentals,
@@ -25,6 +26,7 @@ const PianoRoom = memo(({
       playHotkey={playHotkey}
       setPlayHotkey={setPlayHotkey}
       featuredScores={featuredScores}
+      scoreGroups={scoreGroups}
       onPlayFeaturedScore={onPlayFeaturedScore}
       scoreTitle={scoreTitle}
     />

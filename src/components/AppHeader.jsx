@@ -9,10 +9,14 @@ const AppHeader = memo(({
   playHotkey,
   setPlayHotkey,
   featuredScores = [],
+  scoreGroups = [],
   onPlayFeaturedScore,
   scoreTitle,
 }) => {
   const { isPlaying, onTogglePlay } = usePlayback();
+  const groupedScores = scoreGroups.length > 0
+    ? scoreGroups
+    : [{ id: 'scores', label: '琴譜', files: featuredScores }];
   const selectedFeaturedId = featuredScores.find((score) => (
     score.title === scoreTitle || score.displayTitle === scoreTitle
   ))?.id ?? '';
@@ -51,10 +55,16 @@ const AppHeader = memo(({
               title="選擇歌曲"
             >
               <option value="" className="bg-white text-slate-900">選擇歌曲</option>
-              {featuredScores.map((score) => (
-                <option key={score.id} value={score.id} className="bg-white text-slate-900">
-                  {score.displayTitle ?? score.title}
-                </option>
+              {groupedScores.map((group) => (
+                group.files?.length > 0 ? (
+                  <optgroup key={group.id} label={group.label} className="bg-white text-slate-900">
+                    {group.files.map((score) => (
+                      <option key={score.id} value={score.id} className="bg-white text-slate-900">
+                        {score.displayTitle ?? score.title}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null
               ))}
             </select>
           </div>

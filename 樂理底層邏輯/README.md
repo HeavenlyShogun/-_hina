@@ -53,6 +53,18 @@ midi = baseOctaveMidi + globalKeyOffset + scaleInterval[degree - 1] + accidental
 frequency = 440 * 2 ** ((midi - 69) / 12)
 ```
 
+## 舊版鍵位譜語法
+
+舊版鍵位譜以鍵盤字母直接表示音高，主要給 `textNotation: "legacy-beat"` 或 `legacyTimingMode: "beat"` 使用。parser 會先切出 `/` 之間的拍段，再把拍段內的音符、和弦與休止符平均分配在該拍內。
+
+| 語法標記 | 對應音樂概念 | 實際操作邏輯 |
+|---|---|---|
+| `/` | 拍點線 | 每遇到一個斜線，就代表進入下一個拍點。空拍段也會推進一拍。 |
+| `(ABC)` | 和弦 / 同步 | `A`、`B`、`C` 三個鍵在同一個 tick 一起按下。括號內空白只當排版，不產生休止符。 |
+| 空格 | 休止符 | 拍段內空格保持沉默、不按鍵，用來對齊節奏。拍段開頭與結尾空白只當排版。 |
+| `AB` | 快速連彈 | `A` 彈完立刻彈 `B`，兩個音平均分配在同一拍內，對應簡譜下劃線的快速音。 |
+| `A-M`, `Q-U`, `Z-M` | 音高 | `A-J` 是中音排，`Q-U` 是高音排，`Z-M` 是低音排；大小寫都會正規化成同一鍵位。 |
+
 ## Canonical Event Contract
 
 播放器只應依賴 canonical event。舊欄位如 `startTick`、`key`、`velocity`、`duration` 可以在 parser 內相容，但輸出到播放層前必須正規化。
