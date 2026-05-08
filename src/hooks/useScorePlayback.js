@@ -7,6 +7,19 @@ import { normalizeScoreSource } from '../utils/score';
 const LIVE_NOTE_MIN_HOLD_SEC = 0.22;
 const LIVE_NOTE_RELEASE_SEC = 0.16;
 
+function resolveCharResolution(source = {}) {
+  const explicitCharResolution = Number(source?.charResolution);
+  if (Number.isFinite(explicitCharResolution) && explicitCharResolution > 0) {
+    return explicitCharResolution;
+  }
+
+  if (source?.textNotation === 'legacy' || source?.legacyTimingMode === 'absolute') {
+    return 8;
+  }
+
+  return DEFAULT_SCORE_PARAMS.charResolution;
+}
+
 function transposeFrequency(baseFrequency, semitoneOffset) {
   return baseFrequency * 2 ** (semitoneOffset / 12);
 }
@@ -178,7 +191,7 @@ export function useScorePlayback({
       bpm: normalizedBpm,
       timeSigNum: source?.timeSigNum ?? DEFAULT_SCORE_PARAMS.timeSigNum,
       timeSigDen: source?.timeSigDen ?? DEFAULT_SCORE_PARAMS.timeSigDen,
-      charResolution: source?.charResolution ?? DEFAULT_SCORE_PARAMS.charResolution,
+      charResolution: resolveCharResolution(source),
       globalKeyOffset:
         source?.audioConfig?.globalKeyOffset
         ?? source?.globalKeyOffset
@@ -187,6 +200,7 @@ export function useScorePlayback({
         source?.audioConfig?.scaleMode
         ?? source?.scaleMode
         ?? DEFAULT_SCORE_PARAMS.scaleMode,
+      legacyTimingMode: source?.legacyTimingMode,
       textNotation: source?.textNotation,
     });
 

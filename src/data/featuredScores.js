@@ -8,7 +8,7 @@ import senbonzakuraScore from '../../風物之琴譜/可匯入譜面/千本櫻.t
 import haruhikageScore from '../../風物之琴譜/可匯入譜面/春日影.txt?raw';
 import secretBaseScore from '../../風物之琴譜/可匯入譜面/未聞花名.txt?raw';
 
-const EXTERNAL_LEGACY_TIMING_MODE = 'beat';
+const EXTERNAL_LEGACY_TIMING_MODE = 'absolute';
 
 export const FEATURED_SCORES = [
   applyScoreRecommendation({

@@ -6,6 +6,19 @@ export const SCORE_SOURCE_TYPES = {
   JSON: 'json',
 };
 
+function resolveDefaultCharResolution(source = {}) {
+  const explicitCharResolution = Number(source.charResolution);
+  if (Number.isFinite(explicitCharResolution) && explicitCharResolution > 0) {
+    return explicitCharResolution;
+  }
+
+  if (source.textNotation === 'legacy' || source.legacyTimingMode === 'absolute') {
+    return 8;
+  }
+
+  return DEFAULT_SCORE_PARAMS.charResolution;
+}
+
 function normalizeScoreReferences(references) {
   if (!Array.isArray(references)) {
     return [];
@@ -103,7 +116,7 @@ export function createScorePlaybackConfig(source = {}) {
     bpm: Number(source.bpm) || DEFAULT_SCORE_PARAMS.bpm,
     timeSigNum: Number(source.timeSigNum) || DEFAULT_SCORE_PARAMS.timeSigNum,
     timeSigDen: Number(source.timeSigDen) || DEFAULT_SCORE_PARAMS.timeSigDen,
-    charResolution: Number(source.charResolution) || DEFAULT_SCORE_PARAMS.charResolution,
+    charResolution: resolveDefaultCharResolution(source),
     globalKeyOffset: Number(source.globalKeyOffset) || DEFAULT_SCORE_PARAMS.globalKeyOffset,
     accidentals:
       source.accidentals && typeof source.accidentals === 'object' && !Array.isArray(source.accidentals)
