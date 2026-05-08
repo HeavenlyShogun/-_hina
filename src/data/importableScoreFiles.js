@@ -21,9 +21,31 @@ function titleFromFilename(filename) {
 }
 
 function idFromFilename(filename) {
-  return `importable-${encodeURIComponent(titleFromFilename(filename))
+  return `importable-${encodeURIComponent(filename.replace(/\.txt$/iu, ''))
     .replace(/%/g, '')
     .toLowerCase()}`;
+}
+
+function getImportableFormat(filename, meta = {}) {
+  const storageFormat = String(meta.storageFormat ?? '').toLowerCase();
+  const isLegacy = /\.legacy\.bak\.txt$/iu.test(filename) || storageFormat.startsWith('legacy');
+
+  return isLegacy
+    ? {
+      version: 'legacy',
+      versionLabel: '舊版',
+      groupLabel: '舊版可匯入譜面',
+      storageFormat: meta.storageFormat ?? 'legacy-text@1',
+      legacyTimingMode: meta.legacyTimingMode ?? 'beat',
+      textNotation: meta.textNotation ?? 'legacy-beat',
+    }
+    : {
+      version: 'modern',
+      versionLabel: '新版',
+      groupLabel: '新版可匯入譜面',
+      storageFormat: meta.storageFormat ?? 'numbered-text@1',
+      textNotation: meta.textNotation ?? 'jianpu',
+    };
 }
 
 function parseMeta(rawText) {
@@ -44,29 +66,44 @@ function parseMeta(rawText) {
 export const IMPORTABLE_SCORE_FILES = Object.entries(scoreModules)
   .map(([filePath, rawText]) => {
     const filename = filenameFromPath(filePath);
-
-    if (/\.legacy\.bak\.txt$/iu.test(filename)) {
-      return null;
-    }
-
     const title = titleFromFilename(filename);
     const meta = parseMeta(rawText);
+    const format = getImportableFormat(filename, meta);
 
     return {
       id: idFromFilename(filename),
-      subtitle: '資料夾測試譜面',
+      filename,
+      fileContent: rawText,
+      subtitle: `${format.versionLabel}資料夾譜面`,
       rawText,
       sourceType: SCORE_SOURCE_TYPES.TEXT,
       ...DEFAULT_SCORE_PARAMS,
       ...meta,
+      ...format,
       title,
-      displayTitle: `可匯入 / ${title}`,
+      displayTitle: `${format.versionLabel} / ${filename}`,
       sourcePath: filePath,
       playlistId: 'importable-folder-test',
-      tags: ['可匯入', '測試'],
+      tags: ['可匯入', format.versionLabel, '測試'],
     };
   })
-  .filter(Boolean)
-  .sort((left, right) => left.title.localeCompare(right.title, 'zh-Hant'));
+  .sort((left, right) => (
+    left.version.localeCompare(right.version)
+    || left.title.localeCompare(right.title, 'zh-Hant')
+    || left.filename.localeCompare(right.filename, 'zh-Hant')
+  ));
+
+export const IMPORTABLE_SCORE_GROUPS = [
+  {
+    id: 'modern',
+    label: '新版可匯入譜面',
+    files: IMPORTABLE_SCORE_FILES.filter((score) => score.version === 'modern'),
+  },
+  {
+    id: 'legacy',
+    label: '舊版可匯入譜面',
+    files: IMPORTABLE_SCORE_FILES.filter((score) => score.version === 'legacy'),
+  },
+];
 
 export default IMPORTABLE_SCORE_FILES;

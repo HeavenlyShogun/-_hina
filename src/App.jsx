@@ -8,7 +8,7 @@ import PianoRoom from './pages/PianoRoom';
 import { AudioConfigProvider, useAudioConfig } from './contexts/AudioConfigContext';
 import { PlaybackProvider } from './contexts/PlaybackContext';
 import { FEATURED_SCORES } from './data/featuredScores';
-import { IMPORTABLE_SCORE_FILES } from './data/importableScoreFiles';
+import { IMPORTABLE_SCORE_FILES, IMPORTABLE_SCORE_GROUPS } from './data/importableScoreFiles';
 import demoScore from './data/scores/demo.json';
 import { useCloudScores } from './hooks/useCloudScores';
 import useKeyboardMatcher from './hooks/useKeyboardMatcher';
@@ -162,6 +162,17 @@ function AppContent({
   );
   const selectableScores = useMemo(
     () => [...FEATURED_SCORES, ...IMPORTABLE_SCORE_FILES],
+    [],
+  );
+  const selectableScoreGroups = useMemo(
+    () => [
+      {
+        id: 'featured',
+        label: '精選琴譜',
+        files: FEATURED_SCORES,
+      },
+      ...IMPORTABLE_SCORE_GROUPS,
+    ],
     [],
   );
 
@@ -357,6 +368,9 @@ function AppContent({
       timeSigDen: featuredScore.timeSigDen,
       charResolution: featuredScore.charResolution,
       legacyTimingMode: featuredScore.legacyTimingMode,
+      textNotation: featuredScore.textNotation,
+      storageFormat: featuredScore.storageFormat,
+      filename: featuredScore.filename,
       globalKeyOffset: featuredScore.globalKeyOffset,
       scaleMode: featuredScore.scaleMode,
       reverb: featuredScore.reverb,
@@ -461,6 +475,7 @@ function AppContent({
           playHotkey={playHotkey}
           setPlayHotkey={setPlayHotkey}
           featuredScores={selectableScores}
+          scoreGroups={selectableScoreGroups}
           onPlayFeaturedScore={handlePlayFeaturedScore}
           activeKeys={activeKeys}
           accidentals={accidentals}

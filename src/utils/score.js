@@ -95,10 +95,12 @@ function createPlaybackState(overrides = {}) {
 
 function buildNormalizedResult(events, playback) {
   const sortedEvents = sortEvents(events);
-  const maxTick = sortedEvents.reduce(
+  const eventMaxTick = sortedEvents.reduce(
     (currentMax, event) => Math.max(currentMax, event.tick + event.durationTicks),
     0,
   );
+  const contentEndTick = Math.max(Math.round(Number(playback?.contentEndTick) || 0), 0);
+  const maxTick = Math.max(eventMaxTick, contentEndTick);
 
   return {
     events: sortedEvents,
@@ -583,12 +585,14 @@ function createNormalizedNoteEvent({
 
 function parseBeatItems(segment) {
   const items = [];
+  const normalizedSegment = String(segment ?? '').replace(/^[ \t\u3000]+|[ \t\u3000]+$/gu, '');
   let index = 0;
 
-  while (index < segment.length) {
-    const char = segment[index];
+  while (index < normalizedSegment.length) {
+    const char = normalizedSegment[index];
 
     if (char === ' ' || char === '\t' || char === '\u3000') {
+      items.push({ type: 'rest' });
       index += 1;
       continue;
     }
@@ -603,15 +607,15 @@ function parseBeatItems(segment) {
       index += 1;
       const keys = [];
 
-      while (index < segment.length && segment[index] !== ')') {
-        const innerChar = segment[index];
+      while (index < normalizedSegment.length && normalizedSegment[index] !== ')') {
+        const innerChar = normalizedSegment[index];
 
         if (innerChar === ' ' || innerChar === '\t' || innerChar === '\u3000') {
           index += 1;
           continue;
         }
 
-        const { token, nextIndex } = readToken(segment, index);
+        const { token, nextIndex } = readToken(normalizedSegment, index);
         const mappedKey = mapKey(token);
         if (mappedKey) {
           keys.push(mappedKey);
@@ -619,7 +623,7 @@ function parseBeatItems(segment) {
         index = nextIndex;
       }
 
-      if (segment[index] === ')') {
+      if (normalizedSegment[index] === ')') {
         index += 1;
       }
 
@@ -630,7 +634,7 @@ function parseBeatItems(segment) {
       continue;
     }
 
-    const { token, nextIndex } = readToken(segment, index);
+    const { token, nextIndex } = readToken(normalizedSegment, index);
     const mappedKey = mapKey(token);
     if (mappedKey) {
       items.push({ type: 'note', key: mappedKey });
@@ -741,9 +745,9 @@ function parseLegacyLine(lineText, parserState) {
       }
 
       if (keys.length > 0) {
-        keys.forEach((key, chordIndex) => {
+        keys.forEach((key) => {
           events.push(createNormalizedNoteEvent({
-            tick: parserState.currentTick + (parserState.chordStrumTicks * chordIndex),
+            tick: parserState.currentTick,
             key,
             durationTicks: parserState.noteDurationTicks,
             resolution: parserState.resolution,
@@ -830,11 +834,11 @@ function parseBeatLegacyScoreText(text, config = {}) {
       }
 
       if (item.type === 'chord') {
-        item.keys.forEach((key, chordIndex) => {
+        item.keys.forEach((key) => {
           events.push(createNormalizedNoteEvent({
-            tick: tick + (timing.chordStrumTicks * chordIndex),
+            tick,
             key,
-            durationTicks: Math.max(itemSpacingTicks, timing.unitTicks),
+            durationTicks: itemSpacingTicks,
             resolution: PPQ,
             bpm: playback.bpm,
             velocity: DEFAULT_NOTE_VELOCITY,
@@ -847,7 +851,7 @@ function parseBeatLegacyScoreText(text, config = {}) {
         events.push(createNormalizedNoteEvent({
           tick,
           key: item.key,
-          durationTicks: Math.max(itemSpacingTicks, timing.unitTicks),
+          durationTicks: itemSpacingTicks,
           resolution: PPQ,
           bpm: playback.bpm,
           velocity: DEFAULT_NOTE_VELOCITY,
