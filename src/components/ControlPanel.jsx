@@ -14,7 +14,7 @@ const RESOLUTION_OPTIONS = [
   { value: 32, label: '三十二分音符' },
 ];
 
-const ControlPanel = memo(() => {
+const ControlPanel = memo(({ embedded = false }) => {
   const {
     vol,
     setVol,
@@ -71,7 +71,7 @@ const ControlPanel = memo(() => {
   }, [applyBpm, bpmDraft, setBpm]);
 
   return (
-    <section className="z-30 my-8 w-full max-w-6xl px-4 sm:my-10 sm:px-6">
+    <section className={embedded ? 'w-full' : 'z-30 my-8 w-full max-w-6xl px-4 sm:my-10 sm:px-6'}>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.28fr)_minmax(280px,0.9fr)]">
         <div className="relative min-w-0 overflow-hidden rounded-[28px] border border-white/70 bg-white/88 p-4 text-slate-900 shadow-[0_20px_70px_rgba(15,23,42,0.10)] backdrop-blur-xl sm:p-5">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.12),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.9),rgba(248,250,252,0.78))]" />

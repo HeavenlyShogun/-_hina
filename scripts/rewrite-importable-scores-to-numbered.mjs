@@ -264,6 +264,12 @@ function stringifyEventToken(notes, durationTicks, playback) {
   });
 }
 
+function getMeasureTicks(playback) {
+  const timeSigNum = Math.max(Number(playback?.timeSigNum) || 4, 1);
+  const timeSigDen = Math.max(Number(playback?.timeSigDen) || 4, 1);
+  return Math.max(Math.round(PPQ * timeSigNum * (4 / timeSigDen)), 1);
+}
+
 function partitionEventsIntoVoices(events) {
   const sorted = [...events].sort((left, right) => {
     if (left.tick !== right.tick) {
@@ -325,6 +331,7 @@ function partitionEventsIntoVoices(events) {
 function convertEventsToNumberedText(normalized, playback) {
   const canonicalEvents = partitionEventsIntoVoices(normalized.events);
   const grouped = new Map();
+  const measureTicks = getMeasureTicks(playback);
 
   canonicalEvents.forEach((event) => {
     if (event?.isRest) {
@@ -368,21 +375,84 @@ function convertEventsToNumberedText(normalized, playback) {
 
   trackGroups.forEach((groups, trackId) => {
     let cursor = 0;
+    let measureCursor = 0;
     const tokens = [];
+
+    const appendToken = (token, durationTicks = 0) => {
+      const safeDurationTicks = Math.max(0, Math.round(Number(durationTicks) || 0));
+
+      if (safeDurationTicks > 0 && measureCursor + safeDurationTicks > measureTicks) {
+        const remainingTicks = measureTicks - measureCursor;
+        throw new Error(
+          `Cannot place token ${token} in ${trackId}: duration ${safeDurationTicks} crosses measure boundary with ${remainingTicks} ticks remaining.`,
+        );
+      }
+
+      tokens.push(token);
+      measureCursor += safeDurationTicks;
+
+      if (measureCursor === measureTicks) {
+        tokens.push('|');
+        measureCursor = 0;
+      }
+    };
+
+    const appendDurationTokens = (notes, durationTicks) => {
+      let remainingTicks = Math.max(0, Math.round(Number(durationTicks) || 0));
+      let isFirstSlice = true;
+
+      while (remainingTicks > 0) {
+        const measureRemaining = measureTicks - measureCursor;
+        const sliceTicks = Math.min(remainingTicks, measureRemaining);
+        const sliceNotes = isFirstSlice ? notes : [];
+        const pieces = findDurationPieces(sliceTicks, playback);
+
+        if (!pieces.length) {
+          throw new Error(`Cannot encode ${sliceTicks} ticks for ${trackId}.`);
+        }
+
+        pieces.forEach((piece, pieceIndex) => {
+          const body = sliceNotes.length === 0 || pieceIndex > 0
+            ? '0'
+            : sliceNotes.length === 1
+              ? midiToNumberedToken(sliceNotes[0], playback)
+              : `[${sliceNotes.map((midi) => midiToNumberedToken(midi, playback)).join('')}]`;
+
+          appendToken(`${body}${piece.modifiers}`, piece.ticks);
+        });
+
+        remainingTicks -= sliceTicks;
+        isFirstSlice = false;
+      }
+    };
 
     groups.forEach((group) => {
       if (group.startTick > cursor) {
-        tokens.push(...stringifyEventToken([], group.startTick - cursor, playback));
+        appendDurationTokens([], group.startTick - cursor);
         cursor = group.startTick;
       }
 
-      tokens.push(...stringifyEventToken(group.notes, group.durationTicks, playback));
+      appendDurationTokens(group.notes, group.durationTicks);
       cursor += group.durationTicks;
     });
 
+    if (measureCursor > 0) {
+      appendDurationTokens([], measureTicks - measureCursor);
+    }
+
     const chunks = [];
-    for (let index = 0; index < tokens.length; index += 16) {
-      chunks.push(tokens.slice(index, index + 16));
+    let chunk = [];
+
+    tokens.forEach((token) => {
+      chunk.push(token);
+      if (token === '|' || chunk.length >= 18) {
+        chunks.push(chunk);
+        chunk = [];
+      }
+    });
+
+    if (chunk.length) {
+      chunks.push(chunk);
     }
 
     chunks.forEach((chunk) => {
@@ -396,12 +466,7 @@ function convertEventsToNumberedText(normalized, playback) {
 async function migrateFile(entryName) {
   const filePath = path.join(SCORE_DIR, entryName);
   const backupPath = filePath.replace(/\.txt$/iu, '.legacy.bak.txt');
-  let sourcePath = filePath;
-
-  try {
-    await access(backupPath);
-    sourcePath = backupPath;
-  } catch {}
+  const sourcePath = filePath;
 
   const rawText = await readFile(sourcePath, 'utf8');
   const { meta, content } = parseMetaAndContent(rawText, entryName);
@@ -430,7 +495,9 @@ async function migrateFile(entryName) {
   };
 
   if (!DRY_RUN) {
-    if (sourcePath === filePath) {
+    try {
+      await access(backupPath);
+    } catch {
       await copyFile(filePath, backupPath);
     }
     await writeFile(filePath, `${META_PREFIX}${JSON.stringify(nextMeta)}\n${numberedText}\n`, 'utf8');

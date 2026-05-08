@@ -12,6 +12,7 @@ const MINOR_SCALE_INTERVALS = [0, 2, 3, 5, 7, 8, 10];
 const NUMBERED_TRACK_PREFIX = /^([A-Za-z][\w-]*)\s*:\s*(.*)$/u;
 export const PPQ = 96;
 const EIGHTH_TICKS = PPQ / 2;
+const MEASURE_BEAT_EPSILON = 1e-6;
 
 function stripScoreComments(text) {
   // Score spacing carries timing data, so only strip inline comments.
@@ -169,6 +170,36 @@ function parseDurationModifiers(modifiers, baseTicks = EIGHTH_TICKS) {
   return Math.max(1, Math.round(dottedDuration));
 }
 
+function durationTicksToBeats(durationTicks, resolution = PPQ) {
+  const safeResolution = Math.max(Number(resolution) || PPQ, 1);
+  return (Math.max(Number(durationTicks) || 0, 0) / safeResolution);
+}
+
+function beatsToDurationTicks(durationBeats, resolution = PPQ) {
+  const safeResolution = Math.max(Number(resolution) || PPQ, 1);
+  return Math.max(1, Math.round((Number(durationBeats) || 0) * safeResolution));
+}
+
+function normalizeDurationBeats(durationTicks, playback = {}) {
+  return durationTicksToBeats(durationTicks, playback?.resolution);
+}
+
+function getMeasureBeats(playback = {}) {
+  const timeSigNum = Math.max(Number(playback?.timeSigNum) || DEFAULT_SCORE_PARAMS.timeSigNum, 1);
+  const timeSigDen = Math.max(Number(playback?.timeSigDen) || DEFAULT_SCORE_PARAMS.timeSigDen, 1);
+  return timeSigNum * (4 / timeSigDen);
+}
+
+function assertMeasureBeatTotal({ trackId, lineNumber, measureIndex, actualBeats, expectedBeats }) {
+  if (Math.abs(actualBeats - expectedBeats) <= MEASURE_BEAT_EPSILON) {
+    return;
+  }
+
+  throw new Error(
+    `Invalid measure duration: track ${trackId}, line ${lineNumber}, measure ${measureIndex} has ${actualBeats.toFixed(6)} beats; expected ${expectedBeats}.`,
+  );
+}
+
 function parseNumberedPitchToken(rawToken, playback) {
   const normalized = String(rawToken ?? '').trim();
   const match = /^(?<accidental>[#bn]?)(?<octavePrefix>[+-]*)(?<degree>[0-7])(?<octaveSuffix>['',]*?)$/u.exec(normalized);
@@ -244,6 +275,7 @@ function parseNumberedToken(rawToken, playback) {
   if (chordMatch) {
     const body = chordMatch.groups?.body ?? '';
     const modifiers = chordMatch.groups?.modifiers ?? '';
+    const durationTicks = parseDurationModifiers(modifiers, playback?.resolution / 2);
     const noteTokens = body.match(/[#bn]?[+-]*[0-7]['',]*/gu) ?? [];
     const notes = noteTokens
       .map((entry) => parseNumberedPitchToken(entry, playback))
@@ -256,7 +288,8 @@ function parseNumberedToken(rawToken, playback) {
 
     return {
       type: 'chord',
-      durationTicks: parseDurationModifiers(modifiers, playback?.resolution / 2),
+      durationBeats: normalizeDurationBeats(durationTicks, playback),
+      durationTicks: beatsToDurationTicks(normalizeDurationBeats(durationTicks, playback), playback?.resolution),
       notes,
     };
   }
@@ -271,9 +304,12 @@ function parseNumberedToken(rawToken, playback) {
     return null;
   }
 
+  const durationTicks = parseDurationModifiers(noteMatch.groups?.modifiers, playback?.resolution / 2);
+
   return {
     type: note.isRest ? 'rest' : 'note',
-    durationTicks: parseDurationModifiers(noteMatch.groups?.modifiers, playback?.resolution / 2),
+    durationBeats: normalizeDurationBeats(durationTicks, playback),
+    durationTicks: beatsToDurationTicks(normalizeDurationBeats(durationTicks, playback), playback?.resolution),
     note,
   };
 }
@@ -336,6 +372,9 @@ export function parseNumberedMusicalNotation(text, config = {}) {
   const events = [];
   let lineIndex = 0;
   const trackCursors = new Map();
+  const trackMeasureBeats = new Map();
+  const trackMeasureIndexes = new Map();
+  const expectedMeasureBeats = getMeasureBeats(playback);
 
   const appendLine = (rawLine, trackId, startTick, endTick, tokens = []) => {
     const label = String(rawLine ?? '').trim().replace(NUMBERED_TRACK_PREFIX, '$2').trim();
@@ -367,7 +406,7 @@ export function parseNumberedMusicalNotation(text, config = {}) {
 
   String(text ?? '')
     .split(/\r?\n/u)
-    .forEach((rawLine) => {
+    .forEach((rawLine, rawLineIndex) => {
       const declaration = parseTrackDeclaration(rawLine);
       if (!declaration?.body) {
         return;
@@ -379,9 +418,18 @@ export function parseNumberedMusicalNotation(text, config = {}) {
       const lineStartTick = currentTick;
       const lineTokens = [];
       const trackVelocity = resolveTrackVelocity(trackId);
+      let measureBeats = trackMeasureBeats.get(trackId) ?? 0;
+      let measureIndex = trackMeasureIndexes.get(trackId) ?? 1;
 
       tokens.forEach((token, tokenIndex) => {
         if (token === '|') {
+          assertMeasureBeatTotal({
+            trackId,
+            lineNumber: rawLineIndex + 1,
+            measureIndex,
+            actualBeats: measureBeats,
+            expectedBeats: expectedMeasureBeats,
+          });
           lineTokens.push({
             id: `${trackId}-${lineIndex}-${tokenIndex}`,
             text: token,
@@ -390,7 +438,11 @@ export function parseNumberedMusicalNotation(text, config = {}) {
             trackId,
             isBar: true,
             isRest: false,
+            measureBeats,
+            expectedMeasureBeats,
           });
+          measureBeats = 0;
+          measureIndex += 1;
           return;
         }
 
@@ -419,7 +471,9 @@ export function parseNumberedMusicalNotation(text, config = {}) {
             trackId,
             isBar: false,
             isRest: true,
+            durationBeats: parsedToken.durationBeats,
           });
+          measureBeats += parsedToken.durationBeats;
           currentTick = endTick;
           return;
         }
@@ -450,7 +504,9 @@ export function parseNumberedMusicalNotation(text, config = {}) {
             trackId,
             isBar: false,
             isRest: false,
+            durationBeats: parsedToken.durationBeats,
           });
+          measureBeats += parsedToken.durationBeats;
           currentTick = endTick;
           return;
         }
@@ -479,11 +535,15 @@ export function parseNumberedMusicalNotation(text, config = {}) {
           trackId,
           isBar: false,
           isRest: false,
+          durationBeats: parsedToken.durationBeats,
         });
+        measureBeats += parsedToken.durationBeats;
         currentTick = endTick;
       });
 
       trackCursors.set(trackId, currentTick);
+      trackMeasureBeats.set(trackId, measureBeats);
+      trackMeasureIndexes.set(trackId, measureIndex);
       appendLine(rawLine, trackId, lineStartTick, currentTick, lineTokens);
     });
 
@@ -583,68 +643,6 @@ function createNormalizedNoteEvent({
   };
 }
 
-function parseBeatItems(segment) {
-  const items = [];
-  const normalizedSegment = String(segment ?? '').replace(/^[ \t\u3000]+|[ \t\u3000]+$/gu, '');
-  let index = 0;
-
-  while (index < normalizedSegment.length) {
-    const char = normalizedSegment[index];
-
-    if (char === ' ' || char === '\t' || char === '\u3000') {
-      items.push({ type: 'rest' });
-      index += 1;
-      continue;
-    }
-
-    if (char === '0') {
-      items.push({ type: 'rest' });
-      index += 1;
-      continue;
-    }
-
-    if (char === '(') {
-      index += 1;
-      const keys = [];
-
-      while (index < normalizedSegment.length && normalizedSegment[index] !== ')') {
-        const innerChar = normalizedSegment[index];
-
-        if (innerChar === ' ' || innerChar === '\t' || innerChar === '\u3000') {
-          index += 1;
-          continue;
-        }
-
-        const { token, nextIndex } = readToken(normalizedSegment, index);
-        const mappedKey = mapKey(token);
-        if (mappedKey) {
-          keys.push(mappedKey);
-        }
-        index = nextIndex;
-      }
-
-      if (normalizedSegment[index] === ')') {
-        index += 1;
-      }
-
-      if (keys.length > 0) {
-        items.push({ type: 'chord', keys });
-      }
-
-      continue;
-    }
-
-    const { token, nextIndex } = readToken(normalizedSegment, index);
-    const mappedKey = mapKey(token);
-    if (mappedKey) {
-      items.push({ type: 'note', key: mappedKey });
-    }
-    index = nextIndex;
-  }
-
-  return items;
-}
-
 function resolveLegacyTextTiming(playback) {
   const resolution = Math.max(Number(playback?.resolution) || PPQ, 1);
   const timeSigDen = Math.max(Number(playback?.timeSigDen) || DEFAULT_SCORE_PARAMS.timeSigDen, 1);
@@ -675,6 +673,161 @@ function alignTickToBeatBoundary(tick, beatTicks) {
   }
 
   return safeTick + (safeBeatTicks - remainder);
+}
+
+function parseLegacyBeatCell(cellText) {
+  const items = [];
+  const text = String(cellText ?? '').replace(/\|/gu, '');
+  let index = 0;
+
+  while (index < text.length) {
+    const char = text[index];
+
+    if (char === ' ' || char === '\t' || char === '\u3000') {
+      items.push({ type: 'rest' });
+      index += 1;
+      continue;
+    }
+
+    if (char === '0') {
+      items.push({ type: 'rest', explicit: true });
+      index += 1;
+      continue;
+    }
+
+    if (char === '(') {
+      index += 1;
+      const keys = [];
+
+      while (index < text.length && text[index] !== ')') {
+        const innerChar = text[index];
+        if (innerChar === ' ' || innerChar === '\t' || innerChar === '\u3000') {
+          index += 1;
+          continue;
+        }
+
+        const { token, nextIndex } = readToken(text, index);
+        const mappedKey = mapKey(token);
+        if (mappedKey) {
+          keys.push(mappedKey);
+        }
+        index = nextIndex;
+      }
+
+      if (text[index] === ')') {
+        index += 1;
+      }
+
+      if (keys.length > 0) {
+        items.push({ type: 'chord', keys });
+      }
+
+      continue;
+    }
+
+    const { token, nextIndex } = readToken(text, index);
+    const mappedKey = mapKey(token);
+    if (mappedKey) {
+      items.push({ type: 'note', key: mappedKey });
+    }
+    index = nextIndex;
+  }
+
+  return items;
+}
+
+function appendLegacyBeatCellEvents(cellText, parserState) {
+  const events = [];
+  const items = parseLegacyBeatCell(cellText);
+  const cellStartTick = parserState.currentTick;
+
+  if (items.length === 0) {
+    parserState.currentTick += parserState.unitTicks;
+    return events;
+  }
+
+  items.forEach((item, itemIndex) => {
+    const itemStartTick = cellStartTick + Math.round((itemIndex * parserState.unitTicks) / items.length);
+    const itemEndTick = cellStartTick + Math.round(((itemIndex + 1) * parserState.unitTicks) / items.length);
+    const durationTicks = Math.max(1, itemEndTick - itemStartTick);
+
+    if (item.type === 'rest') {
+      events.push(createNormalizedNoteEvent({
+        tick: itemStartTick,
+        key: null,
+        durationTicks,
+        resolution: parserState.resolution,
+        bpm: parserState.bpm,
+        velocity: 0,
+        isRest: true,
+      }));
+      return;
+    }
+
+    if (item.type === 'chord') {
+      item.keys.forEach((key, keyIndex) => {
+        events.push(createNormalizedNoteEvent({
+          tick: itemStartTick + (parserState.chordStrumTicks * keyIndex),
+          key,
+          durationTicks,
+          resolution: parserState.resolution,
+          bpm: parserState.bpm,
+          velocity: DEFAULT_NOTE_VELOCITY,
+        }));
+      });
+      return;
+    }
+
+    if (item.type === 'note') {
+      events.push(createNormalizedNoteEvent({
+        tick: itemStartTick,
+        key: item.key,
+        durationTicks,
+        resolution: parserState.resolution,
+        bpm: parserState.bpm,
+        velocity: DEFAULT_NOTE_VELOCITY,
+      }));
+    }
+  });
+
+  parserState.currentTick += parserState.unitTicks;
+  return events;
+}
+
+function parseLegacyBeatLine(lineText, parserState) {
+  const events = [];
+  const cleanLine = String(lineText ?? '').replace(/\/\/.*$/gm, '');
+  const lineStartTick = parserState.currentTick;
+  const linePreview = cleanLine.replace(/\|/gu, '').trim();
+  const hasVisibleContent = linePreview.length > 0;
+  let currentCell = '';
+
+  for (let index = 0; index < cleanLine.length; index += 1) {
+    const char = cleanLine[index];
+
+    if (char === '/') {
+      events.push(...appendLegacyBeatCellEvents(currentCell, parserState));
+      currentCell = '';
+      continue;
+    }
+
+    currentCell += char;
+  }
+
+  if (currentCell.length > 0 && currentCell.trim().length > 0) {
+    events.push(...appendLegacyBeatCellEvents(currentCell, parserState));
+  }
+
+  return {
+    events,
+    line: hasVisibleContent
+      ? {
+        label: linePreview.length > 24 ? `${linePreview.slice(0, 24).trim()}...` : linePreview,
+        startTick: lineStartTick,
+        endTick: parserState.currentTick,
+      }
+      : null,
+  };
 }
 
 function parseLegacyLine(lineText, parserState) {
@@ -745,9 +898,9 @@ function parseLegacyLine(lineText, parserState) {
       }
 
       if (keys.length > 0) {
-        keys.forEach((key) => {
+        keys.forEach((key, keyIndex) => {
           events.push(createNormalizedNoteEvent({
-            tick: parserState.currentTick,
+            tick: parserState.currentTick + (parserState.chordStrumTicks * keyIndex),
             key,
             durationTicks: parserState.noteDurationTicks,
             resolution: parserState.resolution,
@@ -797,139 +950,42 @@ function parseBeatLegacyScoreText(text, config = {}) {
     articulationRatio: 1,
   });
   const timing = resolveLegacyTextTiming(playback);
-  const cleanText = stripScoreComments(String(text ?? ''));
+  const parserState = {
+    currentTick: 0,
+    beatTicks: timing.beatTicks,
+    unitTicks: timing.unitTicks,
+    noteDurationTicks: timing.noteDurationTicks,
+    chordStrumTicks: timing.chordStrumTicks,
+    resolution: PPQ,
+    bpm: playback.bpm,
+  };
   const events = [];
   const lines = [];
-  let currentTick = 0;
-  let currentSegment = '';
-  let lineStartTick = 0;
-  let linePreview = '';
-  let lineIndex = 0;
 
-  const processSegment = (segment, forceAdvance = false) => {
-    const items = parseBeatItems(segment);
+  String(text ?? '')
+    .split(/\r?\n/u)
+    .forEach((lineText, lineIndex) => {
+      const parsedLine = parseLegacyBeatLine(lineText, parserState);
+      events.push(...parsedLine.events);
 
-    if (items.length === 0 && !forceAdvance) {
-      return false;
-    }
-
-    const itemSpacingTicks = items.length > 0
-      ? Math.max(Math.floor(timing.beatTicks / items.length), 1)
-      : timing.beatTicks;
-
-    items.forEach((item, itemIndex) => {
-      const tick = currentTick + (itemSpacingTicks * itemIndex);
-
-      if (item.type === 'rest') {
-        events.push(createNormalizedNoteEvent({
-          tick,
-          key: null,
-          durationTicks: itemSpacingTicks,
-          resolution: PPQ,
-          bpm: playback.bpm,
-          velocity: 0,
-          isRest: true,
-        }));
-        return;
-      }
-
-      if (item.type === 'chord') {
-        item.keys.forEach((key) => {
-          events.push(createNormalizedNoteEvent({
-            tick,
-            key,
-            durationTicks: itemSpacingTicks,
-            resolution: PPQ,
-            bpm: playback.bpm,
-            velocity: DEFAULT_NOTE_VELOCITY,
-          }));
+      if (parsedLine.line && parsedLine.line.endTick > parsedLine.line.startTick) {
+        lines.push({
+          id: `beat-line-${lineIndex}`,
+          ...parsedLine.line,
         });
-        return;
-      }
-
-      if (item.type === 'note') {
-        events.push(createNormalizedNoteEvent({
-          tick,
-          key: item.key,
-          durationTicks: itemSpacingTicks,
-          resolution: PPQ,
-          bpm: playback.bpm,
-          velocity: DEFAULT_NOTE_VELOCITY,
-        }));
       }
     });
 
-    currentTick += timing.beatTicks;
-    return true;
-  };
-
-  const finishLine = () => {
-    const preview = linePreview.replace(/\|/gu, '').trim();
-    if (preview && currentTick > lineStartTick) {
-      lines.push({
-        id: `beat-line-${lineIndex}`,
-        label: preview.length > 24 ? `${preview.slice(0, 24).trim()}...` : preview,
-        startTick: lineStartTick,
-        endTick: currentTick,
-      });
-    }
-
-    lineIndex += 1;
-    lineStartTick = currentTick;
-    linePreview = '';
-  };
-
-  for (let index = 0; index < cleanText.length; index += 1) {
-    const char = cleanText[index];
-
-    if (char === '/') {
-      processSegment(currentSegment, true);
-      linePreview += currentSegment + char;
-      currentSegment = '';
-      continue;
-    }
-
-    if (char === '\r') {
-      continue;
-    }
-
-    if (char === '\n') {
-      if (currentSegment.trim()) {
-        const processed = processSegment(currentSegment);
-        if (processed) {
-          linePreview += currentSegment;
-        }
-        currentSegment = '';
-      }
-      finishLine();
-      continue;
-    }
-
-    if (char === '|') {
-      continue;
-    }
-
-    currentSegment += char;
-  }
-
-  if (currentSegment.trim()) {
-    const processed = processSegment(currentSegment);
-    if (processed) {
-      linePreview += currentSegment;
-    }
-  }
-  finishLine();
-
   const normalized = buildNormalizedResult(events, {
     ...playback,
-    contentEndTick: currentTick,
+    contentEndTick: parserState.currentTick,
   });
 
   return {
     ...normalized,
     structure: {
       lines,
-      contentEndTick: currentTick,
+      contentEndTick: parserState.currentTick,
       unitTicks: timing.unitTicks,
       beatTicks: timing.beatTicks,
     },

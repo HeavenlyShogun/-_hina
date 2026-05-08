@@ -114,6 +114,12 @@ const SheetDisplay = memo(({
   isSaving,
   onConnectCloud,
   cloudStatus,
+  showScoreActions = true,
+  showGuidePanel = true,
+  showTimelinePanel = true,
+  showReferencePanel = true,
+  showScoreMap = true,
+  showEditor = true,
 }) => {
   const fileInputRef = useRef(null);
   const playheadRef = useRef(null);
@@ -331,8 +337,9 @@ const SheetDisplay = memo(({
 
   return (
     <div className="bg-white/[0.02] border border-white/5 rounded-[40px] p-6 md:p-8 flex flex-col shadow-2xl relative">
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
-        <div className="w-full sm:flex-1 min-w-[200px] flex items-center gap-4 bg-black/40 border border-white/10 rounded-2xl px-5 py-3 focus-within:border-emerald-500/40">
+      {showScoreActions ? (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-6">
+          <div className="w-full sm:flex-1 min-w-[200px] flex items-center gap-4 bg-black/40 border border-white/10 rounded-2xl px-5 py-3 focus-within:border-emerald-500/40">
           <Edit3 size={18} className="text-emerald-400" />
           <input
             value={scoreTitle}
@@ -340,31 +347,33 @@ const SheetDisplay = memo(({
             className="bg-transparent outline-none flex-1 text-sm font-bold text-emerald-50"
             placeholder="輸入琴譜名稱..."
           />
-        </div>
-        <div className="flex flex-wrap w-full sm:w-auto gap-2">
-          <input type="file" accept=".txt,.json" multiple className="hidden" ref={fileInputRef} onChange={onImport} />
-          <button onClick={() => fileInputRef.current?.click()} className="flex items-center justify-center p-3 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/5 text-emerald-400 transition-all" title="匯入本地琴譜">
-            <FolderOpen size={18} />
-          </button>
-          {onLoadJsonDemo ? (
-            <button onClick={onLoadJsonDemo} className="flex items-center justify-center px-4 py-3 bg-sky-500/10 hover:bg-sky-500/20 rounded-2xl border border-sky-400/20 text-sky-300 transition-all text-[11px] font-black tracking-widest" title="載入 JSON demo">
-              JSON 範例
+          </div>
+          <div className="flex flex-wrap w-full sm:w-auto gap-2">
+            <input type="file" accept=".txt,.json" multiple className="hidden" ref={fileInputRef} onChange={onImport} />
+            <button onClick={() => fileInputRef.current?.click()} className="flex items-center justify-center p-3 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/5 text-emerald-400 transition-all" title="匯入本地琴譜">
+              <FolderOpen size={18} />
             </button>
-          ) : null}
-          <button onClick={onExport} className="flex items-center justify-center p-3 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/5 text-emerald-400 transition-all" title="匯出目前琴譜">
-            <Download size={18} />
-          </button>
-          <button onClick={cloudStatus === 'ready' ? onSave : onConnectCloud} disabled={isSaving || cloudStatus === 'loading'} className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-emerald-600/80 hover:bg-emerald-600 text-white px-6 py-3 rounded-2xl text-xs font-black transition-all shadow-lg ml-1 sm:ml-2 disabled:opacity-60">
-            <UploadCloud size={16} />
-            {cloudStatus === 'ready' ? (isSaving ? '同步中' : '雲端儲存') : (cloudStatus === 'loading' ? '連線中' : '連線')}
-          </button>
-          <button onClick={onReset} className="flex items-center justify-center p-3 bg-rose-500/10 hover:bg-rose-500/20 rounded-2xl border border-rose-500/20 text-rose-400 transition-all" title="重設目前琴譜">
-            <RotateCcw size={18} />
-          </button>
+            {onLoadJsonDemo ? (
+              <button onClick={onLoadJsonDemo} className="flex items-center justify-center px-4 py-3 bg-sky-500/10 hover:bg-sky-500/20 rounded-2xl border border-sky-400/20 text-sky-300 transition-all text-[11px] font-black tracking-widest" title="載入 JSON demo">
+                JSON 範例
+              </button>
+            ) : null}
+            <button onClick={onExport} className="flex items-center justify-center p-3 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/5 text-emerald-400 transition-all" title="匯出目前琴譜">
+              <Download size={18} />
+            </button>
+            <button onClick={cloudStatus === 'ready' ? onSave : onConnectCloud} disabled={isSaving || cloudStatus === 'loading'} className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-emerald-600/80 hover:bg-emerald-600 text-white px-6 py-3 rounded-2xl text-xs font-black transition-all shadow-lg ml-1 sm:ml-2 disabled:opacity-60">
+              <UploadCloud size={16} />
+              {cloudStatus === 'ready' ? (isSaving ? '同步中' : '雲端儲存') : (cloudStatus === 'loading' ? '連線中' : '連線')}
+            </button>
+            <button onClick={onReset} className="flex items-center justify-center p-3 bg-rose-500/10 hover:bg-rose-500/20 rounded-2xl border border-rose-500/20 text-rose-400 transition-all" title="重設目前琴譜">
+              <RotateCcw size={18} />
+            </button>
+          </div>
         </div>
-      </div>
+      ) : null}
 
-      <div className="bg-black/30 rounded-3xl border border-white/5 mb-6 overflow-hidden transition-all">
+      {showGuidePanel ? (
+        <div className="bg-black/30 rounded-3xl border border-white/5 mb-6 overflow-hidden transition-all">
         <button onClick={() => setShowGuide((visible) => !visible)} className="w-full px-5 py-4 flex items-center justify-between text-emerald-400 hover:bg-white/[0.02] transition-colors outline-none">
           <div className="flex items-center gap-2 font-black text-[10px] tracking-widest uppercase">
             <BookOpen size={14} />
@@ -411,9 +420,11 @@ const SheetDisplay = memo(({
             </div>
           </div>
         )}
-      </div>
+        </div>
+      ) : null}
 
-      <div className="mb-4 rounded-[22px] border border-white/8 bg-black/30 px-4 py-3">
+      {showTimelinePanel ? (
+        <div className="mb-4 rounded-[22px] border border-white/8 bg-black/30 px-4 py-3">
         <div className="mb-2 flex items-center justify-between text-[10px] font-black uppercase tracking-[0.24em] text-emerald-100/40">
           <span>播放位置</span>
           <span>{Math.round(playbackState.currentTick || 0)} / {Math.round(effectiveMaxTick || 0)} tick</span>
@@ -456,9 +467,11 @@ const SheetDisplay = memo(({
           <span className="uppercase tracking-[0.24em] text-emerald-100/35">跟隨模式</span>
           <span className="text-right text-white/35">鍵盤仍可即時演奏，目前不做評分</span>
         </div>
-      </div>
+        </div>
+      ) : null}
 
-      <div className="mb-6 rounded-[22px] border border-sky-400/15 bg-sky-500/[0.05] p-4">
+      {showReferencePanel ? (
+        <div className="mb-6 rounded-[22px] border border-sky-400/15 bg-sky-500/[0.05] p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="text-[10px] font-black uppercase tracking-[0.24em] text-sky-200/55">參考資料</div>
@@ -569,9 +582,11 @@ const SheetDisplay = memo(({
             </div>
           </div>
         ) : null}
-      </div>
+        </div>
+      ) : null}
 
-      <div className="mb-6 rounded-[22px] border border-emerald-400/12 bg-emerald-500/[0.04] p-4">
+      {showScoreMap ? (
+        <div className="mb-6 rounded-[22px] border border-emerald-400/12 bg-emerald-500/[0.04] p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-200/55">
             琴譜地圖
@@ -669,15 +684,18 @@ const SheetDisplay = memo(({
             </div>
           )}
         </div>
-      </div>
+        </div>
+      ) : null}
 
-      <textarea
+      {showEditor ? (
+        <textarea
         value={scoreEditorValue}
         onChange={(event) => setScore(event.target.value)}
         readOnly={isJsonScore}
         spellCheck={false}
         className="flex-1 min-h-[300px] md:min-h-[350px] bg-black/50 border border-white/5 rounded-3xl p-5 md:p-6 text-xs font-mono leading-relaxed outline-none text-emerald-100/60 custom-scrollbar shadow-inner focus:border-emerald-500/20"
       />
+      ) : null}
     </div>
   );
 });

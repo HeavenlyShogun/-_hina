@@ -105,7 +105,7 @@ function findActiveTimelineItemIndex(items, currentTick) {
   return 0;
 }
 
-const PerformanceWorkspace = memo(({ score, scoreTitle }) => {
+const PerformanceWorkspace = memo(({ score, scoreTitle, embedded = false }) => {
   const activeLineRef = useRef(null);
   const scrubValueRef = useRef(null);
   const [previewTick, setPreviewTick] = useState(null);
@@ -252,7 +252,7 @@ const PerformanceWorkspace = memo(({ score, scoreTitle }) => {
   }, [playbackState.generation, playbackState.isPlaying, playbackState.status]);
 
   return (
-    <section className="relative z-20 mt-8 w-full max-w-6xl px-4">
+    <section className={embedded ? 'relative z-20 w-full' : 'relative z-20 mt-8 w-full max-w-6xl px-4'}>
       <div className="overflow-hidden rounded-[32px] border border-white/70 bg-white/88 text-slate-900 shadow-[0_28px_90px_rgba(15,23,42,0.12)] backdrop-blur-xl">
         <div className="border-b border-slate-200 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.10),transparent_28%),radial-gradient(circle_at_85%_10%,rgba(16,185,129,0.10),transparent_24%)] px-5 py-5 sm:px-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">

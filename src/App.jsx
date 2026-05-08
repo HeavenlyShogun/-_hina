@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle } from 'lucide-react';
+import ControlPanel from './components/ControlPanel';
 import ScoreConverter from './components/ScoreConverter';
 import ScoreEditor from './components/ScoreEditor';
 import ScoreLibrary from './components/ScoreLibrary';
 import WindParticles from './components/WindParticles';
+import PerformanceWorkspace from './components/PerformanceWorkspace';
 import PianoRoom from './pages/PianoRoom';
 import { AudioConfigProvider, useAudioConfig } from './contexts/AudioConfigContext';
 import { PlaybackProvider } from './contexts/PlaybackContext';
@@ -488,36 +490,52 @@ function AppContent({
           scoreTitle={scoreTitle}
         />
 
-        <section className="z-20 w-full max-w-6xl grid lg:grid-cols-[300px_1fr] gap-8 px-4 items-start">
-          <ScoreLibrary
-            user={user}
-            savedScores={savedScores}
-            onLoadScore={handleLoadScore}
-            onClearAll={handleClearAllScores}
-            onDeleteScore={handleDeleteScore}
-            onConnectCloud={handleConnectCloud}
-            cloudStatus={cloudStatus}
-            cloudError={cloudError}
-          />
-          <div className="flex flex-col">
-            <ScoreEditor
-              score={editorScore}
-              setScore={setScore}
-              scoreTitle={scoreTitle}
-              setScoreTitle={setScoreTitle}
-              references={references}
-              setReferences={setReferences}
-              referenceNotes={referenceNotes}
-              setReferenceNotes={setReferenceNotes}
-              onImport={handleImportLocal}
-              onLoadJsonDemo={handleLoadJsonDemo}
-              onExport={handleExportLocal}
-              onSave={handleSaveScore}
-              onReset={handleResetScore}
-              isSaving={isSaving}
-              onConnectCloud={handleConnectCloud}
-              cloudStatus={cloudStatus}
-            />
+        <section className="z-20 w-full max-w-6xl px-4">
+          <div className="mb-8 rounded-[36px] border border-white/10 bg-black/30 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-sm md:p-6">
+            <div className="mb-5 flex flex-col gap-2 px-1">
+              <div className="text-[10px] font-black uppercase tracking-[0.34em] text-sky-200/55">
+                資料、雲端與轉換
+              </div>
+              <div className="text-sm font-semibold text-sky-50/80">
+                譜面說明、參考資料、Firebase 琴譜庫與本機轉換器集中管理。
+              </div>
+            </div>
+
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+              <ScoreEditor
+                score={editorScore}
+                setScore={setScore}
+                scoreTitle={scoreTitle}
+                setScoreTitle={setScoreTitle}
+                references={references}
+                setReferences={setReferences}
+                referenceNotes={referenceNotes}
+                setReferenceNotes={setReferenceNotes}
+                onImport={handleImportLocal}
+                onLoadJsonDemo={handleLoadJsonDemo}
+                onExport={handleExportLocal}
+                onSave={handleSaveScore}
+                onReset={handleResetScore}
+                isSaving={isSaving}
+                onConnectCloud={handleConnectCloud}
+                cloudStatus={cloudStatus}
+                showScoreActions={false}
+                showTimelinePanel={false}
+                showScoreMap={false}
+                showEditor={false}
+              />
+              <ScoreLibrary
+                user={user}
+                savedScores={savedScores}
+                onLoadScore={handleLoadScore}
+                onClearAll={handleClearAllScores}
+                onDeleteScore={handleDeleteScore}
+                onConnectCloud={handleConnectCloud}
+                cloudStatus={cloudStatus}
+                cloudError={cloudError}
+              />
+            </div>
+
             <ScoreConverter
               scoreTitle={scoreTitle}
               scoreDocument={scoreDocument}
@@ -532,6 +550,46 @@ function AppContent({
               showToast={showToast}
               onLoadLocalScore={handleLoadLocalConvertedScore}
             />
+          </div>
+
+          <div className="rounded-[36px] border border-white/10 bg-black/30 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-sm md:p-6">
+            <div className="mb-5 flex flex-col gap-2 px-1">
+              <div className="text-[10px] font-black uppercase tracking-[0.34em] text-emerald-200/55">
+                匯入、調整與動態觀察
+              </div>
+              <div className="text-sm font-semibold text-emerald-50/80">
+                匯入琴譜、調整播放參數、編輯內容，並觀察時間軸與即時段落狀態。
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-6">
+              <ScoreEditor
+                score={editorScore}
+                setScore={setScore}
+                scoreTitle={scoreTitle}
+                setScoreTitle={setScoreTitle}
+                references={references}
+                setReferences={setReferences}
+                referenceNotes={referenceNotes}
+                setReferenceNotes={setReferenceNotes}
+                onImport={handleImportLocal}
+                onLoadJsonDemo={handleLoadJsonDemo}
+                onExport={handleExportLocal}
+                onSave={handleSaveScore}
+                onReset={handleResetScore}
+                isSaving={isSaving}
+                onConnectCloud={handleConnectCloud}
+                cloudStatus={cloudStatus}
+                showGuidePanel={false}
+                showReferencePanel={false}
+              />
+              <ControlPanel embedded />
+              <PerformanceWorkspace
+                embedded
+                score={editorScore}
+                scoreTitle={scoreTitle}
+              />
+            </div>
           </div>
         </section>
 
