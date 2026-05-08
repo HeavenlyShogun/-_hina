@@ -69,7 +69,7 @@ const PianoKey = memo(({
   }, [onDeactivate, keyInfo.k]);
 
   return (
-    <div className="key-wrapper group relative w-full max-w-[3rem] sm:max-w-[5.9rem] md:max-w-[5.5rem]">
+    <div className="key-wrapper group relative w-full min-w-0 max-w-none sm:max-w-[5.9rem] md:max-w-[5.5rem]">
       <div className="lyre-key-aura" data-active={isActive} />
       {pulseToken > 0 ? <div key={pulseToken} className="lyre-key-ripple" aria-hidden="true" /> : null}
       <button
@@ -87,7 +87,7 @@ const PianoKey = memo(({
         onPointerCancel={handleUp}
         onLostPointerCapture={handleUp}
         data-active={isActive}
-        className={`lyre-key-button relative flex aspect-square min-h-[2.8rem] w-full select-none flex-col items-center justify-center rounded-[0.95rem] border [touch-action:manipulation] sm:min-h-[5rem] sm:rounded-[1.35rem] md:min-h-[5.4rem] ${isActive ? 'playing-active' : ''}`}
+        className={`lyre-key-button relative flex aspect-square min-h-[2.6rem] w-full min-w-[2.6rem] select-none flex-col items-center justify-center rounded-[0.95rem] border [touch-action:manipulation] sm:min-h-[5rem] sm:min-w-0 sm:rounded-[1.35rem] md:min-h-[5.4rem] ${isActive ? 'playing-active' : ''}`}
       >
         <span className="lyre-key-string" aria-hidden="true" />
         <span className="lyre-key-note-wrap">
@@ -218,8 +218,8 @@ const PianoKeys = memo(({
   }, [finishScrub]);
 
   return (
-    <main className="relative z-20 mt-6 w-full max-w-6xl px-2 sm:mt-10 sm:px-4">
-      <div className="group relative overflow-hidden rounded-[24px] border border-white/70 bg-white/88 p-3 text-slate-900 shadow-[0_35px_120px_rgba(15,23,42,0.12)] backdrop-blur-xl sm:rounded-[36px] sm:p-6 md:rounded-[60px] md:p-14">
+    <main className="relative z-20 mt-6 w-full max-w-6xl px-1 sm:mt-10 sm:px-4">
+      <div className="group relative overflow-hidden rounded-[24px] border border-white/70 bg-white/88 p-2 text-slate-900 shadow-[0_35px_120px_rgba(15,23,42,0.12)] backdrop-blur-xl sm:rounded-[36px] sm:p-6 md:rounded-[60px] md:p-14">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.10),transparent_30%),radial-gradient(circle_at_80%_22%,rgba(45,212,191,0.10),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.88),rgba(248,250,252,0.72))]" />
         <div className="absolute inset-x-0 top-0 px-4 pt-4 sm:px-6 md:px-8">
           <div className="mb-2 flex items-center justify-between gap-3 text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
@@ -253,29 +253,31 @@ const PianoKeys = memo(({
             />
           </div>
         </div>
-        {NOTES_MAP.map((row, rowIndex) => (
-          <div key={rowIndex} className="relative mb-3 grid grid-cols-[2rem_1fr] items-center gap-2 first:pt-14 last:mb-0 sm:mb-8 sm:grid-cols-1 sm:gap-4 sm:first:pt-10 md:mb-10 md:gap-8 md:first:pt-12 lg:grid-cols-[104px_1fr]">
-            <div className="flex w-full flex-col items-center justify-center text-center lg:items-end lg:text-right">
-              <span className="mb-1 text-[9px] font-black text-indigo-700/80 sm:text-[10px]">{row.label}</span>
-              <span className="hidden rounded-full border border-slate-200 bg-white/70 px-2.5 py-1 text-[8px] font-bold uppercase tracking-[0.32em] text-slate-500 backdrop-blur-lg sm:inline-flex">{row.sub}</span>
+        <div className="mobile-keyboard-grid relative pt-14 sm:pt-0">
+          {NOTES_MAP.map((row, rowIndex) => (
+            <div key={rowIndex} className="relative mb-3 grid grid-cols-1 gap-1.5 last:mb-0 sm:mb-8 sm:gap-4 md:mb-10 md:gap-8 lg:grid-cols-[104px_1fr] lg:items-center">
+              <div className="flex w-full items-center justify-between px-1 text-center lg:flex-col lg:items-end lg:justify-center lg:px-0 lg:text-right">
+                <span className="text-[9px] font-black text-indigo-700/80 sm:text-[10px]">{row.label}</span>
+                <span className="rounded-full border border-slate-200 bg-white/70 px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.24em] text-slate-500 backdrop-blur-lg sm:px-2.5 sm:py-1 sm:tracking-[0.32em] lg:inline-flex">{row.sub}</span>
+              </div>
+              <div className="grid grid-cols-7 items-center justify-items-stretch gap-1.5 sm:gap-4 md:gap-5">
+                {row.keys.map((key) => (
+                  <PianoKey
+                    key={key.k}
+                    keyInfo={key}
+                    isSharp={!!accidentals[key.k]}
+                    globalOffset={globalKeyOffset}
+                    isActive={activeKeys.has(key.k)}
+                    pulseToken={keyPulseTokens[key.k] ?? 0}
+                    onActivate={onKeyActivate}
+                    onDeactivate={onKeyDeactivate}
+                    onToggleSharp={onToggleSharp}
+                  />
+                ))}
+              </div>
             </div>
-            <div className="grid grid-cols-7 items-center justify-items-center gap-1.5 sm:gap-4 md:gap-5">
-              {row.keys.map((key) => (
-                <PianoKey
-                  key={key.k}
-                  keyInfo={key}
-                  isSharp={!!accidentals[key.k]}
-                  globalOffset={globalKeyOffset}
-                  isActive={activeKeys.has(key.k)}
-                  pulseToken={keyPulseTokens[key.k] ?? 0}
-                  onActivate={onKeyActivate}
-                  onDeactivate={onKeyDeactivate}
-                  onToggleSharp={onToggleSharp}
-                />
-              ))}
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </main>
   );
