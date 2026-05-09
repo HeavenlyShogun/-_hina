@@ -15,7 +15,7 @@ const GRID_NOTE_WITH_HOLD_PATTERN = /^(?<body>(?:\[(?:[^\]]+)\]|[#bn]?[+-]*[1-7]
 const MAJOR_SCALE_INTERVALS = [0, 2, 4, 5, 7, 9, 11];
 const MINOR_SCALE_INTERVALS = [0, 2, 3, 5, 7, 8, 10];
 const NUMBERED_TRACK_PREFIX = /^([A-Za-z][\w-]*)\s*:\s*(.*)$/u;
-export const PPQ = 96;
+export const PPQ = 480;
 const EIGHTH_TICKS = PPQ / 2;
 const MEASURE_BEAT_EPSILON = 1e-6;
 const NOTE_NAME_TO_KEY = Object.fromEntries(ALL_KEYS_FLAT.map((entry) => [entry.n, entry.k]));

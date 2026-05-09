@@ -22,6 +22,7 @@ const OUTPUT_FORMATS = {
   NUMBERED_GRID: 'numbered-grid',
   JSON_V2: 'json-v2',
 };
+const SECOND_VERSION_RESOLUTION = 480;
 
 function slugifyFilename(value) {
   return String(value || 'score')
@@ -73,13 +74,17 @@ function createJsonScoreSchema({
         id: 'main',
         name: 'Main',
         mute: false,
-        events: normalized.events.map((event) => ({
-          type: event.isRest ? 'rest' : 'note',
-          tick: event.tick,
-          duration: event.durationTick ?? event.durationTicks,
-          key: event.k ?? null,
-          velocity: Number((event.v ?? 0.85).toFixed(4)),
-        })),
+        events: normalized.events
+          .filter((event) => !event.isRest)
+          .map((event) => ({
+            type: 'note',
+            startTick: event.startTick ?? event.tick,
+            durationTicks: event.durationTicks,
+            key: event.k ?? null,
+            velocity: Number((event.velocity ?? event.v ?? 0.85).toFixed(4)),
+            frequency: event.frequency ?? null,
+            noteName: event.noteName ?? null,
+          })),
       },
     ],
   };
@@ -115,7 +120,7 @@ function ensurePayloadMetadata(payload, {
       bpm: Number(transport.bpm) || playbackConfig.bpm,
       timeSigNum: Number(transport.timeSigNum) || playbackConfig.timeSigNum,
       timeSigDen: Number(transport.timeSigDen) || playbackConfig.timeSigDen,
-      resolution: Number(transport.resolution) || 96,
+      resolution: Number(transport.resolution) || SECOND_VERSION_RESOLUTION,
     },
     playback: {
       tone: playback.tone ?? playbackConfig.tone,
@@ -191,7 +196,7 @@ const ScoreConverter = memo(({
   const [midiImportStatus, setMidiImportStatus] = useState('尚未匯入 MIDI');
   const [isImportingMidi, setIsImportingMidi] = useState(false);
   const [externalInputType, setExternalInputType] = useState(EXTERNAL_INPUT_TYPES.JIANPU);
-  const [aiOutputFormat, setAiOutputFormat] = useState(OUTPUT_FORMATS.LEGACY_TEXT);
+  const [aiOutputFormat, setAiOutputFormat] = useState(OUTPUT_FORMATS.JSON_V2);
   const [assistantPrompt, setAssistantPrompt] = useState('');
 
   useEffect(() => {

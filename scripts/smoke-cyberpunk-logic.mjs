@@ -8,8 +8,8 @@ const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..');
 const scoreDir = path.join(repoRoot, '風物之琴譜', '可匯入譜面');
 
-const CYBERPUNK_NUMBERED_PATH = path.join(scoreDir, '我永遠想待在你的房子裡.txt');
-const CYBERPUNK_LEGACY_PATH = path.join(scoreDir, '我永遠想待在你的房子裡.legacy.bak.txt');
+const CYBERPUNK_NUMBERED_PATH = path.join(scoreDir, '第二版', '我永遠想待在你的房子裡.txt');
+const CYBERPUNK_LEGACY_PATH = path.join(scoreDir, '第一版', '我永遠想待在你的房子裡.legacy.bak.txt');
 
 const playbackConfig = {
   bpm: 125,
@@ -48,10 +48,10 @@ function runExcerptSmokeTest() {
 
   assert(melody.length === 5, `Expected 5 melody events, got ${melody.length}.`);
   assert(accompaniment.length === 4, `Expected 4 accompaniment events, got ${accompaniment.length}.`);
-  assert(melody[0].durationTicks === 72, `Expected M:5. to last 72 ticks, got ${melody[0].durationTicks}.`);
-  assert(melody[1].tick === 72, `Expected M:5_ to start at tick 72, got ${melody[1].tick}.`);
-  assert(accompaniment[1].tick === 96, `Expected C:3- to align on beat 2 at tick 96, got ${accompaniment[1].tick}.`);
-  assert(melody[2].tick === accompaniment[1].tick, `Expected M third note and C second note to align at tick 96, got M=${melody[2].tick}, C=${accompaniment[1].tick}.`);
+  assert(melody[0].durationTicks === 360, `Expected M:5. to last 360 ticks, got ${melody[0].durationTicks}.`);
+  assert(melody[1].tick === 360, `Expected M:5_ to start at tick 360, got ${melody[1].tick}.`);
+  assert(accompaniment[1].tick === 480, `Expected C:3- to align on beat 2 at tick 480, got ${accompaniment[1].tick}.`);
+  assert(melody[2].tick === accompaniment[1].tick, `Expected M third note and C second note to align at tick 480, got M=${melody[2].tick}, C=${accompaniment[1].tick}.`);
   assert(Math.abs((melody[0].v ?? 0) - 0.85) < 0.0001, `Expected melody velocity 0.85, got ${melody[0].v}.`);
   assert(Math.abs((accompaniment[0].v ?? 0) - 0.85) < 0.0001, `Expected accompaniment velocity 0.85, got ${accompaniment[0].v}.`);
 
@@ -91,8 +91,8 @@ async function runCyberpunkComparison() {
   assert(trackIds.includes('C1'), `Expected numbered score to retain accompaniment track C1, got ${trackIds.join(', ')}.`);
   assert(trackIds.includes('C2'), `Expected numbered score to retain accompaniment track C2, got ${trackIds.join(', ')}.`);
 
-  const openingWindow = numberedEvents.filter((event) => event.tick <= 48);
-  assert(openingWindow.length >= 2, `Expected opening chord overlap to survive conversion, got ${openingWindow.length} events in the first 48 ticks.`);
+  const openingWindow = numberedEvents.filter((event) => event.tick <= 240);
+  assert(openingWindow.length >= 2, `Expected opening chord overlap to survive conversion, got ${openingWindow.length} events in the first 240 ticks.`);
   const openingKeys = openingWindow.map((event) => event.k).sort().join(',');
   assert(openingKeys === 'm,v', `Expected opening overlap to be keys m and v, got ${openingKeys}.`);
 

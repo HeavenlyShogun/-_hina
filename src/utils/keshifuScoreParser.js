@@ -418,7 +418,7 @@ export function parseKeshifuToCanonical(
   defaultBPM = 125,
   globalKeyOffset = 0,
   scaleMode = 'major',
-  ppq = 96,
+  ppq = 480,
   arpeggioAcceleration = 0,
 ) {
   let options = null;
@@ -431,7 +431,7 @@ export function parseKeshifuToCanonical(
   const resolvedScaleMode = options?.scaleMode ?? scaleMode;
   const resolvedPpq = options?.ppq ?? options?.resolution ?? ppq;
   const resolvedArpeggioAcceleration = options?.arpeggioAcceleration ?? arpeggioAcceleration;
-  const safePpq = Math.max(1, Math.round(Number(resolvedPpq) || 96));
+  const safePpq = Math.max(1, Math.round(Number(resolvedPpq) || 480));
   const safeArpeggioAcceleration = Math.min(1, Math.max(0, Number(resolvedArpeggioAcceleration) || 0));
   const cleanText = preprocessKeshifuText(rawText);
   const { beatSeconds: initialBeatSeconds, bodyText } = parseInitialBeatSeconds(cleanText, resolvedDefaultBPM);
