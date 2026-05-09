@@ -4,26 +4,46 @@ import { useAudioConfig } from '../contexts/AudioConfigContext';
 
 const INSTRUMENTS = [
   { id: 'piano', label: '真鋼琴', Icon: Piano, sub: '真鋼琴' },
+  { id: 'violin', label: '小提琴', Icon: Music2, sub: '小提琴' },
   { id: 'lyre-long', label: '長琴', Icon: Music2, sub: '長音萊雅琴' },
   { id: 'lyre-short', label: '短琴', Icon: AudioLines, sub: '短音萊雅琴' },
   { id: 'flute', label: '長笛', Icon: Wind, sub: '長笛' },
   { id: 'tongue-drum', label: '空靈鼓', Icon: Drum, sub: '空靈鼓' },
 ];
 
+function normalizeToneList(tone) {
+  const entries = Array.isArray(tone) ? tone : [tone || 'piano'];
+  return [...new Set(entries.filter(Boolean))];
+}
+
 const InstrumentSelector = memo(() => {
   const { tone, setTone } = useAudioConfig();
+  const selectedTones = normalizeToneList(tone);
+
+  const toggleTone = (id) => {
+    setTone((currentTone) => {
+      const current = normalizeToneList(currentTone);
+      if (current.includes(id)) {
+        const next = current.filter((entry) => entry !== id);
+        return next.length > 0 ? next : current;
+      }
+
+      return [...current, id];
+    });
+  };
 
   return (
     <div className="instrument-selector">
       {INSTRUMENTS.map(({ id, label, Icon, sub }) => {
-        const active = tone === id;
+        const active = selectedTones.includes(id);
 
         return (
           <button
             key={id}
             type="button"
             className={`instrument-btn ${active ? 'active' : ''}`}
-            onClick={() => setTone(id)}
+            onClick={() => toggleTone(id)}
+            aria-pressed={active}
             title={sub}
           >
             <span className="instrument-icon">
