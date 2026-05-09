@@ -7,10 +7,23 @@ import cryForMeScore from '../../風物之琴譜/可匯入譜面/第一版/CRY F
 import senbonzakuraScore from '../../風物之琴譜/可匯入譜面/第一版/千本櫻.txt?raw';
 import haruhikageScore from '../../風物之琴譜/可匯入譜面/第一版/春日影.txt?raw';
 import secretBaseScore from '../../風物之琴譜/可匯入譜面/第一版/未聞花名.txt?raw';
+import surgesMidiScore from './scores/surges-midi.json?raw';
 
 const EXTERNAL_LEGACY_TIMING_MODE = 'absolute';
+const surgesMidiPayload = JSON.parse(surgesMidiScore);
 
 export const FEATURED_SCORES = [
+  {
+    id: 'surges-midi',
+    title: 'surges-MIDI',
+    displayTitle: 'surges-MIDI',
+    subtitle: 'MIDI',
+    rawText: surgesMidiScore,
+    sourceType: SCORE_SOURCE_TYPES.JSON,
+    ...DEFAULT_SCORE_PARAMS,
+    ...(surgesMidiPayload.transport ?? {}),
+    ...(surgesMidiPayload.playback ?? {}),
+  },
   applyScoreRecommendation({
     id: 'i-really-want-to-stay-at-your-house',
     title: 'I Really Want to Stay at Your House',

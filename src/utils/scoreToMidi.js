@@ -1,8 +1,7 @@
-import midiPackage from '@tonejs/midi';
+import { Midi } from '@tonejs/midi';
 import { ALL_KEYS_FLAT, DEFAULT_SCORE_PARAMS, mapKey } from '../constants/music.js';
 import { PPQ } from './score.js';
 
-const { Midi } = midiPackage;
 const DEFAULT_EXPORT_PPQ = 480;
 const DEFAULT_CHANNELS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15];
 const KEY_TO_MIDI = Object.fromEntries(

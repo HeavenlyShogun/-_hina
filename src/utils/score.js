@@ -1717,16 +1717,29 @@ function normalizeJsonEvent(event, context) {
   })];
 }
 
-export function parseScoreJson(scoreJson) {
+export function parseScoreJson(scoreJson, config = {}) {
   if (!scoreJson || typeof scoreJson !== 'object' || Array.isArray(scoreJson)) {
     throw new Error('Score JSON must be an object.');
   }
 
-  const transport = scoreJson.transport ?? {};
+  const transport = {
+    ...(scoreJson.transport ?? {}),
+    ...(config.bpm === undefined ? {} : { bpm: config.bpm }),
+    ...(config.timeSigNum === undefined ? {} : { timeSigNum: config.timeSigNum }),
+    ...(config.timeSigDen === undefined ? {} : { timeSigDen: config.timeSigDen }),
+    ...(config.resolution === undefined ? {} : { resolution: config.resolution }),
+  };
+  const playbackConfig = {
+    ...(scoreJson.playback ?? {}),
+    ...(config.globalKeyOffset === undefined ? {} : { globalKeyOffset: config.globalKeyOffset }),
+    ...(config.scaleMode === undefined ? {} : { scaleMode: config.scaleMode }),
+    ...(config.reverb === undefined ? {} : { reverb: config.reverb }),
+    ...(config.tone === undefined ? {} : { tone: config.tone }),
+  };
   const playback = createPlaybackState({
     ...transport,
     resolution: transport.resolution,
-    ...(scoreJson.playback ?? {}),
+    ...playbackConfig,
   });
   const resolution = Math.max(1, Math.round(Number(transport.resolution) || playback.resolution || PPQ));
   const tracks = Array.isArray(scoreJson.tracks) ? scoreJson.tracks : [];
@@ -1811,7 +1824,7 @@ export function normalizeScoreSource(input, config = {}) {
   }
 
   if (input && typeof input === 'object') {
-    return parseScoreJson(input);
+    return parseScoreJson(input, config);
   }
 
   return buildNormalizedResult([], createPlaybackState(config));
