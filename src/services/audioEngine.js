@@ -15,6 +15,7 @@ const TONE_PRESETS = {
     tone: 'piano',
     engine: 'sampler',
     sampleSet: 'piano',
+    layerGain: 1.08,
     dur: 5.2,
     atk: 0.003,
     dec: 0.22,
@@ -26,6 +27,7 @@ const TONE_PRESETS = {
   },
   flute: {
     tone: 'flute',
+    layerGain: 0.82,
     type: 'sine',
     dur: 2.5,
     atk: 0.08,
@@ -39,8 +41,38 @@ const TONE_PRESETS = {
     release: 0.12,
     velocity: 0.85,
   },
+  violin: {
+    tone: 'violin',
+    layerGain: 0.56,
+    type: 'sawtooth',
+    dur: 3.8,
+    atk: 0.075,
+    dec: 0.42,
+    sus: 0.78,
+    pk: 0.28,
+    flt: true,
+    fltStartMult: 7.5,
+    fltEndMult: 2.8,
+    fltDec: 0.32,
+    detune: -3,
+    vibratoDelay: 0.18,
+    vibratoRate: 5.8,
+    vibratoDepth: 16,
+    harmonics: [
+      { ratio: 1, gain: 0.44, type: 'sawtooth', detune: 5 },
+      { ratio: 2, gain: 0.1, type: 'triangle', detune: -2 },
+      { ratio: 3, gain: 0.04, type: 'sine', detune: 3 },
+      { ratio: 4, gain: 0.018, type: 'sine', detune: -4 },
+    ],
+    nBufKey: 'noise',
+    nDur: 0.24,
+    nVol: 0.026,
+    release: 0.34,
+    velocity: 0.78,
+  },
   'lyre-long': {
     tone: 'lyre-long',
+    layerGain: 0.86,
     type: 'sawtooth',
     dur: 4,
     atk: 0.015,
@@ -59,6 +91,7 @@ const TONE_PRESETS = {
   },
   'lyre-short': {
     tone: 'lyre-short',
+    layerGain: 0.9,
     type: 'sawtooth',
     atk: 0.015,
     dec: 0.1,
@@ -76,6 +109,7 @@ const TONE_PRESETS = {
   },
   'tongue-drum': {
     tone: 'tongue-drum',
+    layerGain: 0.78,
     type: 'triangle',
     dur: 3,
     atk: 0.02,
@@ -94,6 +128,7 @@ const TONE_PRESETS = {
   },
   classic: {
     tone: 'classic',
+    layerGain: 0.85,
     type: 'triangle',
     atk: 0.015,
     dec: 0.1,
@@ -196,7 +231,7 @@ function frequencyToMidi(frequency) {
 }
 
 class AudioEngine {
-  static MAX_VOICES = 32;
+  static MAX_VOICES = 72;
 
   constructor() {
     this.audioContext = null;
@@ -266,13 +301,17 @@ class AudioEngine {
 
   async prepareTone(tone) {
     const context = this.init();
-    const config = this.resolveRenderConfig({ tone }, 1);
+    const toneNames = this.normalizeToneList(tone);
+    const sampleSetIds = new Set();
 
-    if (config.engine !== 'sampler' || !config.sampleSet) {
-      return context;
-    }
+    toneNames.forEach((toneName) => {
+      const config = this.resolveRenderConfig({ tone: toneName }, 1);
+      if (config.engine === 'sampler' && config.sampleSet) {
+        sampleSetIds.add(config.sampleSet);
+      }
+    });
 
-    await this.loadSampleSet(config.sampleSet);
+    await Promise.all([...sampleSetIds].map((sampleSetId) => this.loadSampleSet(sampleSetId)));
     return context;
   }
 
@@ -300,9 +339,16 @@ class AudioEngine {
 
     if (!Number.isFinite(safeFreq) || safeFreq <= 0) return null;
 
-    this.enforceVoiceLimit(startTime);
+    const toneNames = this.normalizeToneList(noteConfig.tone);
+    if (toneNames.length > 1) {
+      return this.buildLayeredVoices(toneNames, context, safeFreq, startTime, noteDuration, noteConfig, {
+        mode: noteConfig.mode ?? 'scheduled',
+        importance: noteConfig.importance ?? 100,
+      });
+    }
 
     const config = this.resolveRenderConfig(noteConfig, noteDuration);
+    this.enforceVoiceLimit(startTime);
     const voice = this.buildVoice(context, safeFreq, startTime, noteDuration, config, {
       mode: noteConfig.mode ?? 'scheduled',
       importance: noteConfig.importance ?? 100,
@@ -317,15 +363,30 @@ class AudioEngine {
     if (!Number.isFinite(safeFreq) || safeFreq <= 0) return null;
 
     const now = context.currentTime;
-    this.enforceVoiceLimit(now);
-
     const voiceKey = noteConfig.voiceId ?? freq;
 
     if (this.activeLiveVoices.has(voiceKey)) {
       this.releaseLiveVoice(voiceKey);
     }
 
+    const toneNames = this.normalizeToneList(noteConfig.tone);
+    if (toneNames.length > 1) {
+      const bundle = this.buildLayeredVoices(toneNames, context, safeFreq, now, 30, noteConfig, {
+        mode: 'live',
+        importance: noteConfig.importance ?? 80,
+        liveVoiceKey: voiceKey,
+        endTime: Infinity,
+      });
+
+      if (bundle) {
+        this.activeLiveVoices.set(voiceKey, bundle);
+      }
+
+      return bundle;
+    }
+
     const config = this.resolveRenderConfig(noteConfig, 30);
+    this.enforceVoiceLimit(now);
     const voice = this.buildVoice(context, safeFreq, now, 30, config, {
       mode: 'live',
       importance: noteConfig.importance ?? 80,
@@ -352,7 +413,15 @@ class AudioEngine {
 
     const now = this.audioContext?.currentTime ?? 0;
     const stopAt = now + Math.max(releaseTime, 0.02);
-    this.releaseVoice(voice, now, stopAt, true);
+    const voices = Array.isArray(voice?.voices)
+      ? voice.voices
+      : Array.isArray(voice)
+        ? voice
+        : [voice];
+
+    voices.forEach((entry) => {
+      this.releaseVoice(entry, now, stopAt, true);
+    });
   }
 
   stopAll(releaseTime = LIVE_NOTE_RELEASE_SEC) {
@@ -386,6 +455,41 @@ class AudioEngine {
     return this._buildSynthVoice(context, safeFrequency, startTime, noteDuration, config, voiceMeta);
   }
 
+  buildLayeredVoices(toneNames, context, safeFrequency, startTime, noteDuration, noteConfig = {}, voiceMeta = {}) {
+    const normalizedToneNames = this.normalizeToneList(toneNames);
+    const layerGainScale = 1 / Math.sqrt(Math.max(normalizedToneNames.length, 1));
+    const outputGain = Math.max(Number(noteConfig.outputGain ?? DEFAULT_RENDER_CONFIG.outputGain) || 0, 0);
+    const voices = normalizedToneNames
+      .map((toneName, index) => {
+        this.enforceVoiceLimit(startTime);
+        const config = this.resolveRenderConfig({
+          ...noteConfig,
+          tone: toneName,
+          outputGain: outputGain * layerGainScale * (this.getTonePreset(toneName)?.layerGain ?? 1),
+        }, noteDuration);
+
+        return this.buildVoice(context, safeFrequency, startTime, noteDuration, config, {
+          ...voiceMeta,
+          layerIndex: index,
+          layerCount: normalizedToneNames.length,
+        });
+      })
+      .filter(Boolean);
+
+    if (!voices.length) {
+      return null;
+    }
+
+    return {
+      sourceType: 'layered',
+      voices,
+      toneNames: normalizedToneNames,
+      liveVoiceKey: voiceMeta.liveVoiceKey ?? null,
+      startTime,
+      endTime: voiceMeta.endTime ?? Math.max(...voices.map((voice) => Number(voice?.endTime) || startTime)),
+    };
+  }
+
   _buildSynthVoice(context, safeFrequency, startTime, noteDuration, config, voiceMeta = {}) {
     const keyGainMod = Math.min(1, 800 / (safeFrequency + 200));
     const outputGain = Math.max(Number(config.outputGain) || 0, 0);
@@ -403,6 +507,7 @@ class AudioEngine {
     const oscillator = context.createOscillator();
     oscillator.type = normalizeOscillatorType(config.type);
     oscillator.frequency.setValueAtTime(safeFrequency, startTime);
+    oscillator.detune.setValueAtTime(Number(config.detune) || 0, startTime);
 
     const oscillators = [oscillator];
 
@@ -476,6 +581,24 @@ class AudioEngine {
     dryGain.connect(this.compressor);
     wetGain.connect(this.reverbBus);
 
+    let vibratoOscillator = null;
+    let vibratoGain = null;
+    if (Number(config.vibratoDepth) > 0) {
+      vibratoOscillator = context.createOscillator();
+      vibratoGain = context.createGain();
+      vibratoOscillator.type = 'sine';
+      vibratoOscillator.frequency.setValueAtTime(Math.max(Number(config.vibratoRate) || 5.5, 0.1), startTime);
+      vibratoGain.gain.setValueAtTime(0.0001, startTime);
+      vibratoGain.gain.linearRampToValueAtTime(
+        Math.max(Number(config.vibratoDepth) || 0, 0),
+        startTime + Math.max(Number(config.vibratoDelay) || 0, 0),
+      );
+      vibratoOscillator.connect(vibratoGain);
+      oscillators.forEach((item) => {
+        vibratoGain.connect(item.detune);
+      });
+    }
+
     const voice = {
       sourceType: 'oscillator',
       mode: voiceMeta.mode ?? 'scheduled',
@@ -494,6 +617,8 @@ class AudioEngine {
       filter,
       noiseSource,
       noiseGain,
+      vibratoOscillator,
+      vibratoGain,
       oscillators,
     };
 
@@ -508,6 +633,10 @@ class AudioEngine {
     if (noiseSource) {
       noiseSource.start(startTime);
       noiseSource.stop(Math.min(stopTime, startTime + (config.nDur ?? 0.05) + 0.02));
+    }
+    if (vibratoOscillator) {
+      vibratoOscillator.start(startTime);
+      vibratoOscillator.stop(stopTime);
     }
 
     return voice;
@@ -664,6 +793,8 @@ class AudioEngine {
       voice.filter?.disconnect();
       voice.noiseSource?.disconnect();
       voice.noiseGain?.disconnect();
+      voice.vibratoOscillator?.disconnect();
+      voice.vibratoGain?.disconnect();
     } catch {}
   }
 
@@ -702,6 +833,20 @@ class AudioEngine {
 
   normalizeToneName(tone) {
     return TONE_ALIASES[tone] || tone || 'classic';
+  }
+
+  normalizeToneList(tone) {
+    const rawTones = Array.isArray(tone) ? tone : [tone ?? DEFAULT_RENDER_CONFIG.tone];
+    const seen = new Set();
+    return rawTones
+      .map((entry) => this.normalizeToneName(entry))
+      .filter((entry) => {
+        if (!entry || seen.has(entry)) {
+          return false;
+        }
+        seen.add(entry);
+        return true;
+      });
   }
 
   getTonePreset(tone) {

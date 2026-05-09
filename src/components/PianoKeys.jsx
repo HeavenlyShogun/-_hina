@@ -72,6 +72,7 @@ const PianoKey = memo(({
     <div className="key-wrapper group relative w-full min-w-0 max-w-none sm:max-w-[5.9rem] md:max-w-[5.5rem]">
       <div className="lyre-key-aura" data-active={isActive} />
       {pulseToken > 0 ? <div key={pulseToken} className="lyre-key-ripple" aria-hidden="true" /> : null}
+      {pulseToken > 0 ? <div key={`rapid-${pulseToken}`} className="lyre-key-rapid-dot" aria-hidden="true" /> : null}
       <button
         type="button"
         onClick={handleToggle}

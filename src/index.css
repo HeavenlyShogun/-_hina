@@ -331,6 +331,24 @@ body {
   pointer-events: none;
 }
 
+.lyre-key-rapid-dot {
+  position: absolute;
+  right: -0.45rem;
+  top: 50%;
+  z-index: 24;
+  width: 0.72rem;
+  height: 0.72rem;
+  border-radius: 9999px;
+  background: #ef4444;
+  box-shadow:
+    0 0 0 2px rgba(254, 226, 226, 0.92),
+    0 0 16px rgba(239, 68, 68, 0.86),
+    0 0 30px rgba(220, 38, 38, 0.44);
+  transform: translate(50%, -50%) scale(0.28);
+  animation: lyre-rapid-dot-flash 150ms linear forwards;
+  pointer-events: none;
+}
+
 @keyframes lyre-ripple {
   0% {
     opacity: 0.72;
@@ -340,6 +358,28 @@ body {
   100% {
     opacity: 0;
     transform: scale(1.24);
+  }
+}
+
+@keyframes lyre-rapid-dot-flash {
+  0% {
+    opacity: 0;
+    transform: translate(50%, -50%) scale(0.28);
+  }
+
+  18% {
+    opacity: 1;
+    transform: translate(50%, -50%) scale(1);
+  }
+
+  72% {
+    opacity: 1;
+    transform: translate(50%, -50%) scale(0.92);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(50%, -50%) scale(0.38);
   }
 }
 

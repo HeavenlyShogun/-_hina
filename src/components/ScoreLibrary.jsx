@@ -10,8 +10,13 @@ function formatKeyLabel(offset, scaleMode) {
 }
 
 function formatToneLabel(tone) {
+  if (Array.isArray(tone)) {
+    return tone.map(formatToneLabel).join(' + ');
+  }
+
   const labels = {
     piano: '真鋼琴',
+    violin: '小提琴',
     'lyre-long': '長琴',
     'lyre-short': '短琴',
     flute: '長笛',
