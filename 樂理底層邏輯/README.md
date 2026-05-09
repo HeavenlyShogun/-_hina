@@ -21,19 +21,18 @@ node scripts/ensure-utf8.mjs --write
 
 ## 時間模型
 
-- `PPQ = 96`：一個四分音符等於 96 ticks。
+- `PPQ = 480`：一個四分音符等於 480 ticks。4/4 一小節為 1920 ticks。
 - `bpm`：每分鐘四分音符數。
 - `timeSigNum / timeSigDen`：拍號，例如 4/4。
-- `charResolution`：文字譜面的節拍分割，例如 16 代表以 16 分音符格線解析。
-- `tick`：音符開始時間，單位為 ticks。
+- `tick` / `startTick`：音符開始時間，單位為 ticks。
 - `durationTicks`：音符長度，單位為 ticks。
 
 常用換算：
 
 ```text
 secondsPerTick = (60 / bpm) / PPQ
-event.time = event.tick * secondsPerTick
-event.durationSec = event.durationTicks * secondsPerTick
+startSeconds = startTick * secondsPerTick
+durationSeconds = durationTicks * secondsPerTick
 measureTicks = PPQ * timeSigNum * (4 / timeSigDen)
 ```
 
@@ -68,18 +67,15 @@ frequency = 440 * 2 ** ((midi - 69) / 12)
 
 ## Canonical Event Contract
 
-播放器只應依賴 canonical event。舊欄位如 `startTick`、`key`、`velocity`、`duration` 可以在 parser 內相容，但輸出到播放層前必須正規化。
+播放器只應依賴 canonical event。舊譜相容層可以讀取舊欄位，但輸出到第二版主流程前必須正規化成整數 tick 時間軸。第二版內部不使用固定四格或拍格模型。
 
 ```json
 {
   "id": "event-1",
-  "tick": 0,
-  "durationTicks": 96,
-  "time": 0,
-  "durationSec": 0.5,
+  "startTick": 0,
+  "durationTicks": 480,
   "k": "Q",
-  "v": 0.85,
-  "isRest": false,
+  "velocity": 0.85,
   "frequency": 261.6256,
   "noteName": "C4",
   "trackId": "main",
@@ -92,14 +88,11 @@ frequency = 440 * 2 ** ((midi - 69) / 12)
 | 欄位 | 型別 | 必填 | 說明 |
 |---|---:|---:|---|
 | `id` | string | 否 | 穩定事件 ID；沒有時可由 parser 產生 |
-| `tick` | number | 是 | 開始 tick，整數且不可小於 0 |
+| `startTick` | number | 是 | 開始 tick，整數且不可小於 0 |
 | `durationTicks` | number | 是 | 長度 tick，整數且至少 1 |
-| `time` | number | 是 | 開始秒數，由 tick 與 tempo 計算 |
-| `durationSec` | number | 是 | 長度秒數 |
-| `k` | string/null | 是 | 對應鍵盤鍵位；休止符或無鍵位音可為 null |
-| `v` | number | 是 | velocity，範圍 0 到 1 |
-| `isRest` | boolean | 是 | 是否為休止符 |
-| `frequency` | number/null | 是 | 音高頻率；休止符為 null |
+| `k` | string/null | 是 | 對應鍵盤鍵位；無鍵位音可為 null |
+| `velocity` | number | 是 | velocity，範圍 0 到 1 |
+| `frequency` | number/null | 是 | 音高頻率 |
 | `noteName` | string/null | 是 | 例如 `C4`、`F#5` |
 | `trackId` | string | 是 | 聲部或軌道 ID，預設 `main` |
 | `importance` | number | 否 | 給練習評分或顯示排序使用 |
@@ -123,7 +116,7 @@ frequency = 440 * 2 ** ((midi - 69) / 12)
     "bpm": 90,
     "timeSigNum": 4,
     "timeSigDen": 4,
-    "resolution": 96
+    "resolution": 480
   },
   "playback": {
     "tone": "piano",
@@ -143,8 +136,8 @@ frequency = 440 * 2 ** ((midi - 69) / 12)
       "events": [
         {
           "type": "note",
-          "tick": 0,
-          "durationTicks": 96,
+          "startTick": 0,
+          "durationTicks": 480,
           "degree": 1,
           "velocity": 0.85
         }
@@ -156,21 +149,24 @@ frequency = 440 * 2 ** ((midi - 69) / 12)
 
 ## 新版譜面時值規範
 
-新版文字譜以「一拍 = `1.0`」作為 parser 內部時值單位。所有 token 必須先轉成 `durationBeats`，再換算成 `durationTicks`。
+新版文字譜可以接受「一拍 = `1.0`」作為輸入時值單位，但 parser 進入第二版內部模型後必須換算成整數 tick。不要把 float 拍數或秒數寫入 canonical 主資料。
 
-```text
-durationTicks = durationBeats * PPQ
+在 4/4 拍中，每一小節的總和必須等於 `1920` ticks。parser 遇到小節線 `|` 時會立刻檢查該 track 目前累積時值；如果不等於拍號要求，必須丟出錯誤，不可默默補齊或略過。
+
+第二版 canonical 輸出範例：
+
+```json
+[
+  { "startTick": 0, "durationTicks": 480, "noteName": "C4", "velocity": 0.85, "trackId": "right" },
+  { "startTick": 480, "durationTicks": 240, "noteName": "D4", "velocity": 0.85, "trackId": "right" },
+  { "startTick": 720, "durationTicks": 240, "noteName": "E4", "velocity": 0.85, "trackId": "right" },
+  { "startTick": 1200, "durationTicks": 120, "noteName": "F4", "velocity": 0.85, "trackId": "right" },
+  { "startTick": 1320, "durationTicks": 120, "noteName": "G4", "velocity": 0.85, "trackId": "right" },
+  { "startTick": 1440, "durationTicks": 480, "noteName": "A4", "velocity": 0.85, "trackId": "right" }
+]
 ```
 
-在 4/4 拍中，每一小節的總和必須等於 `4.0`。parser 遇到小節線 `|` 時會立刻檢查該 track 目前累積拍數；如果不等於拍號要求，必須丟出錯誤，不可默默補齊或略過。
-
-強制標記化輸出範例：
-
-```text
-(C4, 1.0) (D4, 0.5) (E4, 0.5) R0.5 (F4, 0.25) (G4, 0.25) (A4, 1.0)
-```
-
-其中 `R0.5` 代表 0.5 拍休止符。左右手或多聲部應以不同 `trackId` 保存，各 track 分別檢查小節拍數，播放前再合併成 canonical event stream。
+休止符不進入第二版 canonical 主資料，只體現在相鄰音符之間的 tick 空白。左右手或多聲部應以不同 `trackId` 保存，各 track 分別檢查小節 tick 數，播放前再合併成 canonical event stream。
 
 ## 功能落點
 

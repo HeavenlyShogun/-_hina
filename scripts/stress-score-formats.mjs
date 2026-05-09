@@ -3,7 +3,7 @@ import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { normalizeScoreSource } from '../src/utils/score.js';
 
-const SCORE_DIR = path.resolve(process.cwd(), '風物之琴譜', '可匯入譜面');
+const SCORE_DIR = path.resolve(process.cwd(), '風物之琴譜', '可匯入譜面', '第二版');
 const META_PREFIX = '// [META] ';
 const DEFAULT_ITERATIONS = 80;
 const DEFAULT_WARMUPS = 5;

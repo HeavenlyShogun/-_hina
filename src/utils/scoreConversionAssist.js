@@ -106,7 +106,7 @@ export function buildAiConversionPrompt({
 }) {
   const safeTitle = String(title || 'Untitled Score').trim() || 'Untitled Score';
   const safeNotationType = notationType || 'jianpu';
-  const safeOutputFormat = outputFormat || 'legacy-text';
+  const safeOutputFormat = outputFormat || 'json-v2';
   const safeSourceText = String(sourceText ?? '').trim();
   const safeReferenceNotes = String(referenceNotes ?? '').trim();
   const safeBpm = Number(playbackConfig?.bpm) || 90;
@@ -117,9 +117,11 @@ export function buildAiConversionPrompt({
     ? [
       'Output valid JSON only. No markdown fences, no explanation.',
       'Use this schema: version, meta, transport, playback, source, tracks.',
-      'Put notes in tracks[0].events[] with type, tick, duration, key, velocity.',
-      'For chords, either emit multiple note events at the same tick, or use a chord event with keys[].',
-      'Keep transport.resolution explicit. Recommended resolution: 96 or 480.',
+      'Put notes in tracks[].events[] with type, startTick, durationTicks, key, velocity, frequency, and noteName.',
+      'Use integer ticks only. A quarter note is 480 ticks; a 4/4 measure is 1920 ticks.',
+      'For chords, emit multiple note events at the same startTick.',
+      'Do not emit rest events. Rests are silent gaps between note end ticks and the next note startTick.',
+      'Keep transport.resolution explicit. Recommended resolution: 480.',
       'If a pitch is outside the 21-key range C3-B5, transpose by octave into range and keep a note in meta.referenceNotes.',
       'If the original includes sharps/flats not playable on the natural 21-key layout, choose the closest musical substitute and mention the substitution in meta.referenceNotes.',
     ]
@@ -134,12 +136,10 @@ export function buildAiConversionPrompt({
       ]
       : safeOutputFormat === 'timed-token'
       ? [
-        'Output plain timed-token score only. No markdown fences, no explanation.',
-        'Use one independent line per hand or part, for example `Right:` and `Left:`.',
-        'Use `(NoteName, beats)` for notes, for example `(C4, 1.0)` or `(G4, 0.25)`.',
-        'Use `Rbeats` for rests outside parentheses, for example `R0.5`.',
-        'Every 4/4 measure must sum to exactly 4.0 beats. Separate measures with `|`.',
-        'Allowed durations are 4, 2, 1, 0.5, 0.25, and 0.125 beats unless the source clearly requires a dotted value.',
+        'Output valid JSON only. No markdown fences, no explanation.',
+        'The old timed-token rest syntax is deprecated for second-version work.',
+        'Use the Project Hina JSON v2 schema with integer startTick and durationTicks instead.',
+        'Do not use deprecated beat/rest token syntax; encode rests as silent gaps between note events.',
       ]
     : [
       'Output plain legacy text score only. No markdown fences, no explanation.',
