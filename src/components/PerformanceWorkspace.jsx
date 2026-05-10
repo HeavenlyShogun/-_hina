@@ -252,12 +252,12 @@ const PerformanceWorkspace = memo(({ score, scoreTitle, embedded = false }) => {
     }
   }, [playbackState.generation, playbackState.isPlaying, playbackState.status]);
 
-  useEffect(() => {
-    activeLineRef.current?.scrollIntoView({
-      behavior: 'smooth',
-      block: 'nearest',
-    });
-  }, [activeTimelineItemIndex]);
+  // useEffect(() => {
+  //   activeLineRef.current?.scrollIntoView({
+  //     behavior: 'smooth',
+  //     block: 'nearest',
+  //   });
+  // }, [activeTimelineItemIndex]);
 
   return (
     <section className={embedded ? 'relative z-20 w-full' : 'relative z-20 mt-8 w-full max-w-6xl px-4'}>

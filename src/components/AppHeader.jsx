@@ -85,20 +85,33 @@ const AppHeader = memo(({
             </button>
           </div>
 
-          {workspaceSections.length > 0 ? (
-            <div className="mt-5 flex flex-wrap gap-2">
-              {workspaceSections.map((section) => (
-                <button
-                  key={section.id}
-                  type="button"
-                  onClick={() => onJumpToSection?.(section.id)}
-                  className="rounded-full border border-sky-300/20 bg-sky-400/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-sky-100 transition-colors hover:bg-sky-400/18"
-                >
-                  {section.label}
-                </button>
-              ))}
-            </div>
-          ) : null}
+          <div className="mt-5 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+              className="rounded-full border border-sky-300/20 bg-sky-400/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-sky-100 transition-colors hover:bg-sky-400/18"
+            >
+              主畫面
+            </button>
+            <button
+              type="button"
+              onClick={() => document.getElementById('lyre-keyboard')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+              className="rounded-full border border-sky-300/20 bg-sky-400/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-sky-100 transition-colors hover:bg-sky-400/18"
+            >
+              鍵盤
+            </button>
+            {workspaceSections.map((section) => (
+              <button
+                key={section.id}
+                type="button"
+                onClick={() => onJumpToSection?.(section.id)}
+                className="rounded-full border border-sky-300/20 bg-sky-400/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-sky-100 transition-colors hover:bg-sky-400/18"
+              >
+                {section.label}
+              </button>
+            ))}
+          </div>
+
         </div>
 
         <div className="rounded-[28px] border border-amber-200/15 bg-slate-950/35 p-5">
