@@ -24,6 +24,7 @@ import {
 } from './utils/scoreDocument';
 import { applyScoreRecommendation } from './utils/scoreRecommendations';
 import { buildScoreTextWithMeta } from './utils/scoreTextMeta';
+import StarrySky from './components/StarrySky';
 
 function getFileTitle(filename) {
   return filename.replace(/\.[^/.]+$/, '');
@@ -193,10 +194,10 @@ function AppContent({
     [],
   );
   const workspaceSections = useMemo(() => ([
-    { id: 'cloud-library', label: '雲端曲庫', caption: 'Firebase / Cloud' },
-    { id: 'converter', label: '琴譜轉換', caption: 'Converter' },
     { id: 'playback-preview', label: '播放預覽', caption: 'Live Preview' },
     { id: 'editor', label: '譜面編輯', caption: 'Score Editor' },
+    { id: 'cloud-library', label: '雲端曲庫', caption: 'Firebase / Cloud' },
+    { id: 'converter', label: '琴譜轉換', caption: 'Converter' },
   ]), []);
 
   const playbackScore = useMemo(() => {
@@ -498,6 +499,7 @@ function AppContent({
         onContextMenu={(event) => event.preventDefault()}
       >
         <div className="app-background pointer-events-none fixed inset-0 bg-cover bg-center" style={{backgroundImage: `url(https://images.unsplash.com/photo-1534796636912-3b95b3ab5986?q=80&w=2071&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D)`}}/>
+        <StarrySky />
         <WindParticles />
 
         {toast ? (
@@ -559,6 +561,55 @@ function AppContent({
             </aside>
 
             <div className="space-y-8">
+              <div id="playback-preview" className="rounded-[36px] border border-white/10 bg-black/30 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-sm md:p-6">
+                <div className="mb-5 flex flex-col gap-2 px-1">
+                  <div className="text-[10px] font-black uppercase tracking-[0.34em] text-emerald-200/55">
+                    播放預覽
+                  </div>
+                  <div className="text-sm font-semibold text-emerald-50/80">
+                    已與轉換器對調位置，現在可先預覽播放，再決定是否轉譜。
+                  </div>
+                </div>
+
+                <PerformanceWorkspace
+                  embedded
+                  score={editorScore}
+                  scoreTitle={scoreTitle}
+                />
+              </div>
+
+              <div id="editor" className="rounded-[36px] border border-white/10 bg-black/30 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-sm md:p-6">
+                <div className="mb-5 flex flex-col gap-2 px-1">
+                  <div className="text-[10px] font-black uppercase tracking-[0.34em] text-violet-200/55">
+                    譜面編輯
+                  </div>
+                  <div className="text-sm font-semibold text-violet-50/80">
+                    保留完整編輯、參考與微調能力，方便處理大譜面。
+                  </div>
+                </div>
+
+                <ScoreEditor
+                  score={score}
+                  setScore={setScore}
+                  scoreTitle={scoreTitle}
+                  setScoreTitle={setScoreTitle}
+                  references={references}
+                  setReferences={setReferences}
+                  referenceNotes={referenceNotes}
+                  setReferenceNotes={setReferenceNotes}
+                  onImport={handleImportLocal}
+                  onLoadJsonDemo={handleLoadJsonDemo}
+                  onExport={handleExportLocal}
+                  onSave={handleSaveScore}
+                  onReset={handleResetScore}
+                  isSaving={isSaving}
+                  onConnectCloud={handleConnectCloud}
+                  cloudStatus={cloudStatus}
+                  showGuidePanel={false}
+                  showReferencePanel={false}
+                />
+              </div>
+
               <div id="cloud-library" className="rounded-[36px] border border-white/10 bg-black/30 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-sm md:p-6">
                 <div className="mb-5 flex flex-col gap-2 px-1">
                   <div className="text-[10px] font-black uppercase tracking-[0.34em] text-sky-200/55">
@@ -628,55 +679,6 @@ function AppContent({
                   referenceNotes={referenceNotes}
                   showToast={showToast}
                   onLoadLocalScore={handleLoadLocalConvertedScore}
-                />
-              </div>
-
-              <div id="playback-preview" className="rounded-[36px] border border-white/10 bg-black/30 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-sm md:p-6">
-                <div className="mb-5 flex flex-col gap-2 px-1">
-                  <div className="text-[10px] font-black uppercase tracking-[0.34em] text-emerald-200/55">
-                    播放預覽
-                  </div>
-                  <div className="text-sm font-semibold text-emerald-50/80">
-                    已與轉換器對調位置，現在可先預覽播放，再決定是否轉譜。
-                  </div>
-                </div>
-
-                <PerformanceWorkspace
-                  embedded
-                  score={editorScore}
-                  scoreTitle={scoreTitle}
-                />
-              </div>
-
-              <div id="editor" className="rounded-[36px] border border-white/10 bg-black/30 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-sm md:p-6">
-                <div className="mb-5 flex flex-col gap-2 px-1">
-                  <div className="text-[10px] font-black uppercase tracking-[0.34em] text-violet-200/55">
-                    譜面編輯
-                  </div>
-                  <div className="text-sm font-semibold text-violet-50/80">
-                    保留完整編輯、參考與微調能力，方便處理大譜面。
-                  </div>
-                </div>
-
-                <ScoreEditor
-                  score={score}
-                  setScore={setScore}
-                  scoreTitle={scoreTitle}
-                  setScoreTitle={setScoreTitle}
-                  references={references}
-                  setReferences={setReferences}
-                  referenceNotes={referenceNotes}
-                  setReferenceNotes={setReferenceNotes}
-                  onImport={handleImportLocal}
-                  onLoadJsonDemo={handleLoadJsonDemo}
-                  onExport={handleExportLocal}
-                  onSave={handleSaveScore}
-                  onReset={handleResetScore}
-                  isSaving={isSaving}
-                  onConnectCloud={handleConnectCloud}
-                  cloudStatus={cloudStatus}
-                  showGuidePanel={false}
-                  showReferencePanel={false}
                 />
               </div>
             </div>
