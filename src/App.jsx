@@ -194,8 +194,8 @@ function AppContent({
   );
   const workspaceSections = useMemo(() => ([
     { id: 'cloud-library', label: '雲端曲庫', caption: 'Firebase / Cloud' },
-    { id: 'playback-preview', label: '播放預覽', caption: 'Live Preview' },
     { id: 'converter', label: '琴譜轉換', caption: 'Converter' },
+    { id: 'playback-preview', label: '播放預覽', caption: 'Live Preview' },
     { id: 'editor', label: '譜面編輯', caption: 'Score Editor' },
   ]), []);
 
@@ -394,29 +394,30 @@ function AppContent({
     showToast('已載入 JSON Demo', 'success');
   }, [loadScoreSource, showToast, stopAll]);
 
-  const handlePlayFeaturedScore = useCallback((featuredScore) => {
+  const handlePlayFeaturedScore = useCallback(async (featuredScore) => {
+    const score = await featuredScore.load();
     const source = {
-      title: featuredScore.title,
-      rawText: featuredScore.rawText,
-      sourceType: featuredScore.sourceType,
-      bpm: featuredScore.bpm,
-      timeSigNum: featuredScore.timeSigNum,
-      timeSigDen: featuredScore.timeSigDen,
-      charResolution: featuredScore.charResolution,
-      legacyTimingMode: featuredScore.legacyTimingMode,
-      textNotation: featuredScore.textNotation,
-      storageFormat: featuredScore.storageFormat,
-      filename: featuredScore.filename,
-      globalKeyOffset: featuredScore.globalKeyOffset,
-      scaleMode: featuredScore.scaleMode,
-      reverb: featuredScore.reverb,
-      tone: featuredScore.tone,
-      accidentals: featuredScore.accidentals,
+      title: score.title,
+      rawText: score.rawText,
+      sourceType: score.sourceType,
+      bpm: score.bpm,
+      timeSigNum: score.timeSigNum,
+      timeSigDen: score.timeSigDen,
+      charResolution: score.charResolution,
+      legacyTimingMode: score.legacyTimingMode,
+      textNotation: score.textNotation,
+      storageFormat: score.storageFormat,
+      filename: score.filename,
+      globalKeyOffset: score.globalKeyOffset,
+      scaleMode: score.scaleMode,
+      reverb: score.reverb,
+      tone: score.tone,
+      accidentals: score.accidentals,
     };
 
     loadScoreSource(applyScoreRecommendation(source, { force: true }));
     stopAll();
-    showToast(`已切換到 ${featuredScore.displayTitle ?? featuredScore.title}`, 'success');
+    showToast(`已切換到 ${score.displayTitle ?? score.title}`, 'success');
   }, [loadScoreSource, showToast, stopAll]);
 
   const handleLoadLocalConvertedScore = useCallback((payload) => {
@@ -496,8 +497,7 @@ function AppContent({
         onPointerMove={handlePagePointerMove}
         onContextMenu={(event) => event.preventDefault()}
       >
-        <div className="app-background pointer-events-none fixed inset-0" />
-        <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(56,189,248,0.10),transparent_55%)]" />
+        <div className="app-background pointer-events-none fixed inset-0 bg-cover bg-center" style={{backgroundImage: `url(https://images.unsplash.com/photo-1534796636912-3b95b3ab5986?q=80&w=2071&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D)`}}/>
         <WindParticles />
 
         {toast ? (
@@ -605,23 +605,6 @@ function AppContent({
                 </div>
               </div>
 
-              <div id="playback-preview" className="rounded-[36px] border border-white/10 bg-black/30 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-sm md:p-6">
-                <div className="mb-5 flex flex-col gap-2 px-1">
-                  <div className="text-[10px] font-black uppercase tracking-[0.34em] text-emerald-200/55">
-                    播放預覽
-                  </div>
-                  <div className="text-sm font-semibold text-emerald-50/80">
-                    已與轉換器對調位置，現在可先預覽播放，再決定是否轉譜。
-                  </div>
-                </div>
-
-                <PerformanceWorkspace
-                  embedded
-                  score={editorScore}
-                  scoreTitle={scoreTitle}
-                />
-              </div>
-
               <div id="converter" className="rounded-[36px] border border-white/10 bg-black/30 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-sm md:p-6">
                 <div className="mb-5 flex flex-col gap-2 px-1">
                   <div className="text-[10px] font-black uppercase tracking-[0.34em] text-amber-200/55">
@@ -648,6 +631,23 @@ function AppContent({
                 />
               </div>
 
+              <div id="playback-preview" className="rounded-[36px] border border-white/10 bg-black/30 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-sm md:p-6">
+                <div className="mb-5 flex flex-col gap-2 px-1">
+                  <div className="text-[10px] font-black uppercase tracking-[0.34em] text-emerald-200/55">
+                    播放預覽
+                  </div>
+                  <div className="text-sm font-semibold text-emerald-50/80">
+                    已與轉換器對調位置，現在可先預覽播放，再決定是否轉譜。
+                  </div>
+                </div>
+
+                <PerformanceWorkspace
+                  embedded
+                  score={editorScore}
+                  scoreTitle={scoreTitle}
+                />
+              </div>
+
               <div id="editor" className="rounded-[36px] border border-white/10 bg-black/30 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-sm md:p-6">
                 <div className="mb-5 flex flex-col gap-2 px-1">
                   <div className="text-[10px] font-black uppercase tracking-[0.34em] text-violet-200/55">
@@ -659,7 +659,7 @@ function AppContent({
                 </div>
 
                 <ScoreEditor
-                  score={editorScore}
+                  score={score}
                   setScore={setScore}
                   scoreTitle={scoreTitle}
                   setScoreTitle={setScoreTitle}

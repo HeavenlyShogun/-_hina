@@ -4,7 +4,7 @@ import { SCORE_SOURCE_TYPES } from '../utils/scoreDocument.js';
 import { getNotationDisplayName, parseScoreMetaHeader } from '../utils/scoreTextMeta.js';
 
 const scoreModules = import.meta.glob('../../風物之琴譜/可匯入譜面/*.txt', {
-  eager: true,
+  eager: false,
   import: 'default',
   query: '?raw',
 });
@@ -49,34 +49,50 @@ function getImportableFormat(filename, meta = {}) {
     };
 }
 
-function parseMeta(rawText) {
-  const header = parseScoreMetaHeader(rawText);
-  return header.hasMeta && !header.error ? header.meta : {};
-}
-
 export const IMPORTABLE_SCORE_FILES = Object.entries(scoreModules)
-  .map(([filePath, rawText]) => {
+  .map(([filePath, loader]) => {
     const filename = filenameFromPath(filePath);
     const title = titleFromFilename(filename);
-    const meta = parseMeta(rawText);
-    const format = getImportableFormat(filename, meta);
+    const id = idFromFilename(filename);
+    const provisionalFormat = getImportableFormat(filename, {});
 
-    return {
-      id: idFromFilename(filename),
+    const scoreStub = {
+      id,
       filename,
-      fileContent: rawText,
-      subtitle: `${format.versionLabel} import`,
-      rawText,
-      sourceType: SCORE_SOURCE_TYPES.TEXT,
-      ...DEFAULT_SCORE_PARAMS,
-      ...meta,
-      ...format,
       title,
-      displayTitle: `${format.versionLabel} / ${filename}`,
+      subtitle: `${provisionalFormat.versionLabel} import`,
+      displayTitle: `${provisionalFormat.versionLabel} / ${filename}`,
       sourcePath: filePath,
       playlistId: 'importable-folder-test',
-      tags: ['可匯入', format.versionLabel, '測試'],
+      tags: ['可匯入', provisionalFormat.versionLabel, '測試'],
+      version: provisionalFormat.version,
+      sourceType: SCORE_SOURCE_TYPES.TEXT,
+
+      load: async () => {
+        const rawText = await loader();
+        const header = parseScoreMetaHeader(rawText);
+        const meta = header.hasMeta && !header.error ? header.meta : {};
+        const format = getImportableFormat(filename, meta);
+
+        return {
+          id,
+          filename,
+          fileContent: rawText,
+          subtitle: `${format.versionLabel} import`,
+          rawText,
+          sourceType: SCORE_SOURCE_TYPES.TEXT,
+          ...DEFAULT_SCORE_PARAMS,
+          ...meta,
+          ...format,
+          title,
+          displayTitle: `${format.versionLabel} / ${filename}`,
+          sourcePath: filePath,
+          playlistId: 'importable-folder-test',
+          tags: ['可匯入', format.versionLabel, '測試'],
+        };
+      },
     };
+    return scoreStub;
   })
   .sort((left, right) => (
     left.version.localeCompare(right.version)
