@@ -19,7 +19,6 @@ const STAR_POSITIONS = [
 const AppHeader = memo(({
   playHotkey,
   setPlayHotkey,
-  featuredScores = [],
   scoreGroups = [],
   onPlayFeaturedScore,
   scoreTitle,
@@ -27,17 +26,16 @@ const AppHeader = memo(({
   workspaceSections = [],
 }) => {
   const { isPlaying, onTogglePlay } = usePlayback();
-  const groupedScores = scoreGroups.length > 0
-    ? scoreGroups
-    : [{ id: 'scores', label: 'Scores', files: featuredScores }];
 
-  const stellarScores = useMemo(
-    () => featuredScores.slice(0, STAR_POSITIONS.length).map((score, index) => ({
-      ...score,
-      position: STAR_POSITIONS[index],
+  const stellarScoreGroups = useMemo(() =>
+    scoreGroups.map(group => ({
+      ...group,
+      files: (group.files || []).slice(0, STAR_POSITIONS.length).map((score, index) => ({
+        ...score,
+        position: STAR_POSITIONS[index],
+      })),
     })),
-    [featuredScores],
-  );
+  [scoreGroups]);
 
   return (
     <header className="relative z-30 mt-6 flex w-full max-w-6xl flex-col gap-5 overflow-hidden rounded-[32px] border border-sky-200/30 bg-slate-950/75 px-4 py-5 text-slate-50 shadow-[0_30px_90px_rgba(2,6,23,0.5)] backdrop-blur-xl sm:mt-8 sm:px-6 sm:py-6">
@@ -125,7 +123,7 @@ const AppHeader = memo(({
               <path d="M28 42 L17 74 L52 78 L78 70 L82 22" stroke="rgba(250,204,21,0.18)" strokeWidth="0.4" fill="none" />
             </svg>
 
-            {stellarScores.map((score) => {
+            {stellarScoreGroups.map(group => group.files.map((score) => {
               const isActive = score.title === scoreTitle || score.displayTitle === scoreTitle;
 
               return (
@@ -142,11 +140,11 @@ const AppHeader = memo(({
                   </span>
                 </button>
               );
-            })}
+            }))}
           </div>
 
           <div className="mt-4 space-y-2">
-            {groupedScores.map((group) => (
+            {scoreGroups.map((group) => (
               <div key={group.id} className="flex flex-wrap gap-2">
                 <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-slate-300">
                   {group.label}
