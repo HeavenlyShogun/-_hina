@@ -260,6 +260,83 @@ function getMeasureBeats(playback = {}) {
   return timeSigNum * (4 / timeSigDen);
 }
 
+const NORMALIZE_CACHE_LIMIT = 80;
+const normalizeScoreSourceCache = new Map();
+const objectSourceKeyCache = new WeakMap();
+
+function stableSerialize(value) {
+  if (value === null || value === undefined) {
+    return String(value);
+  }
+
+  if (typeof value === 'string') {
+    return JSON.stringify(value);
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return JSON.stringify(value);
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableSerialize(item)).join(',')}]`;
+  }
+
+  if (typeof value === 'object') {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableSerialize(value[key])}`).join(',')}}`;
+  }
+
+  return JSON.stringify(String(value));
+}
+
+function hashStringFNV1a(input) {
+  let hash = 0x811c9dc5;
+
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+
+  return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
+function createSourceCacheKey(input) {
+  if (typeof input === 'string') {
+    return `text:${input.length}:${hashStringFNV1a(input)}`;
+  }
+
+  if (input && typeof input === 'object') {
+    if (objectSourceKeyCache.has(input)) {
+      return objectSourceKeyCache.get(input);
+    }
+
+    const stableText = stableSerialize(input);
+    const key = `object:${stableText.length}:${hashStringFNV1a(stableText)}`;
+    objectSourceKeyCache.set(input, key);
+    return key;
+  }
+
+  return `other:${typeof input}:${String(input ?? '')}`;
+}
+
+function createConfigCacheKey(config = {}) {
+  return hashStringFNV1a(stableSerialize(config));
+}
+
+function rememberNormalizedResult(cacheKey, value) {
+  normalizeScoreSourceCache.set(cacheKey, value);
+
+  if (normalizeScoreSourceCache.size <= NORMALIZE_CACHE_LIMIT) {
+    return value;
+  }
+
+  const oldestKey = normalizeScoreSourceCache.keys().next().value;
+  if (oldestKey !== undefined) {
+    normalizeScoreSourceCache.delete(oldestKey);
+  }
+
+  return value;
+}
+
 function assertMeasureBeatTotal({ trackId, lineNumber, measureIndex, actualBeats, expectedBeats }) {
   if (Math.abs(actualBeats - expectedBeats) <= MEASURE_BEAT_EPSILON) {
     return;
@@ -1766,7 +1843,7 @@ export function parseScoreJson(scoreJson, config = {}) {
   });
 }
 
-export function normalizeScoreSource(input, config = {}) {
+function normalizeScoreSourceUncached(input, config = {}) {
   if (typeof input === 'string') {
     const explicitNotation = config.textNotation;
     const routeConfig = { ...config };
@@ -1828,6 +1905,20 @@ export function normalizeScoreSource(input, config = {}) {
   }
 
   return buildNormalizedResult([], createPlaybackState(config));
+}
+
+export function normalizeScoreSource(input, config = {}) {
+  const cacheKey = `${createSourceCacheKey(input)}|${createConfigCacheKey(config)}`;
+  if (normalizeScoreSourceCache.has(cacheKey)) {
+    return normalizeScoreSourceCache.get(cacheKey);
+  }
+
+  const normalized = normalizeScoreSourceUncached(input, config);
+  return rememberNormalizedResult(cacheKey, normalized);
+}
+
+export function clearNormalizeScoreSourceCache() {
+  normalizeScoreSourceCache.clear();
 }
 
 export function parseScoreData(text, bpmVal, sigNum, sigDen, charRes) {

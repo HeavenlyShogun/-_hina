@@ -13,12 +13,14 @@ const PianoRoom = memo(({
   activeKeys,
   accidentals,
   keyPulseTokens,
+  noteTrail,
   onKeyActivate,
   onKeyDeactivate,
   onToggleSharp,
   progressBarRef,
-  score,
   scoreTitle,
+  onJumpToSection,
+  workspaceSections,
 }) => (
   <>
     <AppHeader
@@ -28,11 +30,14 @@ const PianoRoom = memo(({
       scoreGroups={scoreGroups}
       onPlayFeaturedScore={onPlayFeaturedScore}
       scoreTitle={scoreTitle}
+      onJumpToSection={onJumpToSection}
+      workspaceSections={workspaceSections}
     />
     <PianoKeys
       activeKeys={activeKeys}
       accidentals={accidentals}
       keyPulseTokens={keyPulseTokens}
+      noteTrail={noteTrail}
       onKeyActivate={onKeyActivate}
       onKeyDeactivate={onKeyDeactivate}
       onToggleSharp={onToggleSharp}

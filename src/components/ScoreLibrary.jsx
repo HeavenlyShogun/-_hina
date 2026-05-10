@@ -1,11 +1,11 @@
 import React, { memo } from 'react';
-import { FolderOpen, Link2, ListX, Trash2, UploadCloud } from 'lucide-react';
+import { DatabaseZap, FolderOpen, Link2, ListX, Trash2, UploadCloud } from 'lucide-react';
 import { KEY_OPTIONS } from '../constants/music';
 
 function formatKeyLabel(offset, scaleMode) {
   const matched = KEY_OPTIONS.find((option) => option.offset === Number(offset));
   const tonic = matched?.name ?? 'C';
-  const modeLabel = scaleMode === 'minor' ? '小調' : scaleMode === 'custom' ? '自訂' : '大調';
+  const modeLabel = scaleMode === 'minor' ? 'Minor' : scaleMode === 'custom' ? 'Custom' : 'Major';
   return `${tonic} ${modeLabel}`;
 }
 
@@ -15,15 +15,31 @@ function formatToneLabel(tone) {
   }
 
   const labels = {
-    piano: '真鋼琴',
-    violin: '小提琴',
-    'lyre-long': '長琴',
-    'lyre-short': '短琴',
-    flute: '長笛',
-    'tongue-drum': '空靈鼓',
+    piano: 'Piano',
+    violin: 'Violin',
+    'lyre-long': 'Lyre Long',
+    'lyre-short': 'Lyre Short',
+    flute: 'Flute',
+    'tongue-drum': 'Tongue Drum',
   };
 
-  return labels[tone] ?? tone;
+  return labels[tone] ?? tone ?? 'Unknown';
+}
+
+function formatContentLength(length) {
+  if (!Number.isFinite(length) || length <= 0) {
+    return '0 B';
+  }
+
+  if (length < 1024) {
+    return `${length} B`;
+  }
+
+  if (length < 1024 * 1024) {
+    return `${(length / 1024).toFixed(1)} KB`;
+  }
+
+  return `${(length / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 const ScoreLibrary = memo(({
@@ -36,10 +52,11 @@ const ScoreLibrary = memo(({
   cloudStatus,
   cloudError,
 }) => (
-  <div className="bg-black/40 border border-white/5 rounded-[40px] p-6 flex flex-col h-fit max-h-[500px] backdrop-blur-sm shadow-inner relative">
+  <div className="relative flex h-fit max-h-[560px] flex-col rounded-[40px] border border-white/5 bg-black/40 p-6 shadow-inner backdrop-blur-sm">
     {cloudStatus !== 'ready' && (
-      <div className="absolute inset-0 bg-black/60 rounded-[40px] backdrop-blur-md z-10 flex flex-col items-center justify-center gap-4 px-6 text-center text-xs font-bold tracking-widest text-white/50">
-        <div>{cloudStatus === 'loading' ? '正在連線雲端...' : '尚未連線 Firebase 雲端琴譜庫'}</div>
+      <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 rounded-[40px] bg-black/60 px-6 text-center text-xs font-bold tracking-widest text-white/60 backdrop-blur-md">
+        <DatabaseZap size={20} className="text-sky-300" />
+        <div>{cloudStatus === 'loading' ? '正在連接 Firebase...' : '尚未連接雲端'}</div>
         {cloudError ? (
           <div className="max-w-[240px] text-[10px] leading-relaxed tracking-normal text-rose-200/80">
             {cloudError}
@@ -51,12 +68,12 @@ const ScoreLibrary = memo(({
           disabled={cloudStatus === 'loading'}
           className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-5 py-2 text-emerald-300 disabled:opacity-50"
         >
-          {cloudStatus === 'loading' ? '連線中' : '連線雲端'}
+          {cloudStatus === 'loading' ? '連接中' : '連接雲端'}
         </button>
       </div>
     )}
     {cloudStatus === 'ready' && !user && (
-      <div className="absolute inset-0 bg-black/60 rounded-[40px] backdrop-blur-md z-10 flex items-center justify-center text-xs font-bold tracking-widest text-white/50">
+      <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[40px] bg-black/60 text-xs font-bold tracking-widest text-white/50 backdrop-blur-md">
         等待登入狀態
       </div>
     )}
@@ -64,14 +81,14 @@ const ScoreLibrary = memo(({
     <div className="mb-6 flex items-center justify-between px-2">
       <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-400">
         <UploadCloud size={16} />
-        雲端琴譜庫
-        <span className="ml-1 text-[8px] opacity-50">可同步與備份</span>
+        Cloud Scores
+        <span className="ml-1 text-[8px] opacity-50">summary mode</span>
       </div>
       <button
         type="button"
         onClick={onClearAll}
         className="p-1 text-rose-400/50 transition-colors hover:text-rose-400"
-        title="清空所有雲端琴譜"
+        title="清空雲端曲庫"
       >
         <ListX size={14} />
       </button>
@@ -79,8 +96,8 @@ const ScoreLibrary = memo(({
 
     <div className="custom-scrollbar flex-1 space-y-3 overflow-y-auto pr-2">
       {savedScores.length === 0 ? (
-        <div className="py-20 text-center text-[10px] uppercase tracking-widest opacity-20">
-          尚無雲端琴譜
+        <div className="py-20 text-center text-[10px] uppercase tracking-widest opacity-30">
+          尚無雲端譜面
         </div>
       ) : savedScores.map((saved) => (
         <div
@@ -94,23 +111,23 @@ const ScoreLibrary = memo(({
               {Array.isArray(saved.references) && saved.references.length > 0 ? (
                 <span
                   className="inline-flex shrink-0 items-center gap-1 rounded-full border border-sky-300/20 bg-sky-500/10 px-2 py-1 text-[9px] font-black tracking-[0.18em] text-sky-200"
-                  title="這份琴譜包含參考資料"
+                  title="附參考資料"
                 >
                   <Link2 size={11} />
-                  參考
+                  Ref
                 </span>
               ) : null}
             </div>
-            <div className="mt-1 flex gap-2 text-[9px] uppercase tracking-wider opacity-45">
+            <div className="mt-1 flex flex-wrap gap-2 text-[9px] uppercase tracking-wider opacity-70">
               <span>{new Date((saved.updatedAt?.seconds ?? Date.now() / 1000) * 1000).toLocaleDateString('zh-TW', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
-              {saved.bpm && <span className="text-emerald-300">速度:{saved.bpm}</span>}
+              {saved.bpm ? <span className="text-emerald-300">BPM:{saved.bpm}</span> : null}
               <span className="text-sky-300">{formatKeyLabel(saved.globalKeyOffset, saved.scaleMode)}</span>
-              {saved.tone && <span className="text-amber-300">{formatToneLabel(saved.tone)}</span>}
-              {Array.isArray(saved.references) && saved.references.length > 0 && <span className="text-violet-300">參考:{saved.references.length}</span>}
+              {saved.tone ? <span className="text-amber-300">{formatToneLabel(saved.tone)}</span> : null}
+              <span className="text-violet-300">{formatContentLength(saved.contentLength)}</span>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <div className="rounded-xl bg-emerald-500/20 p-2 text-emerald-400 shadow-md transition-all group-hover:bg-emerald-500 group-hover:text-white" title="載入琴譜">
+            <div className="rounded-xl bg-emerald-500/20 p-2 text-emerald-400 shadow-md transition-all group-hover:bg-emerald-500 group-hover:text-white" title="載入譜面">
               <FolderOpen size={16} />
             </div>
             <button

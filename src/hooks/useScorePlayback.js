@@ -427,7 +427,7 @@ export function useScorePlayback({
         }
       }
 
-      onKeyVisualAttack(keyK);
+      onKeyVisualAttack(keyK, { source: 'manual' });
     };
 
     void activate();

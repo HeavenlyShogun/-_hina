@@ -1,4 +1,5 @@
 import { DEFAULT_SCORE_PARAMS } from '../constants/music.js';
+import { DEFAULT_SCORE_NAME } from '../config/branding.js';
 import { SCORE_SOURCE_TYPES } from '../utils/scoreDocument.js';
 import { getNotationDisplayName, parseScoreMetaHeader } from '../utils/scoreTextMeta.js';
 
@@ -16,7 +17,7 @@ function titleFromFilename(filename) {
   return filename
     .replace(/\.legacy\.bak\.txt$/iu, '')
     .replace(/\.txt$/iu, '')
-    .trim() || 'Untitled Score';
+    .trim() || DEFAULT_SCORE_NAME;
 }
 
 function idFromFilename(filename) {

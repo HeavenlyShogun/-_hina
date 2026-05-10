@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { connectFirebaseAuth, deleteScore, saveScore, subscribeToScores, uploadScores } from '../services/firebase';
+import {
+  connectFirebaseAuth,
+  deleteScore,
+  loadScore,
+  saveScore,
+  subscribeToScores,
+  uploadScores,
+} from '../services/firebase';
 
 export function useCloudScores() {
   const [savedScores, setSavedScores] = useState([]);
@@ -14,6 +21,7 @@ export function useCloudScores() {
   const authUnsubscribeRef = useRef(null);
   const scoresUnsubscribeRef = useRef(null);
   const connectPromiseRef = useRef(null);
+  const scoreCacheRef = useRef(new Map());
 
   useEffect(() => {
     userRef.current = user;
@@ -33,7 +41,7 @@ export function useCloudScores() {
       .then((result) => {
         if (!result?.ctx) {
           setCloudStatus('unavailable');
-          setCloudError('Firebase 設定尚未完成。');
+          setCloudError('Firebase 目前不可用。');
           return null;
         }
 
@@ -47,7 +55,7 @@ export function useCloudScores() {
       .catch((error) => {
         console.error(error);
         setCloudStatus('error');
-        setCloudError(error?.message || 'Firebase 連線失敗，請檢查設定與網路。');
+        setCloudError(error?.message || 'Firebase 連線失敗。');
         return null;
       })
       .finally(() => {
@@ -60,15 +68,20 @@ export function useCloudScores() {
   useEffect(() => {
     if (!firebaseCtx || !user) {
       scoresUnsubscribeRef.current?.();
-      if (!user) setSavedScores([]);
+      if (!user) {
+        setSavedScores([]);
+        scoreCacheRef.current.clear();
+      }
       return undefined;
     }
 
     scoresUnsubscribeRef.current?.();
-    const unsubscribe = subscribeToScores(firebaseCtx, user.uid, setSavedScores, (error) => {
+    const unsubscribe = subscribeToScores(firebaseCtx, user.uid, (scores) => {
+      setSavedScores(scores);
+    }, (error) => {
       console.error(error);
       setCloudStatus('error');
-      setCloudError(error?.message || 'Firestore 讀取失敗，請檢查權限規則與集合路徑。');
+      setCloudError(error?.message || 'Firestore 摘要列表同步失敗。');
     });
     scoresUnsubscribeRef.current = unsubscribe;
     return () => unsubscribe();
@@ -86,6 +99,29 @@ export function useCloudScores() {
     return { ctx, uid: currentUser.uid };
   }, [ensureCloudConnection]);
 
+  const loadCloudScore = useCallback(async (id) => {
+    const cached = scoreCacheRef.current.get(id);
+    if (cached) {
+      return cached;
+    }
+
+    const connection = await getConnectedUser();
+    if (!connection) return null;
+
+    try {
+      const fullScore = await loadScore(connection.ctx, connection.uid, id);
+      if (fullScore) {
+        scoreCacheRef.current.set(id, fullScore);
+      }
+      setCloudError('');
+      return fullScore;
+    } catch (error) {
+      console.error(error);
+      setCloudError(error?.message || 'Firestore 譜面讀取失敗。');
+      return null;
+    }
+  }, [getConnectedUser]);
+
   const saveCloudScore = useCallback(async (title, payload) => {
     const connection = await getConnectedUser();
     if (!connection) return false;
@@ -93,11 +129,12 @@ export function useCloudScores() {
     setIsSaving(true);
     try {
       await saveScore(connection.ctx, connection.uid, title, payload);
+      scoreCacheRef.current.delete(payload.id ?? title);
       setCloudError('');
       return true;
     } catch (error) {
       console.error(error);
-      setCloudError(error?.message || 'Firestore 儲存失敗，請檢查權限規則。');
+      setCloudError(error?.message || 'Firestore 儲存失敗。');
       return false;
     } finally {
       setIsSaving(false);
@@ -109,11 +146,12 @@ export function useCloudScores() {
     if (!connection) return false;
     try {
       await deleteScore(connection.ctx, connection.uid, id);
+      scoreCacheRef.current.delete(id);
       setCloudError('');
       return true;
     } catch (error) {
       console.error(error);
-      setCloudError(error?.message || 'Firestore 刪除失敗，請檢查權限規則。');
+      setCloudError(error?.message || 'Firestore 刪除失敗。');
       return false;
     }
   }, [getConnectedUser]);
@@ -123,11 +161,12 @@ export function useCloudScores() {
     if (!connection) return false;
     try {
       await Promise.all(savedScores.map((saved) => deleteScore(connection.ctx, connection.uid, saved.id)));
+      scoreCacheRef.current.clear();
       setCloudError('');
       return true;
     } catch (error) {
       console.error(error);
-      setCloudError(error?.message || 'Firestore 清空失敗，請檢查權限規則。');
+      setCloudError(error?.message || 'Firestore 批次刪除失敗。');
       return false;
     }
   }, [getConnectedUser, savedScores]);
@@ -141,7 +180,7 @@ export function useCloudScores() {
       return true;
     } catch (error) {
       console.error(error);
-      setCloudError(error?.message || 'Firestore 批次上傳失敗，請檢查權限規則。');
+      setCloudError(error?.message || 'Firestore 批次上傳失敗。');
       return false;
     }
   }, [getConnectedUser]);
@@ -157,5 +196,6 @@ export function useCloudScores() {
     deleteCloudScore,
     clearAllCloudScores,
     uploadCloudScores,
+    loadCloudScore,
   };
 }
