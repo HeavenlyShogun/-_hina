@@ -105,6 +105,27 @@ export const FEATURED_SCORES = [
       };
     },
   },
+  {
+    id: 'combined-4-midi',
+    title: 'combined_4-MIDI',
+    displayTitle: 'combined_4-MIDI',
+    subtitle: 'MIDI',
+    load: async () => {
+      const rawText = await import('./scores/combined-4-midi.json?raw').then(m => m.default);
+      const payload = JSON.parse(rawText);
+      return {
+        id: 'combined-4-midi',
+        title: 'combined_4-MIDI',
+        displayTitle: 'combined_4-MIDI',
+        subtitle: 'MIDI',
+        rawText,
+        sourceType: SCORE_SOURCE_TYPES.JSON,
+        ...DEFAULT_SCORE_PARAMS,
+        ...(payload.transport ?? {}),
+        ...(payload.playback ?? {}),
+      };
+    },
+  },
   ...staticFeaturedScores.map(score => ({
     ...score,
     load: async () => score,
