@@ -46,7 +46,7 @@ function buildJsonSectionSegments(scoreJson, maxTick) {
 
   const normalizedSections = rawSections
     .map((section, index) => ({
-      id: section?.id ?? `section-json-${index}`,
+      id: section?.id ?? `section-json-${'index'}`,
       label: section?.label ?? section?.title ?? section?.name ?? `Section ${index + 1}`,
       startTick: Math.max(0, Math.round(Number(section?.startTick ?? section?.tick ?? section?.start) || 0)),
       endTick: Number.isFinite(Number(section?.endTick ?? section?.end))
@@ -160,7 +160,6 @@ const SheetDisplay = memo(({
 }) => {
   const fileInputRef = useRef(null);
   const playheadRef = useRef(null);
-  const previewContainerRef = useRef(null);
   const [showGuide, setShowGuide] = useState(false);
   const [referenceSearch, setReferenceSearch] = useState('');
   const {
@@ -369,6 +368,13 @@ const SheetDisplay = memo(({
 
   usePlayheadSync(playheadRef);
 
+  useEffect(() => {
+    if (normalizedScore && playbackController) {
+      playbackController.load(normalizedScore.events, normalizedScore.maxTime, normalizedScore.playback);
+      syncPlayheadPosition(0);
+    }
+  }, [normalizedScore, syncPlayheadPosition]);
+
   return (
     <div className="relative flex flex-col rounded-[40px] border border-white/5 bg-white/[0.02] p-6 shadow-2xl md:p-8">
       {showScoreActions ? (
@@ -488,7 +494,7 @@ const SheetDisplay = memo(({
 
                 return (
                   <button
-                    key={segment.id ?? `segment-${index}`}
+                    key={segment.id ?? `segment-${'index'}`}
                     type="button"
                     className="absolute inset-y-0 cursor-pointer rounded-xl border border-white/10 bg-emerald-500/10 px-2 text-left text-[9px] font-black tracking-[0.18em] text-emerald-100/65 transition-colors hover:bg-emerald-400/20 hover:text-emerald-50"
                     style={{ left, width }}
@@ -643,7 +649,6 @@ const SheetDisplay = memo(({
             </div>
           </div>
           <div
-            ref={previewContainerRef}
             onClick={handlePreviewClick}
             className="custom-scrollbar max-h-[240px] overflow-y-auto rounded-[20px] border border-white/10 bg-black/25 p-3"
           >
@@ -720,7 +725,7 @@ const SheetDisplay = memo(({
 
                   return (
                     <button
-                      key={segment.id ?? `preview-segment-${index}`}
+                      key={segment.id ?? `preview-segment-${'index'}`}
                       type="button"
                       data-seek-tick={segment.startTick}
                       className={`block w-full rounded-2xl border px-4 py-3 text-left transition-colors ${

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Redirecting...</title>
+  </head>
+  <body>
+    <script>
+      (function () {
+        var basePath = '/-_hina/';
+        var location = window.location;
+        var origin = location.origin;
+        var pathname = location.pathname || '/';
+        var search = location.search || '';
+        var hash = location.hash || '';
+
+        sessionStorage.setItem(
+          'gh-pages-spa-redirect',
+          pathname + search + hash
+        );
+
+        window.location.replace(origin + (basePath === '/' ? '/' : basePath));
+      })();
+    </script>
+  </body>
+  </html>

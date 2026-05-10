@@ -1,9 +1,6 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
-const DEFAULT_REPO_NAME = '-_hina';
-const GITHUB_PAGES_BASE = `/${DEFAULT_REPO_NAME}/`;
-
 function resolveCustomDomain(env) {
   return env.VITE_CUSTOM_DOMAIN?.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '') || '';
 }
@@ -18,10 +15,9 @@ export default defineConfig(({ command, mode }) => {
   const customDomain = resolveCustomDomain(env);
   const port = resolvePort(env.VITE_DEV_PORT, 5173);
   const usePolling = env.VITE_USE_POLLING === 'true';
-  const buildBase = customDomain ? '/' : GITHUB_PAGES_BASE;
 
   return {
-    base: command === 'build' ? buildBase : '/',
+    base: '/', // Always build for root path
     plugins: [react()],
     server: {
       host: env.VITE_DEV_HOST?.trim() || '0.0.0.0',
