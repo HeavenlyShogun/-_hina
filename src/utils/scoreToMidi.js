@@ -135,7 +135,7 @@ export function scoreJsonToMidi(scoreJson, options = {}) {
 
   midi.fromJSON({
     header: {
-      name: scoreJson.meta?.title || options.title || 'Project Hina Export',
+      name: scoreJson.meta?.title || options.title || 'Universal Rythem Recorder Export',
       ppq: targetPpq,
       meta: [],
       tempos: [{ ticks: 0, bpm }],

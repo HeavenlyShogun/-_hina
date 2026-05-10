@@ -1,4 +1,5 @@
 import { DEFAULT_SCORE_PARAMS } from '../constants/music.js';
+import { DEFAULT_SCORE_NAME } from '../config/branding.js';
 import { normalizeScoreSource } from './score.js';
 import { buildScoreMetaPayload, parseScoreMetaHeader } from './scoreTextMeta.js';
 
@@ -166,17 +167,16 @@ export function createScoreDocument(source = {}) {
     && source.compiledEvents.every(isCanonicalCompiledEvent)
     ? source.compiledEvents
     : compileScoreEvents(rawText, { ...playback, sourceType });
-  const resolvedTitle = String(mergedSource.title ?? source.title ?? 'Untitled Score').trim() || 'Untitled Score';
+  const resolvedTitle = String(mergedSource.title ?? source.title ?? DEFAULT_SCORE_NAME).trim() || DEFAULT_SCORE_NAME;
 
   return {
     id: mergedSource.id ?? mergedSource.title ?? source.id ?? source.title ?? '',
-    title: String(source.title ?? '未命名琴譜').trim() || '未命名琴譜',
+    title: resolvedTitle,
     rawText,
     compiledEvents,
     sourceType,
     references: referenceFields.references,
     referenceNotes: referenceFields.referenceNotes,
-    title: resolvedTitle,
     ...playback,
   };
 }

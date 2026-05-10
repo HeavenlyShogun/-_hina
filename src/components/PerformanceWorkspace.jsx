@@ -1,8 +1,9 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ListMusic, MousePointerClick } from 'lucide-react';
 import { usePlayback } from '../contexts/PlaybackContext';
-import playbackController from '../services/playbackController';
+import { DEFAULT_SCORE_NAME } from '../config/branding';
 import useLivePlaybackFrame from '../hooks/useLivePlaybackFrame';
+import playbackController from '../services/playbackController';
 import { analyzeLegacyScoreText, normalizeScoreSource, PPQ } from '../utils/score';
 
 function clamp(value, min, max) {
@@ -29,7 +30,7 @@ function buildLegacyTimelineItems(scoreText, normalizedScore) {
 
     result.push({
       id: `legacy-live-line-${rawIndex}`,
-      label: `第 ${result.length + 1} 行`,
+      label: `段落 ${result.length + 1}`,
       content: rawLine,
       startTick: segment.startTick,
       endTick: segment.endTick,
@@ -49,8 +50,8 @@ function buildJsonTimelineItems(scoreJson, effectiveMaxTick) {
   return sections
     .map((section, index) => ({
       id: section?.id ?? `json-live-section-${index}`,
-      label: section?.label ?? section?.title ?? section?.name ?? `段落 ${index + 1}`,
-      content: section?.description ?? section?.notes ?? '段落跳轉點',
+      label: section?.label ?? section?.title ?? section?.name ?? `Section ${index + 1}`,
+      content: section?.description ?? section?.notes ?? '此段尚未填寫描述。',
       startTick: Math.max(0, Math.round(Number(section?.startTick ?? section?.tick ?? section?.start) || 0)),
       endTick: Number.isFinite(Number(section?.endTick ?? section?.end))
         ? Math.max(0, Math.round(Number(section?.endTick ?? section?.end)))
@@ -76,7 +77,7 @@ function buildFallbackTimelineItems(normalizedScore, effectiveMaxTick) {
   for (let startTick = 0, index = 0; startTick < maxTick; startTick += measureTick, index += 1) {
     items.push({
       id: `measure-${index + 1}`,
-      label: `第 ${index + 1} 小節`,
+      label: `小節 ${index + 1}`,
       content: `跳到第 ${index + 1} 小節`,
       startTick,
       endTick: Math.min(startTick + measureTick, maxTick),
@@ -251,6 +252,13 @@ const PerformanceWorkspace = memo(({ score, scoreTitle, embedded = false }) => {
     }
   }, [playbackState.generation, playbackState.isPlaying, playbackState.status]);
 
+  useEffect(() => {
+    activeLineRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+    });
+  }, [activeTimelineItemIndex]);
+
   return (
     <section className={embedded ? 'relative z-20 w-full' : 'relative z-20 mt-8 w-full max-w-6xl px-4'}>
       <div className="overflow-hidden rounded-[32px] border border-white/70 bg-white/88 text-slate-900 shadow-[0_28px_90px_rgba(15,23,42,0.12)] backdrop-blur-xl">
@@ -259,23 +267,23 @@ const PerformanceWorkspace = memo(({ score, scoreTitle, embedded = false }) => {
             <div>
               <div className="text-[10px] font-black uppercase tracking-[0.32em] text-sky-700/70">Performance Workspace</div>
               <h2 className="mt-2 text-lg font-black text-slate-950 sm:text-xl">
-                {scoreTitle?.trim() || '未命名琴譜'}
+                {scoreTitle?.trim() || DEFAULT_SCORE_NAME}
               </h2>
               <p className="mt-1 text-xs text-slate-500">
-                即時譜面與彈奏頁同窗顯示，可直接用進度條或段落卡跳轉。
+                顯示目前譜面的播放進度、段落列表與快速跳轉入口，方便在長曲中定位。
               </p>
             </div>
             <div className="grid grid-cols-3 gap-2 text-center text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
               <div className="rounded-2xl border border-slate-200/80 bg-slate-50/95 px-3 py-3 shadow-sm">
-                <div className="text-slate-400">目前</div>
+                <div className="text-slate-400">Current</div>
                 <div className="mt-1 text-sm text-teal-700">{Math.round(currentDisplayTick || 0)}</div>
               </div>
               <div className="rounded-2xl border border-slate-200/80 bg-slate-50/95 px-3 py-3 shadow-sm">
-                <div className="text-slate-400">總長</div>
+                <div className="text-slate-400">Max Tick</div>
                 <div className="mt-1 text-sm text-teal-700">{Math.round(effectiveMaxTick || 0)}</div>
               </div>
               <div className="rounded-2xl border border-slate-200/80 bg-slate-50/95 px-3 py-3 shadow-sm">
-                <div className="text-slate-400">進度</div>
+                <div className="text-slate-400">Progress</div>
                 <div className="mt-1 text-sm text-teal-700">{Math.round(progressPercent)}%</div>
               </div>
             </div>
@@ -283,8 +291,12 @@ const PerformanceWorkspace = memo(({ score, scoreTitle, embedded = false }) => {
 
           <div className="mt-5">
             <div className="mb-2 flex items-center justify-between text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">
-              <span>時間軸跳轉</span>
-              <span>{Math.round((currentDisplayTick / Math.max(effectiveMaxTick, 1)) * (normalizedScore.maxTime || 0) || 0)}s / {Math.round(normalizedScore.maxTime || 0)}s</span>
+              <span>Timeline</span>
+              <span>
+                {Math.round((currentDisplayTick / Math.max(effectiveMaxTick, 1)) * (normalizedScore.maxTime || 0) || 0)}s
+                {' / '}
+                {Math.round(normalizedScore.maxTime || 0)}s
+              </span>
             </div>
             <div className="relative">
               <div className="h-3 rounded-full bg-slate-200" />
@@ -323,9 +335,9 @@ const PerformanceWorkspace = memo(({ score, scoreTitle, embedded = false }) => {
           <div className="rounded-[28px] border border-slate-200/80 bg-slate-50/92 p-4 shadow-sm">
             <div className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">
               <ListMusic size={14} className="text-teal-700" />
-              即時琴譜
+              段落清單
             </div>
-            <div className="max-h-[360px] overflow-y-auto rounded-[22px] border border-slate-200 bg-white/82 p-3 custom-scrollbar">
+            <div className="custom-scrollbar max-h-[360px] overflow-y-auto rounded-[22px] border border-slate-200 bg-white/82 p-3">
               <div className="space-y-2">
                 {timelineItems.map((item, index) => {
                   const isActive = index === activeTimelineItemIndex;
@@ -395,7 +407,7 @@ const PerformanceWorkspace = memo(({ score, scoreTitle, embedded = false }) => {
               })}
             </div>
             <div className="mt-4 rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-relaxed text-slate-500">
-              拖曳上方進度條可精確跳轉，點選左側譜面或右側段落卡可快速切換到對應位置。
+              拖曳上方時間軸可精細定位，右側清單則適合直接跳到常用段落或小節。
             </div>
           </div>
         </div>

@@ -3,6 +3,7 @@ import { Copy, Download, FileUp, HardDriveDownload, Music2, RefreshCcw, Sparkles
 import { normalizeScoreSource } from '../utils/score';
 import { parseMidiToV2 } from '../utils/midiToV2';
 import { scoreJsonToMidiBytes } from '../utils/scoreToMidi';
+import { APP_NAME, DEFAULT_SCORE_NAME } from '../config/branding';
 import { SCORE_SOURCE_TYPES } from '../utils/scoreDocument';
 import {
   buildAiConversionPrompt,
@@ -46,7 +47,7 @@ function createJsonScoreSchema({
     version: '2.0',
     meta: {
       id: `${slugifyFilename(title)}-${Date.now()}`,
-      title: title || '未命名琴譜',
+      title: title || DEFAULT_SCORE_NAME,
       sourceType,
       migratedAt: new Date().toISOString(),
       originalFormat: sourceType,
@@ -239,7 +240,7 @@ const ScoreConverter = memo(({
 
   const refreshAssistantPrompt = useCallback((nextInputValue = inputValue) => {
     const prompt = buildAiConversionPrompt({
-      title: scoreTitle.trim() || '未命名琴譜',
+      title: scoreTitle.trim() || DEFAULT_SCORE_NAME,
       notationType: externalInputType,
       outputFormat: aiOutputFormat,
       playbackConfig,
@@ -268,7 +269,7 @@ const ScoreConverter = memo(({
 
     if (maybeJsonScore) {
       const normalizedJsonPayload = ensurePayloadMetadata(maybeJsonScore, {
-        title: scoreTitle.trim() || '未命名琴譜',
+        title: scoreTitle.trim() || DEFAULT_SCORE_NAME,
         playbackConfig,
         references,
         referenceNotes,
@@ -280,7 +281,7 @@ const ScoreConverter = memo(({
 
     const normalized = normalizeScoreSource(inputValue, playbackConfig);
     const payload = createJsonScoreSchema({
-      title: scoreTitle.trim() || '未命名琴譜',
+      title: scoreTitle.trim() || DEFAULT_SCORE_NAME,
       rawText: inputValue,
       sourceType: SCORE_SOURCE_TYPES.TEXT,
       playbackConfig,
@@ -524,7 +525,7 @@ const ScoreConverter = memo(({
               <option value={OUTPUT_FORMATS.LEGACY_TEXT}>文字譜</option>
               <option value={OUTPUT_FORMATS.TIMED_TOKEN}>音名時值譜</option>
               <option value={OUTPUT_FORMATS.NUMBERED_GRID}>1/16 或 1/32 數字格譜</option>
-              <option value={OUTPUT_FORMATS.JSON_V2}>Project Hina JSON</option>
+              <option value={OUTPUT_FORMATS.JSON_V2}>{APP_NAME} JSON</option>
             </select>
           </label>
 

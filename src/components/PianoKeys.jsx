@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { NOTES_MAP, getSolfege } from '../constants/music';
 import { useAudioConfig } from '../contexts/AudioConfigContext';
 import { usePlayback } from '../contexts/PlaybackContext';
@@ -20,6 +20,11 @@ function formatTimeLabel(seconds) {
 
   return `${wholeSeconds}.${tenths}s`;
 }
+
+const NOTE_INDEX_MAP = Object.fromEntries(
+  NOTES_MAP.flatMap((row, rowIndex) => row.keys.map((key, keyIndex) => [key.k, (2 - rowIndex) * 7 + keyIndex])),
+);
+const MAX_NOTE_INDEX = Math.max(...Object.values(NOTE_INDEX_MAP), 1);
 
 const PianoKey = memo(({
   keyInfo,
@@ -72,7 +77,6 @@ const PianoKey = memo(({
     <div className="key-wrapper group relative w-full min-w-0 max-w-none sm:max-w-[5.9rem] md:max-w-[5.5rem]">
       <div className="lyre-key-aura" data-active={isActive} />
       {pulseToken > 0 ? <div key={pulseToken} className="lyre-key-ripple" aria-hidden="true" /> : null}
-      {pulseToken > 0 ? <div key={`rapid-${pulseToken}`} className="lyre-key-rapid-dot" aria-hidden="true" /> : null}
       <button
         type="button"
         onClick={handleToggle}
@@ -90,11 +94,7 @@ const PianoKey = memo(({
         data-active={isActive}
         className={`lyre-key-button relative flex aspect-square min-h-[2.6rem] w-full min-w-[2.6rem] select-none flex-col items-center justify-center rounded-[0.95rem] border [touch-action:manipulation] sm:min-h-[5rem] sm:min-w-0 sm:rounded-[1.35rem] md:min-h-[5.4rem] ${isActive ? 'playing-active' : ''}`}
       >
-        <span className="lyre-key-string" aria-hidden="true" />
         <span className="lyre-key-note-wrap">
-          <span className="lyre-key-sparkle lyre-key-sparkle-a" aria-hidden="true" />
-          <span className="lyre-key-sparkle lyre-key-sparkle-b" aria-hidden="true" />
-          <span className="lyre-key-sparkle lyre-key-sparkle-c" aria-hidden="true" />
           <span className="lyre-key-note flex items-start font-sans text-[0.95rem] font-black tracking-normal sm:text-[1.55rem] md:text-[1.75rem]">
             {getSolfege(keyInfo.n)}
             {displayOffset && <sup className="lyre-key-offset ml-0.5 text-[9px] sm:text-[10px]">{displayOffset}</sup>}
@@ -106,10 +106,66 @@ const PianoKey = memo(({
   );
 });
 
+function NoteTrailGraph({ noteTrail = [] }) {
+  const recentNotes = noteTrail.slice(-24);
+
+  const points = recentNotes.map((note, index) => {
+    const x = recentNotes.length <= 1 ? 0 : (index / (recentNotes.length - 1)) * 100;
+    const noteIndex = NOTE_INDEX_MAP[note.key] ?? 0;
+    const y = 100 - (noteIndex / MAX_NOTE_INDEX) * 100;
+    return `${x},${y}`;
+  }).join(' ');
+
+  return (
+    <div className="mt-5 rounded-[24px] border border-sky-200/20 bg-slate-950/60 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+      <div className="mb-3 flex items-center justify-between gap-3 text-[10px] font-black uppercase tracking-[0.24em] text-sky-100/60">
+        <span>音符軌跡</span>
+        <span>{recentNotes.length} notes</span>
+      </div>
+      <div className="relative h-28 overflow-hidden rounded-[18px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.96),rgba(2,6,23,0.92))]">
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(56,189,248,0.10)_1px,transparent_1px),linear-gradient(180deg,rgba(56,189,248,0.08)_1px,transparent_1px)] bg-[size:12.5%_25%]" />
+        <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+          {recentNotes.length > 1 ? (
+            <polyline
+              fill="none"
+              stroke="rgba(125,211,252,0.9)"
+              strokeWidth="2"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              points={points}
+            />
+          ) : null}
+          {recentNotes.map((note, index) => {
+            const x = recentNotes.length <= 1 ? 50 : (index / Math.max(recentNotes.length - 1, 1)) * 100;
+            const noteIndex = NOTE_INDEX_MAP[note.key] ?? 0;
+            const y = 100 - (noteIndex / MAX_NOTE_INDEX) * 100;
+
+            return (
+              <circle
+                key={note.id}
+                cx={x}
+                cy={y}
+                r={note.source === 'manual' ? '2.6' : '2.1'}
+                fill={note.source === 'manual' ? 'rgba(251,191,36,0.95)' : 'rgba(34,211,238,0.92)'}
+              />
+            );
+          })}
+        </svg>
+        {recentNotes.length === 0 ? (
+          <div className="absolute inset-0 flex items-center justify-center text-xs text-slate-400">
+            播放或彈奏後會在這裡記錄最近的音符走勢
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 const PianoKeys = memo(({
   accidentals,
   activeKeys,
   keyPulseTokens,
+  noteTrail,
   onKeyActivate,
   onKeyDeactivate,
   onToggleSharp,
@@ -220,11 +276,11 @@ const PianoKeys = memo(({
 
   return (
     <main className="relative z-20 mt-6 w-full max-w-6xl px-1 sm:mt-10 sm:px-4">
-      <div className="group relative overflow-hidden rounded-[24px] border border-white/70 bg-white/88 p-2 text-slate-900 shadow-[0_35px_120px_rgba(15,23,42,0.12)] backdrop-blur-xl sm:rounded-[36px] sm:p-6 md:rounded-[60px] md:p-14">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.10),transparent_30%),radial-gradient(circle_at_80%_22%,rgba(45,212,191,0.10),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.88),rgba(248,250,252,0.72))]" />
+      <div className="group relative overflow-hidden rounded-[24px] border border-sky-200/25 bg-slate-950/70 p-2 text-slate-100 shadow-[0_35px_120px_rgba(2,6,23,0.42)] backdrop-blur-xl sm:rounded-[36px] sm:p-6 md:rounded-[60px] md:p-14">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.12),transparent_30%),radial-gradient(circle_at_80%_22%,rgba(250,204,21,0.08),transparent_24%),linear-gradient(180deg,rgba(2,6,23,0.76),rgba(15,23,42,0.86))]" />
         <div className="absolute inset-x-0 top-0 px-4 pt-4 sm:px-6 md:px-8">
-          <div className="mb-2 flex items-center justify-between gap-3 text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
-            <span>{isScrubbing ? '拖曳定位' : '播放進度'}</span>
+          <div className="mb-2 flex items-center justify-between gap-3 text-[10px] font-black uppercase tracking-[0.22em] text-slate-300">
+            <span>{isScrubbing ? 'Scrubbing' : 'Playback Timeline'}</span>
             <span>{formatTimeLabel(displayTime)} / {formatTimeLabel(maxTime)}</span>
           </div>
           <div
@@ -240,16 +296,16 @@ const PianoKeys = memo(({
             onPointerUp={handleTimelinePointerUp}
             onPointerCancel={handleTimelinePointerCancel}
             onLostPointerCapture={handleTimelinePointerCancel}
-            className={`relative h-4 overflow-hidden rounded-full border border-slate-200 bg-slate-100/90 ${maxTime > 0 ? 'cursor-ew-resize' : 'cursor-default'}`}
+            className={`relative h-4 overflow-hidden rounded-full border border-slate-700 bg-slate-900/90 ${maxTime > 0 ? 'cursor-ew-resize' : 'cursor-default'}`}
           >
             <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))]" />
             <div
               ref={progressBarRef}
-              className="pointer-events-none absolute inset-y-0 left-0 bg-gradient-to-r from-emerald-600 via-emerald-300 to-teal-300 will-change-[width]"
+              className="pointer-events-none absolute inset-y-0 left-0 bg-gradient-to-r from-sky-500 via-cyan-300 to-amber-300 will-change-[width]"
               style={{ width: `${displayRatio * 100}%`, transition: isScrubbing ? 'none' : 'width 16ms linear' }}
             />
             <div
-              className="pointer-events-none absolute top-1/2 h-6 w-6 -translate-y-1/2 -translate-x-1/2 rounded-full border border-emerald-200/70 bg-emerald-100/90 shadow-[0_0_18px_rgba(52,211,153,0.45)]"
+              className="pointer-events-none absolute top-1/2 h-6 w-6 -translate-y-1/2 -translate-x-1/2 rounded-full border border-sky-200/70 bg-sky-100/90 shadow-[0_0_18px_rgba(56,189,248,0.45)]"
               style={{ left: `${displayRatio * 100}%` }}
             />
           </div>
@@ -258,8 +314,8 @@ const PianoKeys = memo(({
           {NOTES_MAP.map((row, rowIndex) => (
             <div key={rowIndex} className="relative mb-3 grid grid-cols-1 gap-1.5 last:mb-0 sm:mb-8 sm:gap-4 md:mb-10 md:gap-8 lg:grid-cols-[104px_1fr] lg:items-center">
               <div className="flex w-full items-center justify-between px-1 text-center lg:flex-col lg:items-end lg:justify-center lg:px-0 lg:text-right">
-                <span className="text-[9px] font-black text-indigo-700/80 sm:text-[10px]">{row.label}</span>
-                <span className="rounded-full border border-slate-200 bg-white/70 px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.24em] text-slate-500 backdrop-blur-lg sm:px-2.5 sm:py-1 sm:tracking-[0.32em] lg:inline-flex">{row.sub}</span>
+                <span className="text-[9px] font-black text-sky-200/80 sm:text-[10px]">{row.label}</span>
+                <span className="rounded-full border border-slate-700 bg-slate-900/70 px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.24em] text-slate-300 backdrop-blur-lg sm:px-2.5 sm:py-1 sm:tracking-[0.32em] lg:inline-flex">{row.sub}</span>
               </div>
               <div className="grid grid-cols-7 items-center justify-items-stretch gap-1.5 sm:gap-4 md:gap-5">
                 {row.keys.map((key) => (
@@ -279,6 +335,7 @@ const PianoKeys = memo(({
             </div>
           ))}
         </div>
+        <NoteTrailGraph noteTrail={noteTrail} />
       </div>
     </main>
   );

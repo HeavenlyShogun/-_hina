@@ -104,7 +104,7 @@ export function buildAiConversionPrompt({
   referenceNotes,
   sourceText,
 }) {
-  const safeTitle = String(title || 'Untitled Score').trim() || 'Untitled Score';
+  const safeTitle = String(title || 'Stardust Echo').trim() || 'Stardust Echo';
   const safeNotationType = notationType || 'jianpu';
   const safeOutputFormat = outputFormat || 'json-v2';
   const safeSourceText = String(sourceText ?? '').trim();
@@ -138,7 +138,7 @@ export function buildAiConversionPrompt({
       ? [
         'Output valid JSON only. No markdown fences, no explanation.',
         'The old timed-token rest syntax is deprecated for second-version work.',
-        'Use the Project Hina JSON v2 schema with integer startTick and durationTicks instead.',
+        'Use the Universal Rythem Recorder JSON v2 schema with integer startTick and durationTicks instead.',
         'Do not use deprecated beat/rest token syntax; encode rests as silent gaps between note events.',
       ]
     : [
@@ -153,7 +153,7 @@ export function buildAiConversionPrompt({
     ];
 
   return [
-    '你現在是 Project Hina / 原神風物之琴 的編曲助手。',
+    '你現在是 Universal Rythem Recorder 的編曲助手。',
     `請把下面的 ${safeNotationType === 'staff' ? '五線譜文字描述' : safeNotationType === 'mixed' ? '混合記譜資料' : '簡譜'} 轉成我的專案可匯入格式。`,
     '',
     '樂器限制:',

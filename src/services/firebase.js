@@ -1,8 +1,10 @@
 import { appId, getFirebaseConfig, getFirebaseConfigError, initialAuthToken } from '../config/appConfig';
+import { DEFAULT_SCORE_NAME } from '../config/branding';
 import { createScoreDocument, SCORE_SOURCE_TYPES } from '../utils/scoreDocument';
 
 let firebaseContextPromise;
 export const SCORE_COMPILER_VERSION = 'wind-poetry-score-compiler@2';
+const SCORE_LIST_LIMIT = 40;
 
 async function createFirebaseContext() {
   const configError = getFirebaseConfigError();
@@ -12,13 +14,25 @@ async function createFirebaseContext() {
 
   const firebaseConfig = getFirebaseConfig();
   if (!firebaseConfig) {
-    throw new Error('Firebase 設定未載入。請檢查 `.env` 是否存在，並在重啟 Vite 後再試一次。');
+    throw new Error('Firebase 設定不存在，請先補齊 .env 內的 Vite Firebase 參數。');
   }
 
   const [
     { initializeApp, getApps, getApp },
     { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken },
-    { getFirestore, collection, onSnapshot, deleteDoc, doc, getDoc, setDoc, serverTimestamp },
+    {
+      getFirestore,
+      collection,
+      onSnapshot,
+      deleteDoc,
+      doc,
+      getDoc,
+      setDoc,
+      serverTimestamp,
+      query,
+      orderBy,
+      limit,
+    },
   ] = await Promise.all([
     import('firebase/app'),
     import('firebase/auth'),
@@ -43,6 +57,9 @@ async function createFirebaseContext() {
     onAuthStateChanged,
     signInAnonymously,
     signInWithCustomToken,
+    query,
+    orderBy,
+    limit,
   };
 }
 
@@ -60,8 +77,11 @@ export async function connectFirebaseAuth(onUserChange) {
   const unsubscribe = ctx.onAuthStateChanged(ctx.auth, onUserChange);
 
   try {
-    if (initialAuthToken) await ctx.signInWithCustomToken(ctx.auth, initialAuthToken);
-    else await ctx.signInAnonymously(ctx.auth);
+    if (initialAuthToken) {
+      await ctx.signInWithCustomToken(ctx.auth, initialAuthToken);
+    } else {
+      await ctx.signInAnonymously(ctx.auth);
+    }
   } catch (error) {
     console.warn('Firebase Auth Error', error);
     throw error;
@@ -76,6 +96,14 @@ function scoreCollection(ctx, uid) {
 
 function scoreDoc(ctx, uid, id) {
   return ctx.doc(ctx.db, 'artifacts', ctx.appId, 'users', uid, 'scores', id);
+}
+
+function scoreSummaryCollection(ctx, uid) {
+  return ctx.collection(ctx.db, 'artifacts', ctx.appId, 'users', uid, 'scoreSummaries');
+}
+
+function scoreSummaryDoc(ctx, uid, id) {
+  return ctx.doc(ctx.db, 'artifacts', ctx.appId, 'users', uid, 'scoreSummaries', id);
 }
 
 function normalizeLegacyRecord(record = {}) {
@@ -99,6 +127,35 @@ function normalizeLegacyRecord(record = {}) {
         : JSON.stringify(record.content ?? {}, null, 2),
     sourceType,
   });
+}
+
+function createScoreSummary(documentData = {}) {
+  return {
+    id: documentData.id,
+    title: documentData.title,
+    sourceType: documentData.sourceType,
+    bpm: documentData.bpm,
+    timeSigNum: documentData.timeSigNum,
+    timeSigDen: documentData.timeSigDen,
+    charResolution: documentData.charResolution,
+    globalKeyOffset: documentData.globalKeyOffset,
+    scaleMode: documentData.scaleMode,
+    tone: documentData.tone,
+    reverb: documentData.reverb,
+    references: Array.isArray(documentData.references)
+      ? documentData.references.slice(0, 8).map((reference) => ({
+        id: reference?.id,
+        label: reference?.label ?? '',
+        url: reference?.url ?? '',
+        type: reference?.type ?? 'link',
+      }))
+      : [],
+    referenceNotes: documentData.referenceNotes ?? '',
+    contentLength: String(documentData.rawText ?? '').length,
+    compilerVersion: documentData.compilerVersion ?? SCORE_COMPILER_VERSION,
+    createdAt: documentData.createdAt,
+    updatedAt: documentData.updatedAt,
+  };
 }
 
 async function createScoreDocumentData(ctx, uid, title, payload) {
@@ -132,22 +189,66 @@ export function normalizeLoadedScore(record) {
   };
 }
 
+export function normalizeLoadedScoreSummary(record) {
+  return {
+    id: record.id,
+    title: record.title ?? DEFAULT_SCORE_NAME,
+    sourceType: record.sourceType ?? SCORE_SOURCE_TYPES.TEXT,
+    bpm: record.bpm,
+    timeSigNum: record.timeSigNum,
+    timeSigDen: record.timeSigDen,
+    charResolution: record.charResolution,
+    globalKeyOffset: record.globalKeyOffset,
+    scaleMode: record.scaleMode,
+    tone: record.tone,
+    reverb: record.reverb,
+    references: Array.isArray(record.references) ? record.references : [],
+    referenceNotes: record.referenceNotes ?? '',
+    contentLength: Number(record.contentLength) || 0,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
+  };
+}
+
 export function subscribeToScores(ctx, uid, onData, onError) {
-  return ctx.onSnapshot(scoreCollection(ctx, uid), (snapshot) => {
+  const scoreListQuery = ctx.query(
+    scoreSummaryCollection(ctx, uid),
+    ctx.orderBy('updatedAt', 'desc'),
+    ctx.limit(SCORE_LIST_LIMIT),
+  );
+
+  return ctx.onSnapshot(scoreListQuery, (snapshot) => {
     const scores = snapshot.docs
-      .map((snap) => normalizeLoadedScore({ id: snap.id, ...snap.data() }))
+      .map((snap) => normalizeLoadedScoreSummary({ id: snap.id, ...snap.data() }))
       .sort((left, right) => (right.updatedAt?.seconds || 0) - (left.updatedAt?.seconds || 0));
     onData(scores);
   }, onError);
 }
 
-export async function saveScore(ctx, uid, title, data) {
-  const documentData = await createScoreDocumentData(ctx, uid, title, data);
-  return ctx.setDoc(scoreDoc(ctx, uid, documentData.id || title), documentData);
+export async function loadScore(ctx, uid, id) {
+  const snapshot = await ctx.getDoc(scoreDoc(ctx, uid, id));
+  if (!snapshot.exists()) {
+    return null;
+  }
+
+  return normalizeLoadedScore({ id: snapshot.id, ...snapshot.data() });
 }
 
-export function deleteScore(ctx, uid, id) {
-  return ctx.deleteDoc(scoreDoc(ctx, uid, id));
+export async function saveScore(ctx, uid, title, data) {
+  const documentData = await createScoreDocumentData(ctx, uid, title, data);
+  const summaryData = createScoreSummary(documentData);
+
+  await Promise.all([
+    ctx.setDoc(scoreDoc(ctx, uid, documentData.id || title), documentData),
+    ctx.setDoc(scoreSummaryDoc(ctx, uid, documentData.id || title), summaryData),
+  ]);
+}
+
+export async function deleteScore(ctx, uid, id) {
+  await Promise.all([
+    ctx.deleteDoc(scoreDoc(ctx, uid, id)),
+    ctx.deleteDoc(scoreSummaryDoc(ctx, uid, id)),
+  ]);
 }
 
 export function uploadScores(ctx, uid, files) {
