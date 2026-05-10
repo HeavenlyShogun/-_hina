@@ -13,6 +13,8 @@ import {
   PPQ,
 } from '../utils/score';
 
+const LARGE_JSON_EVENT_LIMIT = 500;
+
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
@@ -134,6 +136,17 @@ function shouldHidePreviewToken(token) {
   return token.isHold && /^-+$/u.test(String(token.displayText ?? token.text ?? '').trim());
 }
 
+function countJsonScoreEvents(scoreJson) {
+  if (!scoreJson || typeof scoreJson !== 'object') {
+    return 0;
+  }
+
+  return (Array.isArray(scoreJson.tracks) ? scoreJson.tracks : []).reduce(
+    (count, track) => count + (Array.isArray(track?.events) ? track.events.length : 0),
+    0,
+  );
+}
+
 const SheetDisplay = memo(({
   score,
   setScore,
@@ -173,9 +186,33 @@ const SheetDisplay = memo(({
   } = usePlayback();
   const livePlaybackState = useLivePlaybackFrame();
   const isJsonScore = typeof score === 'object' && score !== null;
+  const jsonScoreEventCount = isJsonScore ? countJsonScoreEvents(score) : 0;
+  const shouldSummarizeJsonEditor = isJsonScore && jsonScoreEventCount > LARGE_JSON_EVENT_LIMIT;
   const scoreEditorValue = useMemo(
-    () => (typeof score === 'string' ? score : JSON.stringify(score, null, 2)),
-    [score],
+    () => {
+      if (typeof score === 'string') {
+        return score;
+      }
+
+      if (shouldSummarizeJsonEditor) {
+        const title = score?.meta?.displayTitle ?? score?.meta?.title ?? 'JSON Score';
+        const tracks = Array.isArray(score?.tracks) ? score.tracks.length : 0;
+        const bpm = score?.transport?.bpm ?? 'unknown';
+        return [
+          `${title}`,
+          '',
+          `Large JSON score loaded for playback.`,
+          `Tracks: ${tracks}`,
+          `Events: ${jsonScoreEventCount}`,
+          `BPM: ${bpm}`,
+          '',
+          'Use Export to write the full JSON file.',
+        ].join('\n');
+      }
+
+      return JSON.stringify(score, null, 2);
+    },
+    [jsonScoreEventCount, score, shouldSummarizeJsonEditor],
   );
   const normalizedScore = useMemo(() => {
     try {

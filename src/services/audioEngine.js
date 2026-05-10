@@ -5,6 +5,7 @@ const DEFAULT_RENDER_CONFIG = {
   reverbAmount: 0.45,
 };
 const LIVE_NOTE_RELEASE_SEC = 0.16;
+const SAMPLE_LOAD_TIMEOUT_MS = 1800;
 
 const TONE_ALIASES = {
   lyre: 'lyre-long',
@@ -311,7 +312,12 @@ class AudioEngine {
       }
     });
 
-    await Promise.all([...sampleSetIds].map((sampleSetId) => this.loadSampleSet(sampleSetId)));
+    await Promise.all([...sampleSetIds].map((sampleSetId) => (
+      this.loadSampleSet(sampleSetId).catch((error) => {
+        console.warn(`Sampler "${sampleSetId}" is unavailable. Falling back to synth playback.`, error);
+        return null;
+      })
+    )));
     return context;
   }
 
@@ -901,7 +907,23 @@ class AudioEngine {
       }
 
       const url = `${sampleConfig.baseUrl}/${noteName}.mp3`;
-      const response = await fetch(url, { mode: 'cors' });
+      const controller = typeof AbortController === 'function' ? new AbortController() : null;
+      const timeoutId = controller
+        ? window.setTimeout(() => controller.abort(), SAMPLE_LOAD_TIMEOUT_MS)
+        : null;
+      let response = null;
+
+      try {
+        response = await fetch(url, {
+          mode: 'cors',
+          ...(controller ? { signal: controller.signal } : {}),
+        });
+      } finally {
+        if (timeoutId !== null) {
+          window.clearTimeout(timeoutId);
+        }
+      }
+
       if (!response.ok) {
         throw new Error(`Failed to load sample: ${url}`);
       }

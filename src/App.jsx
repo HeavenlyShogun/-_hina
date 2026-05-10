@@ -90,6 +90,8 @@ function AppContent({
   const pageRef = useRef(null);
   const toastTimerRef = useRef(null);
   const pulseThrottleRef = useRef({});
+  const visualEventQueueRef = useRef([]);
+  const visualFlushFrameRef = useRef(0);
   const showToast = useCallback((message, type = 'info') => {
     if (toastTimerRef.current) {
       window.clearTimeout(toastTimerRef.current);
@@ -103,46 +105,92 @@ function AppContent({
     if (toastTimerRef.current) {
       window.clearTimeout(toastTimerRef.current);
     }
-  }, []);
-  const onKeyVisualAttack = useCallback((key, eventMeta = {}) => {
-    const now = performance.now();
-    const lastPulseAt = pulseThrottleRef.current[key] ?? 0;
-    setActiveKeys((prev) => {
-      const next = new Set(prev);
-      next.add(key);
-      return next;
-    });
-    if (!eventMeta?.resumed && now - lastPulseAt > 96) {
-      pulseThrottleRef.current[key] = now;
-      setKeyPulseTokens((prev) => ({
-        ...prev,
-        [key]: (prev[key] ?? 0) + 1,
-      }));
+    if (visualFlushFrameRef.current) {
+      window.cancelAnimationFrame(visualFlushFrameRef.current);
     }
-    setNoteTrail((prev) => {
-      const next = [
-        ...prev,
-        {
-          id: `${key}-${Math.round(now)}`,
-          key,
-          time: now,
-          source: eventMeta?.source ?? 'playback',
-        },
-      ];
-      return next.slice(-48);
-    });
   }, []);
-  const onKeyVisualRelease = useCallback((key) => {
-    setActiveKeys((prev) => {
-      if (!prev.has(key)) {
-        return prev;
+  const flushVisualEvents = useCallback(() => {
+    visualFlushFrameRef.current = 0;
+    const queuedEvents = visualEventQueueRef.current;
+    visualEventQueueRef.current = [];
+
+    if (!queuedEvents.length) {
+      return;
+    }
+
+    const now = performance.now();
+    const nextActiveKeys = new Set();
+    const releasedKeys = new Set();
+    const pulseIncrements = {};
+    const trailEntries = [];
+
+    queuedEvents.forEach((entry) => {
+      if (entry.type === 'release') {
+        releasedKeys.add(entry.key);
+        nextActiveKeys.delete(entry.key);
+        return;
       }
-      const next = new Set(prev);
-      next.delete(key);
-      return next;
+
+      releasedKeys.delete(entry.key);
+      nextActiveKeys.add(entry.key);
+
+      if (!entry.eventMeta?.resumed) {
+        const lastPulseAt = pulseThrottleRef.current[entry.key] ?? 0;
+        if (now - lastPulseAt > 96) {
+          pulseThrottleRef.current[entry.key] = now;
+          pulseIncrements[entry.key] = (pulseIncrements[entry.key] ?? 0) + 1;
+        }
+      }
+
+      trailEntries.push({
+        id: `${entry.key}-${Math.round(now)}-${trailEntries.length}`,
+        key: entry.key,
+        time: now,
+        source: entry.eventMeta?.source ?? 'playback',
+      });
     });
+
+    if (nextActiveKeys.size || releasedKeys.size) {
+      setActiveKeys((prev) => {
+        const next = new Set(prev);
+        releasedKeys.forEach((key) => next.delete(key));
+        nextActiveKeys.forEach((key) => next.add(key));
+        return next;
+      });
+    }
+
+    if (Object.keys(pulseIncrements).length) {
+      setKeyPulseTokens((prev) => {
+        const next = { ...prev };
+        Object.entries(pulseIncrements).forEach(([key, increment]) => {
+          next[key] = (next[key] ?? 0) + increment;
+        });
+        return next;
+      });
+    }
+
+    if (trailEntries.length) {
+      setNoteTrail((prev) => [...prev, ...trailEntries].slice(-48));
+    }
   }, []);
+  const queueVisualEvent = useCallback((entry) => {
+    visualEventQueueRef.current.push(entry);
+    if (!visualFlushFrameRef.current) {
+      visualFlushFrameRef.current = window.requestAnimationFrame(flushVisualEvents);
+    }
+  }, [flushVisualEvents]);
+  const onKeyVisualAttack = useCallback((key, eventMeta = {}) => {
+    queueVisualEvent({ type: 'attack', key, eventMeta });
+  }, [queueVisualEvent]);
+  const onKeyVisualRelease = useCallback((key) => {
+    queueVisualEvent({ type: 'release', key });
+  }, [queueVisualEvent]);
   const onVisualReset = useCallback(() => {
+    visualEventQueueRef.current = [];
+    if (visualFlushFrameRef.current) {
+      window.cancelAnimationFrame(visualFlushFrameRef.current);
+      visualFlushFrameRef.current = 0;
+    }
     setActiveKeys(new Set());
   }, []);
   const handlePagePointerMove = useCallback((event) => {
@@ -181,12 +229,20 @@ function AppContent({
     { id: 'converter', label: '琴譜轉換', caption: 'Converter' },
   ]), []);
   const playbackScore = useMemo(() => {
+    if (
+      scoreDocument.sourceType === SCORE_SOURCE_TYPES.JSON
+      && scoreDocument.content
+      && typeof scoreDocument.content === 'object'
+    ) {
+      return scoreDocument.content;
+    }
+
     try {
       return parseScoreContent(scoreDocument.rawText, scoreDocument.sourceType);
     } catch {
       return scoreDocument.rawText;
     }
-  }, [scoreDocument.rawText, scoreDocument.sourceType]);
+  }, [scoreDocument.content, scoreDocument.rawText, scoreDocument.sourceType]);
   const {
     isPlaying,
     isPaused,
@@ -320,7 +376,7 @@ function AppContent({
     const extension = scoreDocument.sourceType === SCORE_SOURCE_TYPES.JSON ? 'json' : 'txt';
     const filename = `${scoreTitle.trim() || 'score'}.${extension}`;
     const payload = scoreDocument.sourceType === SCORE_SOURCE_TYPES.JSON
-      ? scoreDocument.rawText
+      ? (scoreDocument.rawText || JSON.stringify(scoreDocument.content ?? {}, null, 2))
       : buildScoreTextWithMeta(
         scoreDocument.rawText,
         createScoreTextMeta({
@@ -360,6 +416,7 @@ function AppContent({
     const source = {
       title: score.title,
       rawText: score.rawText,
+      content: score.content,
       sourceType: score.sourceType,
       bpm: score.bpm,
       timeSigNum: score.timeSigNum,
@@ -391,6 +448,10 @@ function AppContent({
   }, [loadScoreSource, stopAll]);
   const editorScore = useMemo(() => {
     if (scoreDocument.sourceType === SCORE_SOURCE_TYPES.JSON) {
+      if (scoreDocument.content && typeof scoreDocument.content === 'object') {
+        return scoreDocument.content;
+      }
+
       try {
         return parseScoreContent(scoreDocument.rawText, SCORE_SOURCE_TYPES.JSON);
       } catch {
@@ -398,7 +459,7 @@ function AppContent({
       }
     }
     return score;
-  }, [score, scoreDocument.rawText, scoreDocument.sourceType]);
+  }, [score, scoreDocument.content, scoreDocument.rawText, scoreDocument.sourceType]);
   const playbackValue = useMemo(() => ({
     bpm,
     setBpm,
@@ -536,7 +597,7 @@ function AppContent({
                   </div>
                 </div>
                 <ScoreEditor
-                  score={score}
+                  score={editorScore}
                   setScore={setScore}
                   scoreTitle={scoreTitle}
                   setScoreTitle={setScoreTitle}

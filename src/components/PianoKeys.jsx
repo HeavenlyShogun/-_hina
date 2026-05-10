@@ -310,7 +310,7 @@ const PianoKeys = memo(({
             />
           </div>
         </div>
-        <div className="mobile-keyboard-grid relative pt-14 sm:pt-0">
+        <div className="mobile-keyboard-grid relative pt-24 sm:pt-14 md:pt-16">
           {NOTES_MAP.map((row, rowIndex) => (
             <div key={rowIndex} className="relative mb-3 grid grid-cols-1 gap-1.5 last:mb-0 sm:mb-8 sm:gap-4 md:mb-10 md:gap-8 lg:grid-cols-[104px_1fr] lg:items-center">
               <div className="flex w-full items-center justify-between px-1 text-center lg:flex-col lg:items-end lg:justify-center lg:px-0 lg:text-right">

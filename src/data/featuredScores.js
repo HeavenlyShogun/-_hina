@@ -90,14 +90,13 @@ export const FEATURED_SCORES = [
     displayTitle: 'surges-MIDI',
     subtitle: 'MIDI',
     load: async () => {
-      const rawText = await import('./scores/surges-midi.json?raw').then(m => m.default);
-      const payload = JSON.parse(rawText);
+      const payload = await import('./scores/surges-midi.json').then(m => m.default);
       return {
         id: 'surges-midi',
         title: 'surges-MIDI',
         displayTitle: 'surges-MIDI',
         subtitle: 'MIDI',
-        rawText,
+        content: payload,
         sourceType: SCORE_SOURCE_TYPES.JSON,
         ...DEFAULT_SCORE_PARAMS,
         ...(payload.transport ?? {}),
@@ -107,18 +106,44 @@ export const FEATURED_SCORES = [
   },
   {
     id: 'combined-4-midi',
-    title: 'combined_4-MIDI',
-    displayTitle: 'combined_4-MIDI',
+    title: '春日影-MIDI',
+    displayTitle: '春日影-MIDI',
     subtitle: 'MIDI',
     load: async () => {
-      const rawText = await import('./scores/combined-4-midi.json?raw').then(m => m.default);
-      const payload = JSON.parse(rawText);
+      const payload = await import('./scores/combined-4-midi.json').then(m => m.default);
       return {
         id: 'combined-4-midi',
-        title: 'combined_4-MIDI',
-        displayTitle: 'combined_4-MIDI',
+        title: '春日影-MIDI',
+        displayTitle: '春日影-MIDI',
+        content: {
+          ...payload,
+          meta: {
+            ...(payload.meta ?? {}),
+            title: '春日影-MIDI',
+            displayTitle: '春日影-MIDI',
+          },
+        },
         subtitle: 'MIDI',
-        rawText,
+        sourceType: SCORE_SOURCE_TYPES.JSON,
+        ...DEFAULT_SCORE_PARAMS,
+        ...(payload.transport ?? {}),
+        ...(payload.playback ?? {}),
+      };
+    },
+  },
+  {
+    id: 'neo-aspect-midi',
+    title: 'Neo aspect-MIDI',
+    displayTitle: 'Neo aspect-MIDI',
+    subtitle: 'MIDI',
+    load: async () => {
+      const payload = await import('./scores/neo-aspect-midi.json').then(m => m.default);
+      return {
+        id: 'neo-aspect-midi',
+        title: 'Neo aspect-MIDI',
+        displayTitle: 'Neo aspect-MIDI',
+        content: payload,
+        subtitle: 'MIDI',
         sourceType: SCORE_SOURCE_TYPES.JSON,
         ...DEFAULT_SCORE_PARAMS,
         ...(payload.transport ?? {}),

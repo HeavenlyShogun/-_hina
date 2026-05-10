@@ -42,10 +42,6 @@ export function usePlayheadSync(playheadRef) {
 
     renderFrame();
 
-    if (playbackState.isPlaying) {
-      frameId = window.requestAnimationFrame(renderFrame);
-    }
-
     return () => {
       if (frameId) {
         window.cancelAnimationFrame(frameId);

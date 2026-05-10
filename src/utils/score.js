@@ -299,6 +299,38 @@ function hashStringFNV1a(input) {
   return (hash >>> 0).toString(16).padStart(8, '0');
 }
 
+function createStructuredScoreCacheKey(input) {
+  if (!input || typeof input !== 'object' || !Array.isArray(input.tracks)) {
+    return null;
+  }
+
+  const eventCount = input.tracks.reduce(
+    (count, track) => count + (Array.isArray(track?.events) ? track.events.length : 0),
+    0,
+  );
+  const trackSignature = input.tracks
+    .map((track) => `${track?.id ?? ''}:${Array.isArray(track?.events) ? track.events.length : 0}`)
+    .join('|');
+  const meta = input.meta ?? {};
+  const transport = input.transport ?? {};
+  const source = input.source?.midi ?? {};
+  const signature = [
+    input.version ?? '',
+    meta.id ?? '',
+    meta.title ?? '',
+    meta.fileName ?? '',
+    meta.importedFrom ?? '',
+    meta.migratedAt ?? '',
+    source.fileName ?? '',
+    transport.bpm ?? '',
+    transport.resolution ?? '',
+    eventCount,
+    trackSignature,
+  ].join('|');
+
+  return `score-json:${hashStringFNV1a(signature)}`;
+}
+
 function createSourceCacheKey(input) {
   if (typeof input === 'string') {
     return `text:${input.length}:${hashStringFNV1a(input)}`;
@@ -309,8 +341,11 @@ function createSourceCacheKey(input) {
       return objectSourceKeyCache.get(input);
     }
 
-    const stableText = stableSerialize(input);
-    const key = `object:${stableText.length}:${hashStringFNV1a(stableText)}`;
+    const structuredScoreKey = createStructuredScoreCacheKey(input);
+    const key = structuredScoreKey ?? (() => {
+      const stableText = stableSerialize(input);
+      return `object:${stableText.length}:${hashStringFNV1a(stableText)}`;
+    })();
     objectSourceKeyCache.set(input, key);
     return key;
   }

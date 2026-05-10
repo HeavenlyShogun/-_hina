@@ -16,16 +16,26 @@ function isSameFrameState(left, right) {
   );
 }
 
-export function useLivePlaybackFrame() {
+export function useLivePlaybackFrame(frameIntervalMs = 33) {
   const { playbackState } = usePlayback();
   const [liveState, setLiveState] = useState(() => playbackController.getState());
 
   useEffect(() => {
     let frameId = 0;
+    let lastStateUpdateAt = 0;
+    const safeFrameIntervalMs = Math.max(Number(frameIntervalMs) || 0, 0);
 
-    const updateFrame = () => {
+    const updateFrame = (timestamp = 0) => {
       const nextState = playbackController.getState();
-      setLiveState((prevState) => (isSameFrameState(prevState, nextState) ? prevState : nextState));
+      const shouldPublish = (
+        !nextState.isPlaying
+        || timestamp - lastStateUpdateAt >= safeFrameIntervalMs
+      );
+
+      if (shouldPublish) {
+        lastStateUpdateAt = timestamp;
+        setLiveState((prevState) => (isSameFrameState(prevState, nextState) ? prevState : nextState));
+      }
 
       if (nextState.isPlaying) {
         frameId = window.requestAnimationFrame(updateFrame);
@@ -33,10 +43,6 @@ export function useLivePlaybackFrame() {
     };
 
     updateFrame();
-
-    if (playbackState.isPlaying) {
-      frameId = window.requestAnimationFrame(updateFrame);
-    }
 
     return () => {
       if (frameId) {
@@ -50,6 +56,7 @@ export function useLivePlaybackFrame() {
     playbackState.maxTick,
     playbackState.maxTime,
     playbackState.status,
+    frameIntervalMs,
   ]);
 
   return liveState;

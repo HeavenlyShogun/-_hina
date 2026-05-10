@@ -1,19 +1,23 @@
 import music21
 import os
 
-# 只鎖定 1 到 4 號檔案
+# 鎖定 1 到 8 號檔案
 files_to_combine = [
     '1.musicxml', 
     '2.musicxml', 
     '3.musicxml', 
-    '4.musicxml'
+    '4.musicxml',
+    '5.musicxml',
+    '6.musicxml',
+    '7.musicxml',
+    '8.musicxml'
 ]
 
-output_mid = 'combined_4.mid'
-output_txt = 'combined_4_report.txt'
+output_mid = 'combined_8.mid'
+output_txt = 'combined_8_report.txt'
 
-def combine_four():
-    print("--- 開始進行 1 到 4 號檔案合併 ---")
+def combine_eight():
+    print("--- 開始進行 1 到 8 號檔案合併 ---")
     combined_score = music21.stream.Score()
     combined_right = music21.stream.Part(id='RightHand')
     combined_left = music21.stream.Part(id='LeftHand')
@@ -63,11 +67,11 @@ def combine_four():
         combined_score.write('midi', fp=output_mid)
         with open(output_txt, 'w', encoding='utf-8') as f:
             f.write("\n".join(report))
-        print(f"\n✅ 4 檔合體大成功！")
+        print(f"\n✅ 8 檔合體大成功！")
         print(f"產出 MIDI: {output_mid} (大小: {os.path.getsize(output_mid)} bytes)")
         print(f"產出報告: {output_txt} (大小: {os.path.getsize(output_txt)} bytes)")
     except Exception as e:
         print(f"❌ 存檔失敗: {e}")
 
 if __name__ == "__main__":
-    combine_four()
+    combine_eight()

@@ -8,6 +8,22 @@ export const SCORE_SOURCE_TYPES = {
   JSON: 'json',
 };
 
+const JSON_PARSE_CACHE_LIMIT = 12;
+const jsonParseCache = new Map();
+
+function rememberParsedJson(rawText, parsed) {
+  jsonParseCache.set(rawText, parsed);
+
+  if (jsonParseCache.size > JSON_PARSE_CACHE_LIMIT) {
+    const oldestKey = jsonParseCache.keys().next().value;
+    if (oldestKey !== undefined) {
+      jsonParseCache.delete(oldestKey);
+    }
+  }
+
+  return parsed;
+}
+
 function resolveDefaultCharResolution(source = {}) {
   const explicitCharResolution = Number(source.charResolution);
   if (Number.isFinite(explicitCharResolution) && explicitCharResolution > 0) {
@@ -88,7 +104,12 @@ export function serializeScoreContent(content, sourceType = SCORE_SOURCE_TYPES.T
 
 export function parseScoreContent(rawText, sourceType = SCORE_SOURCE_TYPES.TEXT) {
   if (sourceType === SCORE_SOURCE_TYPES.JSON) {
-    return JSON.parse(rawText || '{}');
+    const source = rawText || '{}';
+    if (jsonParseCache.has(source)) {
+      return jsonParseCache.get(source);
+    }
+
+    return rememberParsedJson(source, JSON.parse(source));
   }
 
   return rawText ?? '';
@@ -156,7 +177,12 @@ export function createScoreDocument(source = {}) {
   const sourceType = inferSourceType(source);
   const rawText = typeof source.rawText === 'string'
     ? source.rawText
-    : serializeScoreContent(source.content, sourceType);
+    : sourceType === SCORE_SOURCE_TYPES.JSON && source.content && typeof source.content === 'object'
+      ? ''
+      : serializeScoreContent(source.content, sourceType);
+  const content = sourceType === SCORE_SOURCE_TYPES.JSON && source.content && typeof source.content === 'object'
+    ? source.content
+    : null;
   const textMeta = sourceType === SCORE_SOURCE_TYPES.TEXT ? parseScoreMetaHeader(rawText) : null;
   const mergedSource = textMeta?.hasMeta && !textMeta?.error
     ? { ...source, ...textMeta.meta }
@@ -166,13 +192,14 @@ export function createScoreDocument(source = {}) {
   const compiledEvents = Array.isArray(source.compiledEvents)
     && source.compiledEvents.every(isCanonicalCompiledEvent)
     ? source.compiledEvents
-    : compileScoreEvents(rawText, { ...playback, sourceType });
+    : [];
   const resolvedTitle = String(mergedSource.title ?? source.title ?? DEFAULT_SCORE_NAME).trim() || DEFAULT_SCORE_NAME;
 
   return {
     id: mergedSource.id ?? mergedSource.title ?? source.id ?? source.title ?? '',
     title: resolvedTitle,
     rawText,
+    content,
     compiledEvents,
     sourceType,
     references: referenceFields.references,
