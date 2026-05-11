@@ -3,7 +3,7 @@ import { DEFAULT_SCORE_NAME } from '../config/branding.js';
 import { SCORE_SOURCE_TYPES } from '../utils/scoreDocument.js';
 import { getNotationDisplayName, parseScoreMetaHeader } from '../utils/scoreTextMeta.js';
 
-const scoreModules = import.meta.glob('../../src/data/scores/surges-midi.json', {
+const scoreModules = import.meta.glob('../../src/data/scores/*-midi.json', {
   eager: false,
   import: 'default',
   query: '?raw',
@@ -61,7 +61,7 @@ export const IMPORTABLE_SCORE_FILES = Object.entries(scoreModules)
       filename,
       title,
       subtitle: `${provisionalFormat.versionLabel} import`,
-      displayTitle: `${provisionalFormat.versionLabel} / ${filename}`,
+      displayTitle: title,
       sourcePath: filePath,
       playlistId: 'importable-folder-test',
       tags: ['可匯入', provisionalFormat.versionLabel, '測試'],
@@ -85,7 +85,7 @@ export const IMPORTABLE_SCORE_FILES = Object.entries(scoreModules)
           ...meta,
           ...format,
           title,
-          displayTitle: `${format.versionLabel} / ${filename}`,
+          displayTitle: title,
           sourcePath: filePath,
           playlistId: 'importable-folder-test',
           tags: ['可匯入', format.versionLabel, '測試'],

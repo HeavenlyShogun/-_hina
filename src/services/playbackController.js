@@ -871,34 +871,49 @@ class PlaybackController {
   }
 
   findNextEventIndex(scoreTick) {
-    for (let index = 0; index < this.events.length; index += 1) {
-      const event = this.events[index];
-      if (this.getEventEndTick(event) > scoreTick) {
-        return index;
+    let low = 0;
+    let high = this.events.length;
+    let result = this.events.length;
+    while(low < high) {
+      const mid = low + Math.floor((high - low) / 2);
+      if (this.getEventEndTick(this.events[mid]) > scoreTick) {
+        result = mid;
+        high = mid;
+      } else {
+        low = mid + 1;
       }
     }
-
-    return this.events.length;
+    return result;
   }
 
   findVisualAttackIndex(scoreTick) {
-    for (let index = 0; index < this.events.length; index += 1) {
-      if (this.events[index].tick >= scoreTick) {
-        return index;
+    let low = 0;
+    let high = this.events.length;
+    while (low < high) {
+      const mid = Math.floor((low + high) / 2);
+      if (this.events[mid].tick < scoreTick) {
+        low = mid + 1;
+      } else {
+        high = mid;
       }
     }
-
-    return this.events.length;
+    return low;
   }
 
   findVisualReleaseIndex(scoreTick) {
-    for (let index = 0; index < this.events.length; index += 1) {
-      if (this.getVisualOffTick(this.events[index]) >= scoreTick) {
-        return index;
-      }
+    let low = 0;
+    let high = this.events.length;
+    let result = this.events.length;
+    while(low < high) {
+        const mid = low + Math.floor((high - low) / 2);
+        if (this.getVisualOffTick(this.events[mid]) >= scoreTick) {
+            result = mid;
+            high = mid;
+        } else {
+            low = mid + 1;
+        }
     }
-
-    return this.events.length;
+    return result;
   }
 
   getVisualOffTick(event) {
@@ -922,15 +937,21 @@ class PlaybackController {
       this.callbacks.onVisualReset?.();
     }
 
-    this.events.forEach((event) => {
-      if (!event.k) {
-        return;
-      }
+    for (let i = this.visualAttackIndex - 1; i >= 0; i--) {
+      const event = this.events[i];
+      if (!event.k) continue;
 
+      const estimatedLookbehindTime = MAX_VISUAL_HOLD_SEC * this.transport.playbackRate * 1.5;
+      const estimatedLookbehindTicks = secondsToTicks(estimatedLookbehindTime, this.timing, event.tick);
+
+      if (fromTick - event.tick > estimatedLookbehindTicks) {
+        break;
+      }
+      
       if (event.tick < fromTick && this.getVisualOffTick(event) > fromTick) {
         this.activeVisualCounts.set(event.k, (this.activeVisualCounts.get(event.k) ?? 0) + 1);
       }
-    });
+    }
 
     this.activeVisualCounts.forEach((_, key) => {
       this.callbacks.onVisualAttack?.(key, { resumed: true });
