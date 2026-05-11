@@ -13,7 +13,6 @@ const PianoRoom = memo(({
   activeKeys,
   accidentals,
   keyPulseTokens,
-  noteTrail,
   onKeyActivate,
   onKeyDeactivate,
   onToggleSharp,
@@ -37,7 +36,6 @@ const PianoRoom = memo(({
       activeKeys={activeKeys}
       accidentals={accidentals}
       keyPulseTokens={keyPulseTokens}
-      noteTrail={noteTrail}
       onKeyActivate={onKeyActivate}
       onKeyDeactivate={onKeyDeactivate}
       onToggleSharp={onToggleSharp}

@@ -3,7 +3,7 @@ import { DEFAULT_SCORE_NAME } from '../config/branding.js';
 import { SCORE_SOURCE_TYPES } from '../utils/scoreDocument.js';
 import { getNotationDisplayName, parseScoreMetaHeader } from '../utils/scoreTextMeta.js';
 
-const scoreModules = import.meta.glob('../../風物之琴譜/可匯入譜面/*.txt', {
+const scoreModules = import.meta.glob('../../src/data/scores/surges-midi.json', {
   eager: false,
   import: 'default',
   query: '?raw',

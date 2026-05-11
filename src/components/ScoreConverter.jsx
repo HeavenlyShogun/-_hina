@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Copy, Download, FileUp, HardDriveDownload, Music2, RefreshCcw, Sparkles, Upload, Wand2 } from 'lucide-react';
+import { Copy, Download, FileUp, HardDriveDownload, Music2, RefreshCcw, Sparkles, Upload, Wand2, ArrowDownUp } from 'lucide-react';
 import { normalizeScoreSource } from '../utils/score';
 import { parseMidiToV2 } from '../utils/midiToV2';
 import { scoreJsonToMidiBytes } from '../utils/scoreToMidi';
@@ -9,6 +9,7 @@ import {
   buildAiConversionPrompt,
   normalizeExternalNotationDraft,
   tryParseJsonScoreText,
+  convertScoreToV3,
 } from '../utils/scoreConversionAssist';
 
 const LOCAL_STORAGE_KEY = 'project-hina:local-converted-scores';
@@ -329,6 +330,17 @@ const ScoreConverter = memo(({
     }
   }, [buildPayload, onLoadLocalScore, scoreTitle, showToast]);
 
+  const handleUpgradeAndLoad = useCallback(() => {
+    try {
+      const v3Score = convertScoreToV3(scoreDocument);
+      onLoadLocalScore?.(v3Score);
+      showToast?.('琴譜已升級並載入', 'success');
+    } catch (error) {
+      console.error(error);
+      showToast?.('升級失敗', 'error');
+    }
+  }, [scoreDocument, onLoadLocalScore, showToast]);
+
   const handleDownload = useCallback(() => {
     try {
       const payload = buildPayload();
@@ -609,7 +621,7 @@ const ScoreConverter = memo(({
           />
         </div>
 
-        <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto] lg:items-end">
+        <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto_auto] lg:items-end">
           <div className="rounded-[24px] border border-white/8 bg-black/25 px-4 py-3 text-[11px] leading-relaxed text-amber-100/60">
             <div className="font-black uppercase tracking-[0.25em] text-amber-200/45">結構輸出</div>
             <div className="mt-2">
@@ -627,6 +639,14 @@ const ScoreConverter = memo(({
                 : '尚未轉換'}
             </div>
           </div>
+          <button
+            type="button"
+            onClick={handleUpgradeAndLoad}
+            className="flex items-center justify-center gap-2 rounded-2xl border border-sky-300/20 bg-sky-500/10 px-4 py-3 text-[11px] font-black tracking-[0.22em] text-sky-100 transition-colors hover:bg-sky-500/18"
+          >
+            <ArrowDownUp size={14} />
+            升級並載入
+          </button>
           <button
             type="button"
             onClick={handleLoadToEditor}

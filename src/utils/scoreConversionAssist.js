@@ -1,4 +1,7 @@
 
+import { normalizeScoreSource } from './score';
+import { SCORE_SOURCE_TYPES } from './scoreDocument';
+
 const NOTE_LAYOUT_GUIDE = [
   'Low:  z=C3 x=D3 c=E3 v=F3 b=G3 n=A3 m=B3',
   'Mid:  a=C4 s=D4 d=E4 f=F4 g=G4 h=A4 j=B4',
@@ -61,6 +64,58 @@ function formatReferences(references) {
       return `${index + 1}. [${type}] ${label || '(no label)'}${url ? ` - ${url}` : ''}`;
     })
     .join('\n');
+}
+
+export function convertScoreToV3(scoreDocument) {
+  const sourceToNormalize =
+    scoreDocument.sourceType === SCORE_SOURCE_TYPES.JSON && scoreDocument.content
+      ? scoreDocument.content
+      : scoreDocument.rawText;
+
+  const normalized = normalizeScoreSource(sourceToNormalize, scoreDocument);
+
+  const v3Events = [];
+  for (const note of normalized.events) {
+    if (note.isRest || !note.midi) continue;
+
+    v3Events.push({
+      type: 'note_on',
+      tick: note.startTick,
+      note: note.midi,
+      velocity: note.v,
+      trackId: note.trackId || 0,
+    });
+
+    v3Events.push({
+      type: 'note_off',
+      tick: note.endTick,
+      note: note.midi,
+      trackId: note.trackId || 0,
+    });
+  }
+
+  v3Events.sort((a, b) => a.tick - b.tick);
+
+  return {
+    version: '3.0',
+    meta: {
+      title: scoreDocument.title,
+      sourceType: 'json',
+    },
+    transport: {
+      bpm: normalized.playback.bpm,
+      timeSigNum: normalized.playback.timeSigNum,
+      timeSigDen: normalized.playback.timeSigDen,
+      resolution: normalized.playback.resolution,
+    },
+    playback: {
+      tone: normalized.playback.tone,
+      globalKeyOffset: normalized.playback.globalKeyOffset,
+      reverb: normalized.playback.reverb,
+      scaleMode: normalized.playback.scaleMode,
+    },
+    events: v3Events,
+  };
 }
 
 export function normalizeExternalNotationDraft(text) {

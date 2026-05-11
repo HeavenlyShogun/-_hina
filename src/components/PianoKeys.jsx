@@ -76,7 +76,7 @@ const PianoKey = memo(({
   return (
     <div className="key-wrapper group relative w-full min-w-0 max-w-none sm:max-w-[5.9rem] md:max-w-[5.5rem]">
       <div className="lyre-key-aura" data-active={isActive} />
-      {pulseToken > 0 ? <div key={pulseToken} className="lyre-key-ripple" aria-hidden="true" /> : null}
+      {/* Ripple effect disabled for performance check */}
       <button
         type="button"
         onClick={handleToggle}
@@ -106,66 +106,10 @@ const PianoKey = memo(({
   );
 });
 
-function NoteTrailGraph({ noteTrail = [] }) {
-  const recentNotes = noteTrail.slice(-24);
-
-  const points = recentNotes.map((note, index) => {
-    const x = recentNotes.length <= 1 ? 0 : (index / (recentNotes.length - 1)) * 100;
-    const noteIndex = NOTE_INDEX_MAP[note.key] ?? 0;
-    const y = 100 - (noteIndex / MAX_NOTE_INDEX) * 100;
-    return `${x},${y}`;
-  }).join(' ');
-
-  return (
-    <div className="mt-5 rounded-[24px] border border-sky-200/20 bg-slate-950/60 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-      <div className="mb-3 flex items-center justify-between gap-3 text-[10px] font-black uppercase tracking-[0.24em] text-sky-100/60">
-        <span>音符軌跡</span>
-        <span>{recentNotes.length} notes</span>
-      </div>
-      <div className="relative h-28 overflow-hidden rounded-[18px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.96),rgba(2,6,23,0.92))]">
-        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(56,189,248,0.10)_1px,transparent_1px),linear-gradient(180deg,rgba(56,189,248,0.08)_1px,transparent_1px)] bg-[size:12.5%_25%]" />
-        <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-          {recentNotes.length > 1 ? (
-            <polyline
-              fill="none"
-              stroke="rgba(125,211,252,0.9)"
-              strokeWidth="2"
-              strokeLinejoin="round"
-              strokeLinecap="round"
-              points={points}
-            />
-          ) : null}
-          {recentNotes.map((note, index) => {
-            const x = recentNotes.length <= 1 ? 50 : (index / Math.max(recentNotes.length - 1, 1)) * 100;
-            const noteIndex = NOTE_INDEX_MAP[note.key] ?? 0;
-            const y = 100 - (noteIndex / MAX_NOTE_INDEX) * 100;
-
-            return (
-              <circle
-                key={note.id}
-                cx={x}
-                cy={y}
-                r={note.source === 'manual' ? '2.6' : '2.1'}
-                fill={note.source === 'manual' ? 'rgba(251,191,36,0.95)' : 'rgba(34,211,238,0.92)'}
-              />
-            );
-          })}
-        </svg>
-        {recentNotes.length === 0 ? (
-          <div className="absolute inset-0 flex items-center justify-center text-xs text-slate-400">
-            播放或彈奏後會在這裡記錄最近的音符走勢
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
 const PianoKeys = memo(({
   accidentals,
   activeKeys,
   keyPulseTokens,
-  noteTrail,
   onKeyActivate,
   onKeyDeactivate,
   onToggleSharp,
@@ -335,7 +279,6 @@ const PianoKeys = memo(({
             </div>
           ))}
         </div>
-        <NoteTrailGraph noteTrail={noteTrail} />
       </div>
     </main>
   );

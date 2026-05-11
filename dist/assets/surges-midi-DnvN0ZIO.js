@@ -1,4 +1,4 @@
-{
+const n=`{
   "version": "2.0",
   "meta": {
     "id": "surges-midi",
@@ -34126,3 +34126,4 @@
     }
   ]
 }
+`;export{n as default};
