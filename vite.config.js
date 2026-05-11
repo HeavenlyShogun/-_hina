@@ -24,12 +24,9 @@ export default defineConfig(({ command, mode }) => {
       port,
       strictPort: true,
       watch: usePolling ? { usePolling: true, interval: 300 } : undefined,
-      hmr: env.VITE_HMR_HOST
-        ? {
-            host: env.VITE_HMR_HOST,
-            clientPort: resolvePort(env.VITE_HMR_CLIENT_PORT, port),
-          }
-        : undefined,
+      hmr: {
+        clientPort: 5173,
+      },
     },
     build: {
       rollupOptions: {
