@@ -10,7 +10,6 @@ import PianoRoom from './pages/PianoRoom';
 import { AudioConfigProvider, useAudioConfig } from './contexts/AudioConfigContext';
 import { PlaybackProvider } from './contexts/PlaybackContext';
 import { IMPORTABLE_SCORE_FILES, IMPORTABLE_SCORE_GROUPS } from './data/importableScoreFiles';
-import demoScore from './data/scores/demo.json';
 import { useCloudScores } from './hooks/useCloudScores';
 import useKeyboardMatcher from './hooks/useKeyboardMatcher';
 import { useScorePlayback } from './hooks/useScorePlayback';
@@ -215,10 +214,10 @@ function AppContent({
     [],
   );
   const workspaceSections = useMemo(() => ([
-    { id: 'playback-preview', label: '播放預覽', caption: 'Live Preview' },
+    { id: 'playback-preview', label: '?�放?�覽', caption: 'Live Preview' },
     { id: 'editor', label: '譜面編輯', caption: 'Score Editor' },
-    { id: 'cloud-library', label: '雲端曲庫', caption: 'Firebase / Cloud' },
-    { id: 'converter', label: '琴譜轉換', caption: 'Converter' },
+    { id: 'cloud-library', label: '?�端?�庫', caption: 'Firebase / Cloud' },
+    { id: 'converter', label: '?��?轉�?', caption: 'Converter' },
   ]), []);
   const playbackScore = useMemo(() => {
     if (
@@ -283,44 +282,44 @@ function AppContent({
   const handleConnectCloud = useCallback(async () => {
     const result = await ensureCloudConnection();
     if (!result) {
-      showToast(cloudError || 'Firebase 連線失敗', 'error');
+      showToast(cloudError || 'Firebase ???失�?', 'error');
       return;
     }
-    showToast('已連接雲端', 'success');
+    showToast('已�?��?�端', 'success');
   }, [cloudError, ensureCloudConnection, showToast]);
   const handleLoadScore = useCallback(async (savedScore) => {
     const fullScore = savedScore?.rawText ? savedScore : await loadCloudScore(savedScore.id);
     if (!fullScore) {
-      showToast('雲端譜面讀取失敗', 'error');
+      showToast('�����Э�Ū������', 'error');
       return;
     }
     applySavedScore(fullScore);
     stopAll();
-    showToast(`已載入 ${fullScore.title}`, 'success');
+    showToast(`已�???${fullScore.title}`, 'success');
   }, [applySavedScore, loadCloudScore, showToast, stopAll]);
   const handleSaveScore = useCallback(async () => {
     const title = scoreTitle.trim();
     if (!title) {
-      showToast('請先輸入曲譜名稱', 'error');
+      showToast('請�?輸入?��??�稱', 'error');
       return;
     }
     const saved = await saveCloudScore(title, scoreDocument);
     if (!saved) {
-      showToast(cloudError || 'Firebase 儲存失敗', 'error');
+      showToast(cloudError || 'Firebase ?��?失�?', 'error');
       return;
     }
-    showToast('已儲存到雲端', 'success');
+    showToast('已儲存到?�端', 'success');
   }, [cloudError, saveCloudScore, scoreDocument, scoreTitle, showToast]);
   const handleDeleteScore = useCallback(async (id) => {
     const deleted = await deleteCloudScore(id);
-    showToast(deleted ? '已刪除雲端譜面' : '刪除失敗', deleted ? 'success' : 'error');
+    showToast(deleted ? '�w�R�������Э�' : '�R������', deleted ? 'success' : 'error');
   }, [deleteCloudScore, showToast]);
   const handleClearAllScores = useCallback(async () => {
-    if (!window.confirm('確定要刪除所有雲端譜面嗎？')) {
+    if (!window.confirm('�T�w�n�R���Ҧ������Э��ܡH')) {
       return;
     }
     const cleared = await clearAllCloudScores();
-    showToast(cleared ? '已清空雲端曲庫' : '清空失敗', cleared ? 'success' : 'error');
+    showToast(cleared ? '�w�M�Ŷ��ݦ��w' : '�M�ť���', cleared ? 'success' : 'error');
   }, [clearAllCloudScores, showToast]);
   const handleImportLocal = useCallback(async (event) => {
     const files = Array.from(event.target.files || []);
@@ -336,7 +335,7 @@ function AppContent({
             : source,
         );
         stopAll();
-        showToast(`已載入 ${source.title}`, 'success');
+        showToast(`已�???${source.title}`, 'success');
       } else {
         const payloads = await Promise.all(
           files.map(async (file) => {
@@ -353,13 +352,13 @@ function AppContent({
         );
         const uploaded = await uploadCloudScores(payloads);
         showToast(
-          uploaded ? `已上傳 ${payloads.length} 份譜面` : '批次上傳失敗',
+          uploaded ? `已�???${payloads.length} 份�??�` : '?�次上傳失�?',
           uploaded ? 'success' : 'error',
         );
       }
     } catch (error) {
       console.error(error);
-      showToast('匯入失敗', 'error');
+      showToast('?�入失�?', 'error');
     } finally {
       event.target.value = '';
     }
@@ -385,24 +384,13 @@ function AppContent({
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    showToast(`已匯出 ${filename}`, 'success');
+    showToast(`已匯??${filename}`, 'success');
   }, [scoreDocument, scoreTitle, showToast]);
   const handleResetScore = useCallback(() => {
     resetScoreState();
     stopAll();
-    showToast('已重設當前譜面', 'success');
+    showToast('�w���]�ثe�Э�', 'success');
   }, [resetScoreState, showToast, stopAll]);
-  const handleLoadJsonDemo = useCallback(() => {
-    loadScoreSource({
-      title: demoScore.meta?.title ?? 'JSON Demo',
-      content: demoScore,
-      sourceType: SCORE_SOURCE_TYPES.JSON,
-      ...demoScore.transport,
-      ...demoScore.playback,
-    });
-    stopAll();
-    showToast('已載入 JSON Demo', 'success');
-  }, [loadScoreSource, showToast, stopAll]);
   const handlePlayFeaturedScore = useCallback(async (featuredScore) => {
     const score = await featuredScore.load();
     const source = {
@@ -426,11 +414,11 @@ function AppContent({
     };
     loadScoreSource(applyScoreRecommendation(source, { force: true }));
     stopAll();
-    showToast(`已切換到 ${score.displayTitle ?? score.title}`, 'success');
+    showToast(`已�??�到 ${score.displayTitle ?? score.title}`, 'success');
   }, [loadScoreSource, showToast, stopAll]);
   const handleLoadLocalConvertedScore = useCallback((payload) => {
     loadScoreSource({
-      title: payload?.meta?.title ?? '轉換後譜面',
+      title: payload?.meta?.title ?? '�ഫ���Э�',
       content: payload,
       sourceType: SCORE_SOURCE_TYPES.JSON,
       ...payload?.transport,
@@ -539,10 +527,10 @@ function AppContent({
               <div className="rounded-[32px] border border-white/10 bg-black/25 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-sm">
                 <div className="mb-4 px-2">
                   <div className="text-[10px] font-black uppercase tracking-[0.34em] text-sky-200/55">
-                    星圖導覽
+                    ?��?導覽
                   </div>
                   <div className="mt-2 text-sm font-semibold text-sky-50/80">
-                    點擊左側即可跳轉到對應調整區塊。
+                    點�?左側?�可跳�??��??�調?��?塊�?
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -567,10 +555,10 @@ function AppContent({
               <div id="playback-preview" className="rounded-[36px] border border-white/10 bg-black/30 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-sm md:p-6">
                 <div className="mb-5 flex flex-col gap-2 px-1">
                   <div className="text-[10px] font-black uppercase tracking-[0.34em] text-emerald-200/55">
-                    播放預覽
+                    ?�放?�覽
                   </div>
                   <div className="mt-2 text-sm font-semibold text-emerald-50/80">
-                    已與轉換器對調位置，現在可先預覽播放，再決定是否轉譜。
+                    已�?轉�??��?調�?置�??�在?��??�覽?�放，�?決�??�否轉�???
                   </div>
                 </div>
                 <PerformanceWorkspace
@@ -585,7 +573,7 @@ function AppContent({
                     譜面編輯
                   </div>
                   <div className="mt-2 text-sm font-semibold text-violet-50/80">
-                    保留完整編輯、參考與微調能力，方便處理大譜面。
+                    保�?完整編輯?��??��?微調?��?，方便�??�大譜面??
                   </div>
                 </div>
                 <ScoreEditor
@@ -598,7 +586,6 @@ function AppContent({
                   referenceNotes={referenceNotes}
                   setReferenceNotes={setReferenceNotes}
                   onImport={handleImportLocal}
-                  onLoadJsonDemo={handleLoadJsonDemo}
                   onExport={handleExportLocal}
                   onSave={handleSaveScore}
                   onReset={handleResetScore}
@@ -613,29 +600,29 @@ function AppContent({
                 <div className="mb-5 flex flex-col gap-2 px-1">
                   <div className="text-sm font-semibold text-sky-50/80">
                     <div className="text-[10px] font-black uppercase tracking-[0.34em] text-sky-200/55">
-                      雲端曲庫
+                      ?�端?�庫
                     </div>
                     <div className="mt-2 text-sm font-semibold text-sky-50/80">
-                      Firebase 改成先載入摘要清單，再按需抓完整譜面，降低大譜面造成的同步負擔。
+                      Firebase ?��??��??��?要�??��??��??�?��??��??��??��?大�??�造�??��?步�??��?
                     </div>
                   </div>
                 </div>
                 <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-                  <ScoreInfoCard title="目前譜面">
+                  <ScoreInfoCard title="?��?譜面">
                     <div className="flex items-center justify-between gap-3">
                       <input
                         type="text"
                         value={scoreTitle}
                         onChange={(e) => setScoreTitle(e.target.value)}
                         className="w-full bg-slate-800/60 text-white px-3 py-2 rounded-lg border border-sky-300/20"
-                        placeholder="請輸入曲譜標題"
+                        placeholder="��J�����Э��W��"
                       />
                       <button
                         onClick={handleSaveScore}
                         disabled={isSaving}
                         className="bg-sky-500 text-white px-4 py-2 rounded-lg disabled:bg-sky-800/70"
                       >
-                        {isSaving ? '儲存中' : '儲存'}
+                        {isSaving ? '�x�s��...' : '�x�s'}
                       </button>
                     </div>
                   </ScoreInfoCard>
@@ -655,10 +642,10 @@ function AppContent({
                 <div className="mb-5 flex flex-col gap-2 px-1">
                   <div className="text-sm font-semibold text-amber-50/80">
                     <div className="text-[10px] font-black uppercase tracking-[0.34em] text-amber-200/55">
-                      琴譜轉換
+                      ?��?轉�?
                     </div>
                     <div className="mt-2 text-sm font-semibold text-amber-50/80">
-                      轉換器獨立成單一區塊，避免和播放檢視混在一起。
+                      轉�??�獨立�??��??�塊�??��??�播?�檢視混?��?起�?
                     </div>
                   </div>
                 </div>
@@ -809,3 +796,9 @@ export default function App() {
     </AudioConfigProvider>
   );
 }
+
+
+
+
+
+

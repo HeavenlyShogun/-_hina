@@ -49,7 +49,7 @@
     }
   },
   "transport": {
-    "bpm": 120,
+    "bpm": 180,
     "timeSigNum": 4,
     "timeSigDen": 4,
     "resolution": 10080
@@ -63,8 +63,8 @@
     "tempoMap": [
       {
         "startTick": 0,
-        "bpm": 120,
-        "secondsPerTick": 0.0000496031746031746
+        "bpm": 180,
+        "secondsPerTick": 0.00003306878306878307
       }
     ]
   },
@@ -76,7 +76,7 @@
       "tracks": 2,
       "tempos": [
         {
-          "bpm": 120,
+          "bpm": 180,
           "ticks": 0,
           "time": 0
         }
@@ -28120,3 +28120,5 @@
     }
   ]
 }
+
+
