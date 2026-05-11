@@ -9,7 +9,6 @@ import PerformanceWorkspace from './components/PerformanceWorkspace';
 import PianoRoom from './pages/PianoRoom';
 import { AudioConfigProvider, useAudioConfig } from './contexts/AudioConfigContext';
 import { PlaybackProvider } from './contexts/PlaybackContext';
-import { FEATURED_SCORES } from './data/featuredScores';
 import { IMPORTABLE_SCORE_FILES, IMPORTABLE_SCORE_GROUPS } from './data/importableScoreFiles';
 import demoScore from './data/scores/demo.json';
 import { useCloudScores } from './hooks/useCloudScores';
@@ -208,18 +207,11 @@ function AppContent({
     });
   }, []);
   const selectableScores = useMemo(
-    () => [...FEATURED_SCORES, ...IMPORTABLE_SCORE_FILES],
+    () => IMPORTABLE_SCORE_FILES,
     [],
   );
   const selectableScoreGroups = useMemo(
-    () => [
-      {
-        id: 'featured',
-        label: '精選曲目',
-        files: FEATURED_SCORES,
-      },
-      ...IMPORTABLE_SCORE_GROUPS,
-    ],
+    () => IMPORTABLE_SCORE_GROUPS,
     [],
   );
   const workspaceSections = useMemo(() => ([
