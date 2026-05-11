@@ -52,6 +52,17 @@ GitHub Pages 預設網址：
 
 - `https://heavenlyshogun.github.io/-_hina/`
 
+部署指令：
+
+- GitHub Pages：`npm run build:pages`
+- Firebase Hosting：`npm run build:firebase`
+
+路徑規則：
+
+- GitHub Pages 版會自動使用 `/-_hina/` 當作 base path。
+- Firebase Hosting 版會自動使用 `/` 當作 base path。
+- `firebase deploy` 前會透過 `firebase.json` 的 `predeploy` 自動執行 `npm run build:firebase`。
+
 設定自訂網域：
 
 1. 在 GitHub Repository 的 `Settings > Pages` 設定 custom domain。
