@@ -1,3 +1,4 @@
+
 import { ALL_KEYS_FLAT, DEFAULT_SCORE_PARAMS, mapKey } from '../constants/music.js';
 import { parseKeshifuToCanonical } from './keshifuScoreParser.js';
 import { parseScoreMetaHeader } from './scoreTextMeta.js';
@@ -1834,12 +1835,13 @@ export function parseScoreJson(scoreJson, config = {}) {
     throw new Error('Score JSON must be an object.');
   }
 
+  // Combine parameters from the score file and runtime configuration
   const transport = {
     ...(scoreJson.transport ?? {}),
     ...(config.bpm === undefined ? {} : { bpm: config.bpm }),
     ...(config.timeSigNum === undefined ? {} : { timeSigNum: config.timeSigNum }),
     ...(config.timeSigDen === undefined ? {} : { timeSigDen: config.timeSigDen }),
-    ...(config.resolution === undefined ? {} : { resolution: config.resolution }),
+    resolution: scoreJson.ppq || scoreJson.resolution || config.resolution,
   };
   const playbackConfig = {
     ...(scoreJson.playback ?? {}),
@@ -1850,10 +1852,63 @@ export function parseScoreJson(scoreJson, config = {}) {
   };
   const playback = createPlaybackState({
     ...transport,
-    resolution: transport.resolution,
     ...playbackConfig,
   });
-  const resolution = Math.max(1, Math.round(Number(transport.resolution) || playback.resolution || PPQ));
+  const resolution = playback.resolution;
+
+  // >> V3 NATIVE SUPPORT BRANCH
+  // If we receive a V3 score, we process its event stream directly.
+  if (scoreJson.version === '3.0') {
+    const events = [];
+    const openNotes = {}; // trackId -> note -> { event, startTick }
+
+    // V3 events are already sorted, so we can process them in a single pass.
+    for (const event of (scoreJson.events || [])) {
+      const trackId = event.trackId || 0;
+      if (!openNotes[trackId]) {
+        openNotes[trackId] = {};
+      }
+
+      if (event.type === 'note_on') {
+        // Store the note_on event, waiting for its corresponding note_off.
+        openNotes[trackId][event.note] = {
+          event,
+          startTick: event.tick,
+        };
+      } else if (event.type === 'note_off') {
+        const openNote = openNotes[trackId][event.note];
+        if (openNote) {
+          const startTick = openNote.startTick;
+          const durationTicks = event.tick - startTick;
+          
+          if (durationTicks > 0) {
+            const noteName = midiToNoteName(event.note);
+            const mappedKey = NOTE_NAME_TO_KEY[noteName] ?? null;
+            events.push(createNormalizedNoteEvent({
+              tick: startTick,
+              key: mappedKey,
+              durationTicks,
+              resolution,
+              bpm: playback.bpm,
+              velocity: openNote.event.velocity,
+              trackId,
+              frequency: midiToFrequency(event.note),
+              noteName: noteName,
+              midi: event.note,
+              pitchClass: noteName.replace(/-?\d+$/u, ''),
+              octave: Math.floor(event.note / 12) - 1,
+            }));
+          }
+          // Remove the note from openNotes once its duration is calculated.
+          delete openNotes[trackId][event.note];
+        }
+      }
+    }
+    return buildNormalizedResult(events, { ...playback, resolution });
+  }
+
+  // << V2 COMPATIBILITY BRANCH
+  // This is the original logic for handling V2 scores.
   const tracks = Array.isArray(scoreJson.tracks) ? scoreJson.tracks : [];
   const events = [];
 

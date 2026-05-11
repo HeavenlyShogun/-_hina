@@ -1,6 +1,12 @@
+
 import { DEFAULT_SCORE, DEFAULT_SCORE_PARAMS } from '../constants/music';
 import { SCORE_SOURCE_TYPES } from '../utils/scoreDocument';
 import { applyScoreRecommendation } from '../utils/scoreRecommendations';
+
+// Import from the new V3 location
+import surgesMidiUrl from '../../風物之琴譜/可匯入譜面/第三版/surges-midi.json?url';
+import combined4MidiUrl from '../../風物之琴譜/可匯入譜面/第三版/combined-4-midi.json?url';
+import neoAspectMidiUrl from '../../風物之琴譜/可匯入譜面/第三版/neo-aspect-midi.json?url';
 
 const featuredScoreModules = import.meta.glob('../../風物之琴譜/可匯入譜面/第一版/*.txt', {
   eager: false,
@@ -83,73 +89,44 @@ const importedFeaturedScores = Object.entries(featuredScoreModules).map(([filePa
   };
 });
 
+// Helper function to load V3 scores directly
+async function loadV3Score(url, id, title, subtitle = 'MIDI') {
+  const v3Score = await fetch(url).then(res => res.json());
+
+  return {
+    id,
+    title,
+    displayTitle: title,
+    subtitle,
+    content: v3Score, // Pass the V3 score directly
+    sourceType: SCORE_SOURCE_TYPES.JSON,
+    ...DEFAULT_SCORE_PARAMS,
+    ...(v3Score.transport ?? {}),
+    ...(v3Score.playback ?? {}),
+  };
+}
+
 export const FEATURED_SCORES = [
   {
     id: 'surges-midi',
     title: 'surges-MIDI',
     displayTitle: 'surges-MIDI',
     subtitle: 'MIDI',
-    load: async () => {
-      const payload = await import('./scores/surges-midi.json').then(m => m.default);
-      return {
-        id: 'surges-midi',
-        title: 'surges-MIDI',
-        displayTitle: 'surges-MIDI',
-        subtitle: 'MIDI',
-        content: payload,
-        sourceType: SCORE_SOURCE_TYPES.JSON,
-        ...DEFAULT_SCORE_PARAMS,
-        ...(payload.transport ?? {}),
-        ...(payload.playback ?? {}),
-      };
-    },
+    load: () => loadV3Score(surgesMidiUrl, 'surges-midi', 'surges-MIDI'),
   },
   {
     id: 'combined-4-midi',
     title: '春日影-MIDI',
     displayTitle: '春日影-MIDI',
     subtitle: 'MIDI',
-    load: async () => {
-      const payload = await import('./scores/combined-4-midi.json').then(m => m.default);
-      return {
-        id: 'combined-4-midi',
-        title: '春日影-MIDI',
-        displayTitle: '春日影-MIDI',
-        content: {
-          ...payload,
-          meta: {
-            ...(payload.meta ?? {}),
-            title: '春日影-MIDI',
-            displayTitle: '春日影-MIDI',
-          },
-        },
-        subtitle: 'MIDI',
-        sourceType: SCORE_SOURCE_TYPES.JSON,
-        ...DEFAULT_SCORE_PARAMS,
-        ...(payload.transport ?? {}),
-        ...(payload.playback ?? {}),
-      };
-    },
+    load: () => loadV3Score(combined4MidiUrl, 'combined-4-midi', '春日影-MIDI'),
   },
   {
     id: 'neo-aspect-midi',
     title: 'Neo aspect-MIDI',
     displayTitle: 'Neo aspect-MIDI',
     subtitle: 'MIDI',
-    load: async () => {
-      const payload = await import('./scores/neo-aspect-midi.json').then(m => m.default);
-      return {
-        id: 'neo-aspect-midi',
-        title: 'Neo aspect-MIDI',
-        displayTitle: 'Neo aspect-MIDI',
-        content: payload,
-        subtitle: 'MIDI',
-        sourceType: SCORE_SOURCE_TYPES.JSON,
-        ...DEFAULT_SCORE_PARAMS,
-        ...(payload.transport ?? {}),
-        ...(payload.playback ?? {}),
-      };
-    },
+    load: () => loadV3Score(neoAspectMidiUrl, 'neo-aspect-midi', 'Neo aspect-MIDI'),
   },
   ...staticFeaturedScores.map(score => ({
     ...score,

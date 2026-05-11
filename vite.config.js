@@ -31,5 +31,16 @@ export default defineConfig(({ command, mode }) => {
           }
         : undefined,
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+            'firebase-vendor': ['firebase'],
+            'tone-vendor': ['@tonejs/midi'],
+          }
+        }
+      }
+    }
   };
 });
