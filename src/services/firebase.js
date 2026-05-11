@@ -14,7 +14,7 @@ async function createFirebaseContext() {
 
   const firebaseConfig = getFirebaseConfig();
   if (!firebaseConfig) {
-    throw new Error('Firebase 設定不存在，請先補齊 .env 內的 Vite Firebase 參數。');
+    throw new Error('找不到 Firebase 設定。請先在 `.env` 補上 Vite Firebase 相關參數。');
   }
 
   const [

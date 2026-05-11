@@ -41,7 +41,7 @@ export function useCloudScores() {
       .then((result) => {
         if (!result?.ctx) {
           setCloudStatus('unavailable');
-          setCloudError('Firebase 目前不可用。');
+          setCloudError('Firebase 尚未完成設定或初始化失敗。');
           return null;
         }
 
@@ -76,13 +76,18 @@ export function useCloudScores() {
     }
 
     scoresUnsubscribeRef.current?.();
-    const unsubscribe = subscribeToScores(firebaseCtx, user.uid, (scores) => {
-      setSavedScores(scores);
-    }, (error) => {
-      console.error(error);
-      setCloudStatus('error');
-      setCloudError(error?.message || 'Firestore 摘要列表同步失敗。');
-    });
+    const unsubscribe = subscribeToScores(
+      firebaseCtx,
+      user.uid,
+      (scores) => {
+        setSavedScores(scores);
+      },
+      (error) => {
+        console.error(error);
+        setCloudStatus('error');
+        setCloudError(error?.message || 'Firestore 摘要同步失敗。');
+      },
+    );
     scoresUnsubscribeRef.current = unsubscribe;
     return () => unsubscribe();
   }, [firebaseCtx, user]);
@@ -166,7 +171,7 @@ export function useCloudScores() {
       return true;
     } catch (error) {
       console.error(error);
-      setCloudError(error?.message || 'Firestore 批次刪除失敗。');
+      setCloudError(error?.message || 'Firestore 清空曲庫失敗。');
       return false;
     }
   }, [getConnectedUser, savedScores]);
