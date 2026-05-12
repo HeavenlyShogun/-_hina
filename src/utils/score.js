@@ -20,6 +20,13 @@ export const PPQ = 480;
 const EIGHTH_TICKS = PPQ / 2;
 const MEASURE_BEAT_EPSILON = 1e-6;
 const NOTE_NAME_TO_KEY = Object.fromEntries(ALL_KEYS_FLAT.map((entry) => [entry.n, entry.k]));
+const PROJECT_KEYS_BY_MIDI = ALL_KEYS_FLAT
+  .map((entry) => ({
+    ...entry,
+    midi: noteNameToMidi(entry.n),
+  }))
+  .filter((entry) => Number.isFinite(entry.midi))
+  .sort((left, right) => left.midi - right.midi);
 
 function stripScoreComments(text) {
   // Score spacing carries timing data, so only strip inline comments.
@@ -192,6 +199,26 @@ function noteNameToMidi(noteName) {
   return ((Number(match[3]) + 1) * 12) + pitchClass;
 }
 
+function nearestProjectKeyFromMidi(midi) {
+  const numericMidi = Number(midi);
+  if (!Number.isFinite(numericMidi) || PROJECT_KEYS_BY_MIDI.length === 0) {
+    return null;
+  }
+
+  let nearest = PROJECT_KEYS_BY_MIDI[0];
+  let nearestDistance = Math.abs(numericMidi - nearest.midi);
+
+  PROJECT_KEYS_BY_MIDI.forEach((entry) => {
+    const distance = Math.abs(numericMidi - entry.midi);
+    if (distance < nearestDistance) {
+      nearest = entry;
+      nearestDistance = distance;
+    }
+  });
+
+  return nearest.k;
+}
+
 function parseDurationModifiers(modifiers, baseTicks = EIGHTH_TICKS) {
   const safeBaseTicks = Math.max(Math.round(Number(baseTicks) || EIGHTH_TICKS), 1);
   const suffix = String(modifiers ?? '');
@@ -301,17 +328,26 @@ function hashStringFNV1a(input) {
 }
 
 function createStructuredScoreCacheKey(input) {
-  if (!input || typeof input !== 'object' || !Array.isArray(input.tracks)) {
+  if (!input || typeof input !== 'object') {
     return null;
   }
 
-  const eventCount = input.tracks.reduce(
-    (count, track) => count + (Array.isArray(track?.events) ? track.events.length : 0),
-    0,
-  );
-  const trackSignature = input.tracks
-    .map((track) => `${track?.id ?? ''}:${Array.isArray(track?.events) ? track.events.length : 0}`)
-    .join('|');
+  const isSlimScore = input.version === '3.2-ultra-slim' && Array.isArray(input.notes);
+  if (!Array.isArray(input.tracks) && !isSlimScore) {
+    return null;
+  }
+
+  const eventCount = isSlimScore
+    ? input.notes.length
+    : input.tracks.reduce(
+      (count, track) => count + (Array.isArray(track?.events) ? track.events.length : 0),
+      0,
+    );
+  const trackSignature = isSlimScore
+    ? `${input.tracks?.length ?? 0}:${input.notes.length}`
+    : input.tracks
+      .map((track) => `${track?.id ?? ''}:${Array.isArray(track?.events) ? track.events.length : 0}`)
+      .join('|');
   const meta = input.meta ?? {};
   const transport = input.transport ?? {};
   const source = input.source?.midi ?? {};
@@ -1841,7 +1877,7 @@ export function parseScoreJson(scoreJson, config = {}) {
     ...(config.bpm === undefined ? {} : { bpm: config.bpm }),
     ...(config.timeSigNum === undefined ? {} : { timeSigNum: config.timeSigNum }),
     ...(config.timeSigDen === undefined ? {} : { timeSigDen: config.timeSigDen }),
-    resolution: scoreJson.ppq || scoreJson.resolution || config.resolution,
+    resolution: scoreJson.transport?.resolution || scoreJson.ppq || scoreJson.resolution || config.resolution,
   };
   const playbackConfig = {
     ...(scoreJson.playback ?? {}),
@@ -1855,6 +1891,41 @@ export function parseScoreJson(scoreJson, config = {}) {
     ...playbackConfig,
   });
   const resolution = playback.resolution;
+
+  if (scoreJson.version === '3.2-ultra-slim') {
+    const events = Array.isArray(scoreJson.notes)
+      ? scoreJson.notes.flatMap((entry) => {
+        if (!Array.isArray(entry) || entry.length < 3) {
+          return [];
+        }
+
+        const [startTick, durationTicks, note, velocity = DEFAULT_NOTE_VELOCITY, trackId = 0] = entry;
+        const midi = Math.round(Number(note));
+        if (!Number.isFinite(midi)) {
+          return [];
+        }
+
+        const noteName = midiToNoteName(midi);
+
+        return [createNormalizedNoteEvent({
+          tick: startTick,
+          key: nearestProjectKeyFromMidi(midi),
+          durationTicks,
+          resolution,
+          bpm: playback.bpm,
+          velocity,
+          trackId: String(trackId),
+          frequency: midiToFrequency(midi),
+          noteName,
+          midi,
+          pitchClass: noteName.replace(/-?\d+$/u, ''),
+          octave: Math.floor(midi / 12) - 1,
+        })];
+      })
+      : [];
+
+    return buildNormalizedResult(events, { ...playback, resolution });
+  }
 
   // >> V3 NATIVE SUPPORT BRANCH
   // If we receive a V3 score, we process its event stream directly.

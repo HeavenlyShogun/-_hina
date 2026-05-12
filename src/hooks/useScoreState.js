@@ -1,18 +1,18 @@
 import { useCallback, useMemo, useState } from 'react';
-import { DEFAULT_SCORE, DEFAULT_SCORE_PARAMS } from '../constants/music';
 import { DEFAULT_SCORE_NAME } from '../config/branding';
 import { createScoreDocument, SCORE_SOURCE_TYPES } from '../utils/scoreDocument';
 import { applyScoreRecommendation } from '../utils/scoreRecommendations';
+import surgesScore from '../data/scores/surges-midi.json';
 
-const DEFAULT_SCORE_TITLE = DEFAULT_SCORE_NAME;
+const DEFAULT_SCORE_TITLE = surgesScore?.meta?.displayTitle ?? surgesScore?.meta?.title ?? DEFAULT_SCORE_NAME;
 
 function createDefaultState() {
   return createScoreDocument(applyScoreRecommendation({
     title: DEFAULT_SCORE_TITLE,
-    rawText: DEFAULT_SCORE,
-    sourceType: SCORE_SOURCE_TYPES.TEXT,
-    textNotation: 'legacy',
-    ...DEFAULT_SCORE_PARAMS,
+    content: surgesScore,
+    sourceType: SCORE_SOURCE_TYPES.JSON,
+    ...surgesScore?.transport,
+    ...surgesScore?.playback,
   }, { force: true }));
 }
 

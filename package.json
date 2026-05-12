@@ -12,6 +12,7 @@
     "build:firebase": "node scripts/build-firebase-hosting.mjs",
     "smoke:cyberpunk": "node scripts/smoke-cyberpunk-logic.mjs",
     "scores:stress": "node scripts/stress-score-formats.mjs",
+    "scores:slim:midi": "node scripts/slim-midi-score.mjs",
     "scores:migrate:numbered": "node scripts/rewrite-importable-scores-to-numbered.mjs",
     "preview": "vite preview",
     "preview:pages": "npm run build && node scripts/preview-github-pages.mjs",

@@ -1,0 +1,50 @@
+
+> guilty-corn@0.0.0 dev
+> vite --host 127.0.0.1
+
+
+  [32m[1mVITE[22m v7.3.2[39m  [2mready in [0m[1m1148[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://127.0.0.1:[1m5173[22m/[39m
+[2m上午11:28:52[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/SheetDisplay.jsx[22m
+[2m上午11:28:56[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/pages/PianoRoom.jsx, /src/index.css[22m
+[2m上午11:29:04[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/index.css[22m
+[2m上午11:29:08[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/ControlPanel.jsx[22m
+[2m上午11:29:13[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/PerformanceWorkspace.jsx[22m
+[2m上午11:29:13[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/PerformanceWorkspace.jsx[22m
+[2m上午11:29:25[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/index.css[22m
+[2m上午11:37:56[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/App.jsx, /src/components/ScoreConverter.jsx, /src/components/PerformanceWorkspace.jsx, /src/components/SheetDisplay.jsx, /src/components/PianoKeys.jsx[22m
+[2m上午11:41:25[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/App.jsx, /src/components/ScoreConverter.jsx, /src/components/PerformanceWorkspace.jsx, /src/components/SheetDisplay.jsx, /src/components/PianoKeys.jsx[22m
+[2m上午11:42:26[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/App.jsx, /src/components/ScoreConverter.jsx, /src/components/PerformanceWorkspace.jsx, /src/components/SheetDisplay.jsx, /src/components/PianoKeys.jsx[22m
+[2m上午11:42:29[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/App.jsx, /src/components/ScoreConverter.jsx, /src/components/PerformanceWorkspace.jsx, /src/components/SheetDisplay.jsx, /src/components/PianoKeys.jsx[22m
+[2m上午11:42:40[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/App.jsx, /src/components/ScoreConverter.jsx, /src/components/PerformanceWorkspace.jsx, /src/components/SheetDisplay.jsx, /src/components/PianoKeys.jsx[22m
+[2m上午11:46:03[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m上午11:46:08[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m上午11:46:10[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m上午11:46:11[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m上午11:46:16[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m上午11:46:22[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m上午11:46:25[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m上午11:46:26[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m上午11:46:27[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m上午11:53:46[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/ScoreConverter.jsx, /src/index.css[22m
+[2m下午12:02:58[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/App.jsx, /src/components/ScoreConverter.jsx, /src/components/PerformanceWorkspace.jsx, /src/components/SheetDisplay.jsx, /src/components/PianoKeys.jsx[22m
+[2m下午12:03:02[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/App.jsx, /src/components/ScoreConverter.jsx, /src/components/PerformanceWorkspace.jsx, /src/components/SheetDisplay.jsx, /src/components/PianoKeys.jsx[22m
+[2m下午12:03:08[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/App.jsx, /src/components/ScoreConverter.jsx, /src/components/PerformanceWorkspace.jsx, /src/components/SheetDisplay.jsx, /src/components/PianoKeys.jsx[22m
+[2m下午12:03:16[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/SheetDisplay.jsx[22m
+[2m下午12:03:30[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/App.jsx, /src/components/ScoreConverter.jsx, /src/components/PerformanceWorkspace.jsx, /src/components/SheetDisplay.jsx, /src/components/PianoKeys.jsx[22m
+[2m下午12:03:37[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/App.jsx, /src/components/ScoreConverter.jsx, /src/components/PerformanceWorkspace.jsx, /src/components/SheetDisplay.jsx, /src/components/PianoKeys.jsx[22m
+[2m下午12:03:41[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/App.jsx, /src/components/ScoreConverter.jsx, /src/components/PerformanceWorkspace.jsx, /src/components/SheetDisplay.jsx, /src/components/PianoKeys.jsx[22m
+[2m下午12:04:05[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/App.jsx, /src/components/ScoreConverter.jsx, /src/components/PerformanceWorkspace.jsx, /src/components/SheetDisplay.jsx, /src/components/PianoKeys.jsx[22m
+[2m下午12:04:12[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/App.jsx, /src/components/ScoreConverter.jsx, /src/components/PerformanceWorkspace.jsx, /src/components/SheetDisplay.jsx, /src/components/PianoKeys.jsx[22m
+[2m下午12:04:20[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/App.jsx, /src/components/ScoreConverter.jsx, /src/components/PerformanceWorkspace.jsx, /src/components/SheetDisplay.jsx, /src/components/PianoKeys.jsx[22m
+[2m下午12:04:26[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/ScoreConverter.jsx, /src/index.css[22m
+[2m下午12:04:37[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/ScoreConverter.jsx[22m
+[2m下午12:07:21[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m下午12:07:21[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m下午12:07:21[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m下午12:07:21[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m下午12:07:21[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m下午12:07:21[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[2m下午12:07:27[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/index.css[22m
+[2m下午12:07:51[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/components/ScoreConverter.jsx, /src/index.css[22m

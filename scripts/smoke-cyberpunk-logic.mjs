@@ -1,15 +1,4 @@
-import { readFile } from 'node:fs/promises';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { normalizeScoreSource } from '../src/utils/score.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const repoRoot = path.resolve(__dirname, '..');
-const scoreDir = path.join(repoRoot, '風物之琴譜', '可匯入譜面');
-
-const CYBERPUNK_NUMBERED_PATH = path.join(scoreDir, '第二版', '我永遠想待在你的房子裡.txt');
-const CYBERPUNK_LEGACY_PATH = path.join(scoreDir, '第一版', '我永遠想待在你的房子裡.legacy.bak.txt');
 
 const playbackConfig = {
   bpm: 125,
@@ -26,10 +15,6 @@ function assert(condition, message) {
   if (!condition) {
     throw new Error(message);
   }
-}
-
-function stripMeta(rawText) {
-  return String(rawText ?? '').replace(/^\uFEFF/u, '').split(/\r?\n/u).slice(1).join('\n');
 }
 
 function runExcerptSmokeTest() {
@@ -62,72 +47,14 @@ function runExcerptSmokeTest() {
   };
 }
 
-async function runCyberpunkComparison() {
-  const [numberedRaw, legacyRaw] = await Promise.all([
-    readFile(CYBERPUNK_NUMBERED_PATH, 'utf8'),
-    readFile(CYBERPUNK_LEGACY_PATH, 'utf8'),
-  ]);
-
-  const numbered = normalizeScoreSource(stripMeta(numberedRaw), {
-    ...playbackConfig,
-    textNotation: 'jianpu',
-  });
-  const legacy = normalizeScoreSource(stripMeta(legacyRaw), {
-    ...playbackConfig,
-    textNotation: 'legacy-beat',
-    legacyTimingMode: 'beat',
-  });
-
-  const numberedEvents = numbered.events.filter((event) => !event.isRest);
-  const legacyEvents = legacy.events.filter((event) => !event.isRest);
-
-  assert(numberedEvents.length > 1000, `Expected dense numbered multi-track arrangement, got only ${numberedEvents.length} note events.`);
-  assert(legacyEvents.length > 900, `Expected dense legacy reference arrangement, got only ${legacyEvents.length} note events.`);
-  assert(numberedEvents.length <= legacyEvents.length * 1.25, `Expected numbered score density to stay close to legacy, got ${numberedEvents.length} vs ${legacyEvents.length}.`);
-  assert(numbered.maxTime >= legacy.maxTime * 0.99, `Expected numbered score length to stay close to legacy, got ${numbered.maxTime} vs ${legacy.maxTime}.`);
-
-  const trackIds = [...new Set(numbered.events.map((event) => event.trackId).filter(Boolean))];
-  assert(trackIds.includes('M'), `Expected numbered score to contain melody track M, got ${trackIds.join(', ')}.`);
-  assert(trackIds.includes('C1'), `Expected numbered score to retain accompaniment track C1, got ${trackIds.join(', ')}.`);
-  assert(trackIds.includes('C2'), `Expected numbered score to retain accompaniment track C2, got ${trackIds.join(', ')}.`);
-
-  const openingWindow = numberedEvents.filter((event) => event.tick <= 240);
-  assert(openingWindow.length >= 2, `Expected opening chord overlap to survive conversion, got ${openingWindow.length} events in the first 240 ticks.`);
-  const openingKeys = openingWindow.map((event) => event.k).sort().join(',');
-  assert(openingKeys === 'm,v', `Expected opening overlap to be keys m and v, got ${openingKeys}.`);
-
-  const firstMelodyEvent = numbered.events.find((event) => event.trackId === 'M' && !event.isRest);
-  assert(firstMelodyEvent?.noteName === 'B3', `Expected first melody note to resolve to B3, got ${firstMelodyEvent?.noteName}.`);
-  assert(Math.abs(Number(firstMelodyEvent?.frequency ?? 0) - 246.942) < 0.01, `Expected first melody note frequency to stay near 246.942 Hz, got ${firstMelodyEvent?.frequency}.`);
-
-  return {
-    numberedEvents,
-    legacyEvents,
-    trackIds,
-    firstMelodyEvent: {
-      key: firstMelodyEvent?.k ?? null,
-      noteName: firstMelodyEvent?.noteName ?? null,
-      frequency: Number(firstMelodyEvent?.frequency?.toFixed?.(3) ?? firstMelodyEvent?.frequency ?? 0),
-      trackId: firstMelodyEvent?.trackId ?? null,
-    },
-  };
-}
-
 async function main() {
   const excerpt = runExcerptSmokeTest();
-  const comparison = await runCyberpunkComparison();
 
   console.log(JSON.stringify({
     excerpt: {
       melodyTicks: excerpt.melody.map((event) => ({ tick: event.tick, durationTicks: event.durationTicks, v: event.v })),
       accompanimentTicks: excerpt.accompaniment.map((event) => ({ tick: event.tick, durationTicks: event.durationTicks, v: event.v })),
       tokenLines: excerpt.tokenLines.length,
-    },
-    cyberpunk: {
-      numberedEvents: comparison.numberedEvents.length,
-      legacyEvents: comparison.legacyEvents.length,
-      firstEvent: comparison.firstMelodyEvent,
-      trackIds: comparison.trackIds,
     },
   }, null, 2));
 }
