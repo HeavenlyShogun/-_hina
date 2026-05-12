@@ -1,115 +1,90 @@
 import { DEFAULT_SCORE_PARAMS } from '../constants/music.js';
 import { DEFAULT_SCORE_NAME } from '../config/branding.js';
 import { SCORE_SOURCE_TYPES } from '../utils/scoreDocument.js';
-import { getNotationDisplayName, parseScoreMetaHeader } from '../utils/scoreTextMeta.js';
 
-const scoreModules = import.meta.glob('../../src/data/scores/*-midi.json', {
+const scoreModules = import.meta.glob('../../風物之琴譜/縮小版可匯入譜面/slim-json/*-slim.json', {
   eager: false,
   import: 'default',
-  query: '?raw',
 });
 
+const SLIM_STORAGE_FORMAT = 'hina-slim-score@3.2';
+
 function filenameFromPath(filePath) {
-  return String(filePath ?? '').split('/').pop() ?? 'score.txt';
+  return String(filePath ?? '').split('/').pop() ?? 'score.json';
 }
 
 function titleFromFilename(filename) {
-  return filename
-    .replace(/\.legacy\.bak\.txt$/iu, '')
-    .replace(/\.txt$/iu, '')
-    .trim() || DEFAULT_SCORE_NAME;
+  return filename.replace(/\.json$/iu, '').trim() || DEFAULT_SCORE_NAME;
 }
 
 function idFromFilename(filename) {
-  return `importable-${encodeURIComponent(filename.replace(/\.txt$/iu, ''))
+  return `importable-${encodeURIComponent(filename.replace(/\.json$/iu, ''))
     .replace(/%/g, '')
     .toLowerCase()}`;
 }
 
-function getImportableFormat(filename, meta = {}) {
-  const storageFormat = String(meta.storageFormat ?? '').toLowerCase();
-  const isLegacy = /\.legacy\.bak\.txt$/iu.test(filename) || storageFormat.startsWith('legacy');
-  const notationLabel = getNotationDisplayName(meta.textNotation ?? (isLegacy ? 'legacy' : 'jianpu'));
+function createSlimMetadata(score = {}, filename) {
+  const meta = score?.meta ?? {};
+  const transport = score?.transport ?? {};
+  const playback = score?.playback ?? {};
+  const fallbackTitle = titleFromFilename(filename);
 
-  return isLegacy
-    ? {
-      version: 'legacy',
-      versionLabel: notationLabel,
-      groupLabel: 'Legacy 匯入譜面',
-      storageFormat: meta.storageFormat ?? 'legacy-text@1',
-      legacyTimingMode: meta.legacyTimingMode ?? 'beat',
-      textNotation: meta.textNotation ?? 'legacy-beat',
-    }
-    : {
-      version: 'modern',
-      versionLabel: notationLabel,
-      groupLabel: 'Modern 匯入譜面',
-      storageFormat: meta.storageFormat ?? 'numbered-text@1',
-      textNotation: meta.textNotation ?? 'jianpu',
-    };
+  return {
+    id: meta.id ?? idFromFilename(filename),
+    filename,
+    title: meta.title ?? fallbackTitle,
+    displayTitle: meta.displayTitle ?? meta.title ?? fallbackTitle,
+    subtitle: 'Slim JSON import',
+    storageFormat: meta.storageFormat ?? SLIM_STORAGE_FORMAT,
+    version: 'slim',
+    versionLabel: 'Slim JSON',
+    groupLabel: 'Slim MIDI',
+    sourceType: SCORE_SOURCE_TYPES.JSON,
+    bpm: transport.bpm ?? DEFAULT_SCORE_PARAMS.bpm,
+    timeSigNum: transport.timeSigNum ?? DEFAULT_SCORE_PARAMS.timeSigNum,
+    timeSigDen: transport.timeSigDen ?? DEFAULT_SCORE_PARAMS.timeSigDen,
+    charResolution: transport.resolution ?? DEFAULT_SCORE_PARAMS.charResolution,
+    globalKeyOffset: playback.globalKeyOffset ?? DEFAULT_SCORE_PARAMS.globalKeyOffset,
+    scaleMode: playback.scaleMode ?? DEFAULT_SCORE_PARAMS.scaleMode,
+    tone: playback.tone ?? DEFAULT_SCORE_PARAMS.tone,
+    reverb: playback.reverb ?? DEFAULT_SCORE_PARAMS.reverb,
+    accidentals: playback.accidentals ?? {},
+    tags: ['Slim JSON', 'MIDI'],
+  };
 }
 
 export const IMPORTABLE_SCORE_FILES = Object.entries(scoreModules)
   .map(([filePath, loader]) => {
     const filename = filenameFromPath(filePath);
-    const title = titleFromFilename(filename);
-    const id = idFromFilename(filename);
-    const provisionalFormat = getImportableFormat(filename, {});
+    const fallbackMeta = createSlimMetadata({}, filename);
 
-    const scoreStub = {
-      id,
-      filename,
-      title,
-      subtitle: `${provisionalFormat.versionLabel} import`,
-      displayTitle: title,
+    return {
+      ...fallbackMeta,
       sourcePath: filePath,
-      playlistId: 'importable-folder-test',
-      tags: ['可匯入', provisionalFormat.versionLabel, '測試'],
-      version: provisionalFormat.version,
-      sourceType: SCORE_SOURCE_TYPES.TEXT,
-
+      playlistId: 'wind-lyre-slim-library',
       load: async () => {
-        const rawText = await loader();
-        const header = parseScoreMetaHeader(rawText);
-        const meta = header.hasMeta && !header.error ? header.meta : {};
-        const format = getImportableFormat(filename, meta);
+        const content = await loader();
+        const metadata = createSlimMetadata(content, filename);
 
         return {
-          id,
-          filename,
-          fileContent: rawText,
-          subtitle: `${format.versionLabel} import`,
-          rawText,
-          sourceType: SCORE_SOURCE_TYPES.TEXT,
-          ...DEFAULT_SCORE_PARAMS,
-          ...meta,
-          ...format,
-          title,
-          displayTitle: title,
+          ...metadata,
+          content,
           sourcePath: filePath,
-          playlistId: 'importable-folder-test',
-          tags: ['可匯入', format.versionLabel, '測試'],
+          playlistId: 'wind-lyre-slim-library',
         };
       },
     };
-    return scoreStub;
   })
   .sort((left, right) => (
-    left.version.localeCompare(right.version)
-    || left.title.localeCompare(right.title, 'zh-Hant')
+    left.displayTitle.localeCompare(right.displayTitle, 'zh-Hant')
     || left.filename.localeCompare(right.filename, 'zh-Hant')
   ));
 
 export const IMPORTABLE_SCORE_GROUPS = [
   {
-    id: 'modern',
-    label: 'Modern 匯入譜面',
-    files: IMPORTABLE_SCORE_FILES.filter((score) => score.version === 'modern'),
-  },
-  {
-    id: 'legacy',
-    label: 'Legacy 匯入譜面',
-    files: IMPORTABLE_SCORE_FILES.filter((score) => score.version === 'legacy'),
+    id: 'slim',
+    label: 'Slim MIDI',
+    files: IMPORTABLE_SCORE_FILES,
   },
 ];
 
