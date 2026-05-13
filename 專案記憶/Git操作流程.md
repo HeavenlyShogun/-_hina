@@ -1,4 +1,4 @@
-# Project Hina Git 與部署流程
+# Project Hina Git和 firebace與部署流程
 
 更新日期：2026-05-11
 
@@ -89,3 +89,16 @@ npm.cmd run build:firebase
 - 專案曾有多處中文亂碼與混編碼，之後新增或修改中文文案時，一律維持 UTF-8。
 - `dist/` 內容會隨最後一次 build 目標不同而改變，這是正常現象。
 - 若只驗證 Firebase，最後 `dist` 會是 root path 版本；若要驗證 GitHub Pages，需再重跑一次 `build:pages`。
+
+##firebace 推送流程:
+執行部署指令： 在您的終端機中，直接執行以下指令：
+
+firebase deploy
+
+
+
+自動化建置： 這個指令會自動觸發 firebase.json 檔案中設定好的 predeploy 腳本，該腳本會執行 npm run build:firebase。這會為 Firebase Hosting 產生一個優化過的產品建置 (production build)，並將結果放在 dist 資料夾。
+
+上傳與發布： 建置完成後，firebase deploy 會自動將 dist 資料夾的內容上傳到 Firebase Hosting，並將您的網站更新到最新版本。
+
+簡單來說，您只需要 firebase deploy 這一個指令，專案就會自動完成建置和上傳的所有步驟。
