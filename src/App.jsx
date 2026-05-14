@@ -689,7 +689,7 @@ function AppContent({
                     Converter
                   </div>
                   <div className="mt-2 text-sm font-semibold text-amber-50/80">
-                    譜面轉換系統保留輸入、提示詞、JSON 與 MIDI 基本雛形。
+                    上傳 MusicXML 或 MIDI，轉換成可播放譜面並下載 slim JSON。
                   </div>
                 </div>
 

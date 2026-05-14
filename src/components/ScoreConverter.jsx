@@ -18,8 +18,6 @@ const EXTERNAL_INPUT_TYPES = {
 };
 
 const OUTPUT_FORMATS = {
-  LEGACY_TEXT: 'legacy-text',
-  TIMED_TOKEN: 'timed-token',
   NUMBERED_GRID: 'numbered-grid',
   JSON_V2: 'json-v2',
 };
@@ -190,6 +188,7 @@ const ScoreConverter = memo(({
   const [musicXmlImportStatus, setMusicXmlImportStatus] = useState('尚未匯入 MusicXML');
   const [isImportingMusicXml, setIsImportingMusicXml] = useState(false);
   const [convertedMusicXmlPayload, setConvertedMusicXmlPayload] = useState(null);
+  const [isDraggingMusicXml, setIsDraggingMusicXml] = useState(false);
 
   useEffect(() => {
     if (scoreDocument.sourceType === SCORE_SOURCE_TYPES.TEXT) {
@@ -447,6 +446,25 @@ const ScoreConverter = memo(({
     }
   }, [handleMusicXmlImport]);
 
+  const handleMusicXmlDrop = useCallback(async (event) => {
+    event.preventDefault();
+    setIsDraggingMusicXml(false);
+    const [file] = Array.from(event.dataTransfer?.files || []);
+    await handleMusicXmlImport(file);
+  }, [handleMusicXmlImport]);
+
+  const handleMusicXmlDragOver = useCallback((event) => {
+    event.preventDefault();
+    setIsDraggingMusicXml(true);
+  }, []);
+
+  const handleMusicXmlDragLeave = useCallback((event) => {
+    const nextTarget = event.relatedTarget;
+    if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
+      setIsDraggingMusicXml(false);
+    }
+  }, []);
+
   const handleDownloadConvertedMusicXml = useCallback(() => {
     if (!convertedMusicXmlPayload) {
       showToast?.('請先匯入 MusicXML 檔案。', 'error');
@@ -466,10 +484,10 @@ const ScoreConverter = memo(({
             Score Converter
           </div>
           <div className="text-sm font-semibold text-amber-50/90">
-            譜面轉換系統骨架
+            上傳 MusicXML 並轉換成可播放譜面
           </div>
           <div className="text-xs leading-relaxed text-white/45">
-            保留輸入、轉換提示詞、JSON 載入、MIDI 匯入與下載出口，先移除本地暫存與其他半成品資源。
+            支援未壓縮的 .musicxml 與 .xml，轉換後會直接載入目前播放器，也可以下載 slim JSON 保存。
           </div>
         </div>
 
@@ -517,11 +535,51 @@ const ScoreConverter = memo(({
               className="w-full rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-sm text-white outline-none"
             >
               <option value={OUTPUT_FORMATS.JSON_V2}>JSON V2</option>
-              <option value={OUTPUT_FORMATS.TIMED_TOKEN}>Timed Token</option>
               <option value={OUTPUT_FORMATS.NUMBERED_GRID}>Numbered Grid</option>
-              <option value={OUTPUT_FORMATS.LEGACY_TEXT}>Legacy Text</option>
             </select>
           </label>
+        </div>
+
+        <div
+          onDrop={handleMusicXmlDrop}
+          onDragOver={handleMusicXmlDragOver}
+          onDragLeave={handleMusicXmlDragLeave}
+          className={[
+            'rounded-[28px] border border-dashed p-5 transition-colors',
+            isDraggingMusicXml
+              ? 'border-emerald-300/60 bg-emerald-500/12'
+              : 'border-emerald-300/25 bg-emerald-500/[0.06]',
+          ].join(' ')}
+        >
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="min-w-0">
+              <div className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-200/60">MusicXML Upload</div>
+              <div className="mt-2 text-sm font-semibold text-emerald-50">上傳 .musicxml / .xml</div>
+              <div className="mt-1 text-xs leading-relaxed text-white/50">
+                可拖放檔案到這裡，或使用按鈕選取檔案。壓縮的 .mxl 目前需要先解壓縮。
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => musicXmlInputRef.current?.click()}
+                disabled={isImportingMusicXml}
+                className="inline-flex items-center gap-2 rounded-full border border-emerald-300/25 bg-emerald-500/15 px-4 py-2 text-xs font-bold tracking-[0.16em] text-emerald-100 transition-colors hover:bg-emerald-500/25 disabled:opacity-50"
+              >
+                <FileUp size={14} />
+                {isImportingMusicXml ? '轉換中' : '上傳 MusicXML'}
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadConvertedMusicXml}
+                disabled={!convertedMusicXmlPayload}
+                className="inline-flex items-center gap-2 rounded-full border border-sky-300/20 bg-sky-500/10 px-4 py-2 text-xs font-bold tracking-[0.16em] text-sky-100 transition-colors hover:bg-sky-500/18 disabled:opacity-50"
+              >
+                <Download size={14} />
+                下載 slim JSON
+              </button>
+            </div>
+          </div>
         </div>
 
         <label className="block">
@@ -580,30 +638,12 @@ const ScoreConverter = memo(({
         <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 p-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <div className="text-[10px] font-black uppercase tracking-[0.24em] text-amber-200/45">保留中的雛形模組</div>
+              <div className="text-[10px] font-black uppercase tracking-[0.24em] text-amber-200/45">其他轉換工具</div>
               <div className="mt-2 text-xs leading-relaxed text-white/45">
-                目前僅保留 AI 輔助轉譜入口、MIDI 匯入、JSON 生成與後續正式轉換流程的接點。
+                需要手動整理譜面時，可使用 AI 提示詞、MIDI 匯入或從草稿產生 JSON。
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => musicXmlInputRef.current?.click()}
-                disabled={isImportingMusicXml}
-                className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-500/10 px-4 py-2 text-xs font-bold tracking-[0.16em] text-emerald-100 transition-colors hover:bg-emerald-500/18 disabled:opacity-50"
-              >
-                <FileUp size={14} />
-                {isImportingMusicXml ? '轉換中' : '匯入 MusicXML'}
-              </button>
-              <button
-                type="button"
-                onClick={handleDownloadConvertedMusicXml}
-                disabled={!convertedMusicXmlPayload}
-                className="inline-flex items-center gap-2 rounded-full border border-sky-300/20 bg-sky-500/10 px-4 py-2 text-xs font-bold tracking-[0.16em] text-sky-100 transition-colors hover:bg-sky-500/18 disabled:opacity-50"
-              >
-                <Download size={14} />
-                下載 slim JSON
-              </button>
               <button
                 type="button"
                 onClick={() => midiInputRef.current?.click()}
