@@ -2,6 +2,7 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from '
 import { ArrowDownUp, Copy, Download, FileUp, Music2, RefreshCcw, Wand2 } from 'lucide-react';
 import { normalizeScoreSource } from '../utils/score';
 import { parseMidiToV2 } from '../utils/midiToV2';
+import { convertMusicXmlToSlim } from '../utils/musicXmlToSlim';
 import { scoreJsonToMidiBytes } from '../utils/scoreToMidi';
 import { APP_NAME, DEFAULT_SCORE_NAME } from '../config/branding';
 import { SCORE_SOURCE_TYPES } from '../utils/scoreDocument';
@@ -179,12 +180,16 @@ const ScoreConverter = memo(({
   onLoadLocalScore,
 }) => {
   const midiInputRef = useRef(null);
+  const musicXmlInputRef = useRef(null);
   const [inputValue, setInputValue] = useState(scoreDocument.rawText ?? '');
   const [externalInputType, setExternalInputType] = useState(EXTERNAL_INPUT_TYPES.JIANPU);
   const [aiOutputFormat, setAiOutputFormat] = useState(OUTPUT_FORMATS.JSON_V2);
   const [assistantPrompt, setAssistantPrompt] = useState('');
   const [midiImportStatus, setMidiImportStatus] = useState('尚未匯入 MIDI');
   const [isImportingMidi, setIsImportingMidi] = useState(false);
+  const [musicXmlImportStatus, setMusicXmlImportStatus] = useState('尚未匯入 MusicXML');
+  const [isImportingMusicXml, setIsImportingMusicXml] = useState(false);
+  const [convertedMusicXmlPayload, setConvertedMusicXmlPayload] = useState(null);
 
   useEffect(() => {
     if (scoreDocument.sourceType === SCORE_SOURCE_TYPES.TEXT) {
@@ -378,6 +383,81 @@ const ScoreConverter = memo(({
     }
   }, [handleMidiImport]);
 
+  const handleMusicXmlImport = useCallback(async (file) => {
+    if (!file) {
+      return;
+    }
+
+    if (file.name.toLowerCase().endsWith('.mxl')) {
+      showToast?.('目前前端支援未壓縮 .musicxml/.xml；.mxl 請先解壓後再匯入。', 'error');
+      return;
+    }
+
+    setIsImportingMusicXml(true);
+    setMusicXmlImportStatus(`正在轉換 ${file.name}...`);
+
+    try {
+      const xmlText = await file.text();
+      const payload = convertMusicXmlToSlim(xmlText, {
+        fileName: file.name,
+        title: scoreTitle.trim() || undefined,
+        bpm,
+        timeSigNum,
+        timeSigDen,
+        tone: audioConfig?.tone,
+        globalKeyOffset: audioConfig?.globalKeyOffset,
+        reverb: audioConfig?.reverb,
+        scaleMode: audioConfig?.scaleMode,
+        accidentals,
+      });
+      const noteCount = Array.isArray(payload.notes) ? payload.notes.length : 0;
+
+      setConvertedMusicXmlPayload(payload);
+      setInputValue(JSON.stringify(payload, null, 2));
+      onLoadLocalScore?.(payload);
+      setMusicXmlImportStatus(`${payload.meta.title}，${noteCount} 個音符，已套用到播放預覽`);
+      showToast?.(`MusicXML 已轉換並載入：${payload.meta.title}`, 'success');
+    } catch (error) {
+      console.error(error);
+      setMusicXmlImportStatus(file.name);
+      showToast?.(error?.message || 'MusicXML 轉換失敗', 'error');
+    } finally {
+      setIsImportingMusicXml(false);
+    }
+  }, [
+    accidentals,
+    audioConfig?.globalKeyOffset,
+    audioConfig?.reverb,
+    audioConfig?.scaleMode,
+    audioConfig?.tone,
+    bpm,
+    onLoadLocalScore,
+    scoreTitle,
+    showToast,
+    timeSigDen,
+    timeSigNum,
+  ]);
+
+  const handleMusicXmlFileChange = useCallback(async (event) => {
+    const [file] = Array.from(event.target.files || []);
+    try {
+      await handleMusicXmlImport(file);
+    } finally {
+      event.target.value = '';
+    }
+  }, [handleMusicXmlImport]);
+
+  const handleDownloadConvertedMusicXml = useCallback(() => {
+    if (!convertedMusicXmlPayload) {
+      showToast?.('請先匯入 MusicXML 檔案。', 'error');
+      return;
+    }
+
+    const filename = `${slugifyFilename(convertedMusicXmlPayload.meta?.title || scoreTitle || 'musicxml-score')}-slim.json`;
+    downloadJsonFile(filename, convertedMusicXmlPayload);
+    showToast?.(`已下載 ${filename}`, 'success');
+  }, [convertedMusicXmlPayload, scoreTitle, showToast]);
+
   return (
     <section className="rounded-[32px] border border-amber-300/15 bg-amber-500/[0.04] p-6 shadow-[0_12px_40px_rgba(0,0,0,0.22)]">
       <div className="flex flex-col gap-5">
@@ -409,6 +489,10 @@ const ScoreConverter = memo(({
           <div className="rounded-2xl border border-white/8 bg-black/25 p-4">
             <div className="text-[10px] font-black uppercase tracking-[0.24em] text-amber-200/45">MIDI 匯入</div>
             <div className="mt-2 text-sm font-semibold text-amber-50">{midiImportStatus}</div>
+          </div>
+          <div className="rounded-2xl border border-white/8 bg-black/25 p-4 lg:col-span-3">
+            <div className="text-[10px] font-black uppercase tracking-[0.24em] text-amber-200/45">MusicXML 轉換</div>
+            <div className="mt-2 text-sm font-semibold text-amber-50">{musicXmlImportStatus}</div>
           </div>
         </div>
 
@@ -504,6 +588,24 @@ const ScoreConverter = memo(({
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
+                onClick={() => musicXmlInputRef.current?.click()}
+                disabled={isImportingMusicXml}
+                className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-500/10 px-4 py-2 text-xs font-bold tracking-[0.16em] text-emerald-100 transition-colors hover:bg-emerald-500/18 disabled:opacity-50"
+              >
+                <FileUp size={14} />
+                {isImportingMusicXml ? '轉換中' : '匯入 MusicXML'}
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadConvertedMusicXml}
+                disabled={!convertedMusicXmlPayload}
+                className="inline-flex items-center gap-2 rounded-full border border-sky-300/20 bg-sky-500/10 px-4 py-2 text-xs font-bold tracking-[0.16em] text-sky-100 transition-colors hover:bg-sky-500/18 disabled:opacity-50"
+              >
+                <Download size={14} />
+                下載 slim JSON
+              </button>
+              <button
+                type="button"
                 onClick={() => midiInputRef.current?.click()}
                 disabled={isImportingMidi}
                 className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-bold tracking-[0.16em] text-white/75 transition-colors hover:bg-white/10 disabled:opacity-50"
@@ -527,6 +629,13 @@ const ScoreConverter = memo(({
             accept=".mid,.midi,audio/midi"
             className="hidden"
             onChange={handleMidiFileChange}
+          />
+          <input
+            ref={musicXmlInputRef}
+            type="file"
+            accept=".musicxml,.xml,application/xml,text/xml"
+            className="hidden"
+            onChange={handleMusicXmlFileChange}
           />
         </div>
 

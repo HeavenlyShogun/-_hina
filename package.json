@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:host": "vite --host 0.0.0.0 --strictPort",
-    "build": "node scripts/build-github-pages.mjs",
+    "build": "node scripts/build-firebase-hosting.mjs",
     "build:vite": "node scripts/run-vite-build.mjs",
     "build:pages": "node scripts/build-github-pages.mjs",
     "build:firebase": "node scripts/build-firebase-hosting.mjs",
