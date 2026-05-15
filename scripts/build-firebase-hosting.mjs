@@ -7,6 +7,7 @@ const projectRoot = path.resolve(__dirname, '..');
 
 try {
   process.chdir(projectRoot);
+  process.env.DEPLOY_TARGET = 'firebase';
   process.env.VITE_PUBLIC_BASE = '/';
   await import('./run-vite-build.mjs');
 } catch (error) {

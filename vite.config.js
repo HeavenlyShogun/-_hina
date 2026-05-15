@@ -6,6 +6,10 @@ import { fileURLToPath } from 'node:url';
 const CONFIG_FILE = fileURLToPath(import.meta.url);
 const ROOT_DIR = dirname(CONFIG_FILE);
 const DEFAULT_REPO = '-_hina';
+const DEPLOY_TARGETS = {
+  FIREBASE: 'firebase',
+  GITHUB_PAGES: 'github-pages',
+};
 
 function resolveCustomDomain(env) {
   return env.VITE_CUSTOM_DOMAIN?.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '') || '';
@@ -50,14 +54,49 @@ function getPagesBasePath({ repo, customDomain, explicitBase }) {
   return customDomain ? '/' : `/${repo}/`;
 }
 
+function resolveDeployTarget(env) {
+  return (process.env.DEPLOY_TARGET || env.DEPLOY_TARGET || '').trim().toLowerCase();
+}
+
+function resolveBuildBasePath({ deployTarget, repo, customDomain, explicitBase }) {
+  if (deployTarget === DEPLOY_TARGETS.FIREBASE) {
+    return '/';
+  }
+
+  if (deployTarget === DEPLOY_TARGETS.GITHUB_PAGES) {
+    return getPagesBasePath({ repo, customDomain, explicitBase });
+  }
+
+  return getPagesBasePath({ repo, customDomain, explicitBase });
+}
+
+function resolveBuildOutDir(deployTarget) {
+  if (deployTarget === DEPLOY_TARGETS.FIREBASE) {
+    return resolve(ROOT_DIR, 'dist-fb');
+  }
+
+  if (deployTarget === DEPLOY_TARGETS.GITHUB_PAGES) {
+    return resolve(ROOT_DIR, 'dist-gh');
+  }
+
+  return resolve(ROOT_DIR, 'dist');
+}
+
 export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, ROOT_DIR, '');
+  const deployTarget = resolveDeployTarget(env);
   const customDomain = resolveCustomDomain(env);
   const repo = resolveRepositoryName(env);
   const port = resolvePort(env.VITE_DEV_PORT, 5173);
   const usePolling = env.VITE_USE_POLLING === 'true';
   const explicitBase = normalizeBasePath(env.VITE_PUBLIC_BASE);
-  const buildBase = getPagesBasePath({ repo, customDomain, explicitBase });
+  const buildBase = resolveBuildBasePath({
+    deployTarget,
+    repo,
+    customDomain,
+    explicitBase,
+  });
+  const buildOutDir = resolveBuildOutDir(deployTarget);
 
   return {
     root: ROOT_DIR,
@@ -86,7 +125,7 @@ export default defineConfig(({ command, mode }) => {
       strictPort: true,
     },
     build: {
-      outDir: resolve(ROOT_DIR, 'dist'),
+      outDir: buildOutDir,
       emptyOutDir: true,
       rollupOptions: {
         output: {

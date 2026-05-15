@@ -1,16 +1,19 @@
-{                                                                                                                       
-     "hosting": {                                                                                                          
-       "public": "dist",                                                                                                   
-       "ignore": [                                                                                                         
-         "firebase.json",                                                                                                  
-         "**/.*",                                                                                                          
-         "**/node_modules/**"                                                                                              
-       ],                                                                                                                  
-       "rewrites": [                                                                                                       
-         {                                                                                                                 
-           "source": "**",                                                                                                 
-           "destination": "/index.html"                                                                                    
-         }                                                                                                                 
-       ]                                                                                                                   
-     }                                                                                                                     
-   }
+{
+  "hosting": {
+    "public": "dist-fb",
+    "predeploy": [
+      "npm run build:firebase"
+    ],
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}

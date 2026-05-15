@@ -6,7 +6,7 @@ import { getCustomDomain, getGitHubRepo, getPagesBasePath } from './github-pages
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..');
-const distRoot = path.join(projectRoot, 'dist');
+const distRoot = path.join(projectRoot, 'dist-gh');
 const { owner, repo } = getGitHubRepo();
 const customDomain = getCustomDomain();
 const basePath = getPagesBasePath({ repo, customDomain });
@@ -25,6 +25,7 @@ function syncStaticHostingFiles() {
 }
 
 try {
+  process.env.DEPLOY_TARGET = 'github-pages';
   process.env.VITE_GITHUB_PAGES_REPO = repo;
   process.env.GITHUB_REPOSITORY = `${owner}/${repo}`;
   process.env.VITE_CUSTOM_DOMAIN = customDomain;

@@ -8,7 +8,7 @@ import { getCustomDomain, getGitHubRepo, getPagesBasePath } from './github-pages
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..');
-const distRoot = path.join(projectRoot, 'dist');
+const distRoot = path.join(projectRoot, 'dist-gh');
 const { repo } = getGitHubRepo();
 const customDomain = getCustomDomain();
 const basePath = getPagesBasePath({ repo, customDomain });
