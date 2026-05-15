@@ -317,12 +317,17 @@ const ScoreConverter = memo(({
     }
   }, [refreshAssistantPrompt, showToast]);
 
-  const handleLoadToEditor = useCallback((payloadOverride = null) => {
+  const handleLoadToEditor = useCallback((payloadOverride = null, options = {}) => {
     try {
       const payload = payloadOverride ?? buildPayload();
-      onLoadLocalScore?.(payload);
+      onLoadLocalScore?.(payload, options);
       setInputValue(JSON.stringify(payload, null, 2));
-      showToast?.(`已同步到譜面編輯：${payload.meta?.title ?? scoreTitle}`, 'success');
+      showToast?.(
+        options.mode === 'append'
+          ? `已接到譜面後面：${payload.meta?.title ?? scoreTitle}`
+          : `已覆蓋到譜面編輯：${payload.meta?.title ?? scoreTitle}`,
+        'success',
+      );
     } catch (error) {
       console.error(error);
       showToast?.('同步到譜面編輯失敗', 'error');
@@ -652,12 +657,21 @@ const ScoreConverter = memo(({
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => handleLoadToEditor()}
+                  onClick={() => handleLoadToEditor(null, { mode: 'replace' })}
                   className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-amber-50/80 hover:bg-white/10"
-                  title="同步到譜面編輯"
+                  title="覆蓋到譜面編輯"
                 >
                   <Wand2 size={14} />
-                  同步到譜面編輯
+                  覆蓋到譜面編輯
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleLoadToEditor(null, { mode: 'append' })}
+                  className="inline-flex items-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-50/90 hover:bg-emerald-500/20"
+                  title="接到目前譜面後面"
+                >
+                  <Wand2 size={14} />
+                  接到後面
                 </button>
               </div>
             </div>
@@ -700,11 +714,19 @@ const ScoreConverter = memo(({
                   <div className="flex shrink-0 items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => handleLoadToEditor(result.payload)}
+                      onClick={() => handleLoadToEditor(result.payload, { mode: 'replace' })}
                       className="rounded-xl border border-emerald-300/20 bg-emerald-500/10 p-2 text-emerald-100 hover:bg-emerald-500/20"
-                      title="載入到譜面編輯"
+                      title="覆蓋到譜面編輯"
                     >
                       <Wand2 size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleLoadToEditor(result.payload, { mode: 'append' })}
+                      className="rounded-xl border border-sky-300/20 bg-sky-500/10 p-2 text-sky-100 hover:bg-sky-500/20"
+                      title="接到目前譜面後面"
+                    >
+                      <ArrowDownUp size={14} />
                     </button>
                     <button
                       type="button"

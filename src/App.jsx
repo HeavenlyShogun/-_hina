@@ -23,6 +23,7 @@ import {
 } from './utils/scoreDocument';
 import { applyScoreRecommendation } from './utils/scoreRecommendations';
 import { buildScoreTextWithMeta } from './utils/scoreTextMeta';
+import { normalizeScoreSource } from './utils/score';
 import StarrySky from './components/StarrySky';
 
 function getFileTitle(filename) {
@@ -57,6 +58,142 @@ async function readImportedScore(file) {
     rawText: raw,
     sourceType: SCORE_SOURCE_TYPES.TEXT,
   };
+}
+
+function convertEventToV2Note(event, targetResolution) {
+  const sourceResolution = Math.max(Number(event?.resolution) || targetResolution || 480, 1);
+  const safeTargetResolution = Math.max(Number(targetResolution) || sourceResolution, 1);
+  const startTick = Math.max(
+    0,
+    Math.round(((Number(event?.startTick ?? event?.tick) || 0) * safeTargetResolution) / sourceResolution),
+  );
+  const durationTicks = Math.max(
+    1,
+    Math.round((Math.max(Number(event?.durationTicks ?? event?.durationTick) || 0, 1) * safeTargetResolution) / sourceResolution),
+  );
+
+  return {
+    type: 'note',
+    startTick,
+    durationTicks,
+    key: event?.k ?? null,
+    velocity: Number((event?.v ?? 0.85).toFixed(4)),
+    frequency: event?.frequency ?? null,
+    noteName: event?.noteName ?? null,
+    midi: event?.midi ?? null,
+    pitchClass: event?.pitchClass ?? null,
+    octave: event?.octave ?? null,
+  };
+}
+
+function mergeConvertedScorePayloads(currentPayload, incomingPayload) {
+  const currentNormalized = normalizeScoreSource(currentPayload);
+  const incomingNormalized = normalizeScoreSource(incomingPayload);
+  const targetResolution = Math.max(
+    Number(currentPayload?.transport?.resolution) || 0,
+    Number(incomingPayload?.transport?.resolution) || 0,
+    Number(currentNormalized?.playback?.resolution) || 0,
+    Number(incomingNormalized?.playback?.resolution) || 0,
+    480,
+  );
+
+  const currentEvents = (currentNormalized?.events ?? [])
+    .filter((event) => !event?.isRest)
+    .map((event) => ({
+      ...convertEventToV2Note(event, targetResolution),
+      trackId: String(event?.trackId ?? 'main'),
+    }));
+  const currentEndTick = currentEvents.reduce(
+    (maxTick, event) => Math.max(maxTick, event.startTick + event.durationTicks),
+    0,
+  );
+  const incomingEvents = (incomingNormalized?.events ?? [])
+    .filter((event) => !event?.isRest)
+    .map((event) => {
+      const nextEvent = convertEventToV2Note(event, targetResolution);
+      return {
+        ...nextEvent,
+        startTick: nextEvent.startTick + currentEndTick,
+        trackId: String(event?.trackId ?? 'main'),
+      };
+    });
+
+  const groupedTracks = new Map();
+  const trackOrder = [];
+  const ensureTrack = (trackId) => {
+    if (!groupedTracks.has(trackId)) {
+      groupedTracks.set(trackId, []);
+      trackOrder.push(trackId);
+    }
+    return groupedTracks.get(trackId);
+  };
+
+  currentEvents.forEach((event) => {
+    ensureTrack(event.trackId).push({
+      type: event.type,
+      startTick: event.startTick,
+      durationTicks: event.durationTicks,
+      key: event.key,
+      velocity: event.velocity,
+      frequency: event.frequency,
+      noteName: event.noteName,
+      midi: event.midi,
+      pitchClass: event.pitchClass,
+      octave: event.octave,
+    });
+  });
+  incomingEvents.forEach((event) => {
+    ensureTrack(event.trackId).push({
+      type: event.type,
+      startTick: event.startTick,
+      durationTicks: event.durationTicks,
+      key: event.key,
+      velocity: event.velocity,
+      frequency: event.frequency,
+      noteName: event.noteName,
+      midi: event.midi,
+      pitchClass: event.pitchClass,
+      octave: event.octave,
+    });
+  });
+
+  const tracks = trackOrder.map((trackId, index) => ({
+    id: trackId,
+    name: trackId === 'main' ? `Track ${index + 1}` : trackId,
+    mute: false,
+    events: groupedTracks.get(trackId).sort((left, right) => left.startTick - right.startTick),
+  }));
+
+  return applyScoreSettingsToJsonContent({
+    version: '2.0',
+    meta: {
+      ...(currentPayload?.meta ?? {}),
+      title: currentPayload?.meta?.title ?? incomingPayload?.meta?.title ?? 'Merged score',
+      displayTitle: currentPayload?.meta?.displayTitle ?? currentPayload?.meta?.title ?? incomingPayload?.meta?.title ?? 'Merged score',
+      sourceType: currentPayload?.meta?.sourceType ?? incomingPayload?.meta?.sourceType ?? 'json',
+      originalFormat: currentPayload?.meta?.originalFormat ?? incomingPayload?.meta?.originalFormat ?? 'json',
+      mergedAt: new Date().toISOString(),
+    },
+    transport: {
+      ...(currentPayload?.transport ?? incomingPayload?.transport ?? {}),
+      resolution: targetResolution,
+    },
+    playback: {
+      ...(currentPayload?.playback ?? incomingPayload?.playback ?? {}),
+    },
+    source: {
+      ...(currentPayload?.source ?? {}),
+      mergedFrom: [
+        currentPayload?.meta?.title ?? 'current-score',
+        incomingPayload?.meta?.title ?? 'incoming-score',
+      ],
+    },
+    tracks,
+  }, {
+    ...(currentPayload?.transport ?? incomingPayload?.transport ?? {}),
+    ...(currentPayload?.playback ?? incomingPayload?.playback ?? {}),
+    title: currentPayload?.meta?.title ?? incomingPayload?.meta?.title ?? 'Merged score',
+  });
 }
 
 function AppContent({
@@ -568,18 +705,34 @@ function AppContent({
     }
   }, [loadScoreSource, showToast, stopAll]);
 
-  const handleLoadLocalConvertedScore = useCallback((payload) => {
+  const handleLoadLocalConvertedScore = useCallback((payload, options = {}) => {
+    const { mode = 'replace' } = options;
+    let nextPayload = payload;
+
+    if (mode === 'append' && scoreDocument.sourceType === SCORE_SOURCE_TYPES.JSON) {
+      try {
+        const currentPayload = scoreDocument.content && typeof scoreDocument.content === 'object'
+          ? scoreDocument.content
+          : parseScoreContent(scoreDocument.rawText, SCORE_SOURCE_TYPES.JSON);
+        if (currentPayload && typeof currentPayload === 'object') {
+          nextPayload = mergeConvertedScorePayloads(currentPayload, payload);
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    }
+
     loadScoreSource({
-      id: payload?.meta?.id ?? payload?.id,
-      title: payload?.meta?.title ?? 'Converted score',
-      rawText: JSON.stringify(payload, null, 2),
-      content: payload,
+      id: nextPayload?.meta?.id ?? nextPayload?.id,
+      title: nextPayload?.meta?.title ?? 'Converted score',
+      rawText: JSON.stringify(nextPayload, null, 2),
+      content: nextPayload,
       sourceType: SCORE_SOURCE_TYPES.JSON,
-      ...payload?.transport,
-      ...payload?.playback,
+      ...nextPayload?.transport,
+      ...nextPayload?.playback,
     });
     stopAll();
-  }, [loadScoreSource, stopAll]);
+  }, [loadScoreSource, scoreDocument.content, scoreDocument.rawText, scoreDocument.sourceType, stopAll]);
 
   const editorScore = useMemo(() => {
     if (scoreDocument.sourceType === SCORE_SOURCE_TYPES.JSON) {
