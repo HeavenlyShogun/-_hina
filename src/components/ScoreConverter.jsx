@@ -4,17 +4,14 @@ import {
   ArrowDownUp,
   ChevronDown,
   Copy,
-  Download,
   FileUp,
   Music2,
-  RefreshCcw,
   Trash2,
   Wand2,
 } from 'lucide-react';
 import { normalizeScoreSource } from '../utils/score';
 import { parseMidiToV2 } from '../utils/midiToV2';
 import { convertMusicXmlToSlim } from '../utils/musicXmlToSlim';
-import { scoreJsonToMidiBytes } from '../utils/scoreToMidi';
 import { APP_NAME, DEFAULT_SCORE_NAME } from '../config/branding';
 import { applyScoreSettingsToJsonContent, SCORE_SOURCE_TYPES } from '../utils/scoreDocument';
 import {
@@ -157,32 +154,6 @@ function ensurePayloadMetadata(payload, {
       rawText: payload?.source?.rawText ?? rawText,
     },
   };
-}
-
-function downloadJsonFile(filename, payload) {
-  const blob = new Blob([JSON.stringify(payload, null, 2)], {
-    type: 'application/json;charset=utf-8',
-  });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-}
-
-function downloadBinaryFile(filename, bytes, mimeType) {
-  const blob = new Blob([bytes], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
 }
 
 function StatusBadge({ label, value }) {
@@ -335,13 +306,6 @@ const ScoreConverter = memo(({
     );
   }, []);
 
-  const handleSyncCurrent = useCallback(() => {
-    const nextValue = scoreDocument.rawText ?? '';
-    setInputValue(nextValue);
-    refreshAssistantPrompt(nextValue);
-    showToast?.('已同步目前編輯器內容', 'success');
-  }, [refreshAssistantPrompt, scoreDocument.rawText, showToast]);
-
   const handleCopyPrompt = useCallback(async () => {
     try {
       const prompt = refreshAssistantPrompt();
@@ -353,41 +317,17 @@ const ScoreConverter = memo(({
     }
   }, [refreshAssistantPrompt, showToast]);
 
-  const handleLoadToEditor = useCallback(() => {
+  const handleLoadToEditor = useCallback((payloadOverride = null) => {
     try {
-      const payload = buildPayload();
+      const payload = payloadOverride ?? buildPayload();
       onLoadLocalScore?.(payload);
-      showToast?.(`已載入譜面：${payload.meta?.title ?? scoreTitle}`, 'success');
+      setInputValue(JSON.stringify(payload, null, 2));
+      showToast?.(`已同步到譜面編輯：${payload.meta?.title ?? scoreTitle}`, 'success');
     } catch (error) {
       console.error(error);
-      showToast?.('載入譜面失敗', 'error');
+      showToast?.('同步到譜面編輯失敗', 'error');
     }
   }, [buildPayload, onLoadLocalScore, scoreTitle, showToast]);
-
-  const handleDownloadJson = useCallback(() => {
-    try {
-      const payload = buildPayload();
-      const filename = `${slugifyFilename(scoreTitle || payload.meta?.title || 'score')}-with-settings.json`;
-      downloadJsonFile(filename, payload);
-      showToast?.(`已下載 ${filename}`, 'success');
-    } catch (error) {
-      console.error(error);
-      showToast?.('下載 JSON 失敗', 'error');
-    }
-  }, [buildPayload, scoreTitle, showToast]);
-
-  const handleDownloadMidi = useCallback(() => {
-    try {
-      const payload = buildPayload();
-      const bytes = scoreJsonToMidiBytes(payload, { ppq: 480 });
-      const filename = `${slugifyFilename(scoreTitle || payload.meta?.title || 'score')}.mid`;
-      downloadBinaryFile(filename, bytes, 'audio/midi');
-      showToast?.(`已下載 MIDI：${filename}`, 'success');
-    } catch (error) {
-      console.error(error);
-      showToast?.('下載 MIDI 失敗', 'error');
-    }
-  }, [buildPayload, scoreTitle, showToast]);
 
   const handleClearCurrentScore = useCallback(() => {
     setInputValue('');
@@ -399,11 +339,12 @@ const ScoreConverter = memo(({
     showToast?.('已清除目前譜面與批次轉換記錄', 'success');
   }, [onClearCurrentScore, showToast]);
 
-  const handleMidiImport = useCallback(async (file) => {
+  const handleMidiImport = useCallback(async (file, options = {}) => {
     if (!file || !confirmLargeFile(file)) {
       return null;
     }
 
+    const { shouldLoadToEditor = true, shouldSyncInput = true } = options;
     setIsImportingMidi(true);
     setMidiImportStatus(`匯入中：${file.name}`);
 
@@ -422,8 +363,12 @@ const ScoreConverter = memo(({
         (count, track) => count + (track.events?.length ?? 0),
         0,
       );
-      onLoadLocalScore?.(payload);
-      setInputValue(JSON.stringify(payload, null, 2));
+      if (shouldLoadToEditor) {
+        onLoadLocalScore?.(payload);
+      }
+      if (shouldSyncInput) {
+        setInputValue(JSON.stringify(payload, null, 2));
+      }
       setMidiImportStatus(`${payload.meta.title}，${importedCount} 個事件，PPQ ${payload.transport.resolution}`);
       showToast?.(`已匯入 MIDI：${payload.meta.title}`, 'success');
       return payload;
@@ -455,23 +400,31 @@ const ScoreConverter = memo(({
 
     const results = [];
     for (const file of files) {
-      const payload = await handleMidiImport(file);
+      const payload = await handleMidiImport(file, {
+        shouldLoadToEditor: files.length === 1,
+        shouldSyncInput: files.length === 1,
+      });
       if (payload) {
         results.push({ file, payload });
       }
     }
-    
+
     if (results.length > 0) {
-      setConvertedResults(prev => [...prev, ...results]);
+      setConvertedResults((prev) => [...prev, ...results]);
+      if (results.length > 1) {
+        setMidiImportStatus(`已讀取 ${results.length} 份 MIDI，請從右側清單選擇載入`);
+        showToast?.(`已讀取 ${results.length} 份 MIDI`, 'success');
+      }
     }
     event.target.value = '';
-  }, [handleMidiImport]);
+  }, [handleMidiImport, showToast]);
 
-  const handleMusicXmlImport = useCallback(async (file) => {
+  const handleMusicXmlImport = useCallback(async (file, options = {}) => {
     if (!file || !confirmLargeFile(file)) {
       return null;
     }
 
+    const { shouldLoadToEditor = true, shouldSyncInput = true } = options;
     if (file.name.toLowerCase().endsWith('.mxl')) {
       showToast?.('目前支援未壓縮的 .musicxml / .xml，請先解壓縮 .mxl 後再匯入。', 'error');
       return null;
@@ -496,8 +449,12 @@ const ScoreConverter = memo(({
       });
       const noteCount = Array.isArray(payload.notes) ? payload.notes.length : 0;
 
-      setInputValue(JSON.stringify(payload, null, 2));
-      onLoadLocalScore?.(payload);
+      if (shouldSyncInput) {
+        setInputValue(JSON.stringify(payload, null, 2));
+      }
+      if (shouldLoadToEditor) {
+        onLoadLocalScore?.(payload);
+      }
       setMusicXmlImportStatus(`${payload.meta.title}，${noteCount} 個音符，已套用到播放器`);
       showToast?.(`MusicXML 已轉換：${payload.meta.title}`, 'success');
       return payload;
@@ -530,17 +487,24 @@ const ScoreConverter = memo(({
 
     const results = [];
     for (const file of files) {
-      const payload = await handleMusicXmlImport(file);
+      const payload = await handleMusicXmlImport(file, {
+        shouldLoadToEditor: files.length === 1,
+        shouldSyncInput: files.length === 1,
+      });
       if (payload) {
         results.push({ file, payload });
       }
     }
 
     if (results.length > 0) {
-      setConvertedResults(prev => [...prev, ...results]);
+      setConvertedResults((prev) => [...prev, ...results]);
+      if (results.length > 1) {
+        setMusicXmlImportStatus(`已讀取 ${results.length} 份 MusicXML，請從右側清單選擇載入`);
+        showToast?.(`已讀取 ${results.length} 份 MusicXML`, 'success');
+      }
     }
     event.target.value = '';
-  }, [handleMusicXmlImport]);
+  }, [handleMusicXmlImport, showToast]);
 
   const handleMusicXmlDrop = useCallback(async (event) => {
     event.preventDefault();
@@ -550,16 +514,23 @@ const ScoreConverter = memo(({
 
     const results = [];
     for (const file of files) {
-      const payload = await handleMusicXmlImport(file);
+      const payload = await handleMusicXmlImport(file, {
+        shouldLoadToEditor: files.length === 1,
+        shouldSyncInput: files.length === 1,
+      });
       if (payload) {
         results.push({ file, payload });
       }
     }
 
     if (results.length > 0) {
-      setConvertedResults(prev => [...prev, ...results]);
+      setConvertedResults((prev) => [...prev, ...results]);
+      if (results.length > 1) {
+        setMusicXmlImportStatus(`已讀取 ${results.length} 份 MusicXML，請從右側清單選擇載入`);
+        showToast?.(`已讀取 ${results.length} 份 MusicXML`, 'success');
+      }
     }
-  }, [handleMusicXmlImport]);
+  }, [handleMusicXmlImport, showToast]);
 
   const handleRemoveResult = useCallback((index) => {
     setConvertedResults(prev => prev.filter((_, i) => i !== index));
@@ -679,17 +650,14 @@ const ScoreConverter = memo(({
                 <div className="mt-1 text-xs text-amber-50/55">{settingsHint}</div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={handleSyncCurrent} className="rounded-xl border border-white/10 bg-white/5 p-2 text-amber-50/80 hover:bg-white/10" title="同步目前編輯器內容">
-                  <RefreshCcw size={14} />
-                </button>
-                <button type="button" onClick={handleLoadToEditor} className="rounded-xl border border-white/10 bg-white/5 p-2 text-amber-50/80 hover:bg-white/10" title="載入到目前譜面">
+                <button
+                  type="button"
+                  onClick={() => handleLoadToEditor()}
+                  className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-amber-50/80 hover:bg-white/10"
+                  title="同步到譜面編輯"
+                >
                   <Wand2 size={14} />
-                </button>
-                <button type="button" onClick={handleDownloadJson} className="rounded-xl border border-white/10 bg-white/5 p-2 text-amber-50/80 hover:bg-white/10" title="下載 JSON">
-                  <Download size={14} />
-                </button>
-                <button type="button" onClick={handleDownloadMidi} className="rounded-xl border border-white/10 bg-white/5 p-2 text-amber-50/80 hover:bg-white/10" title="下載 MIDI">
-                  <Music2 size={14} />
+                  同步到譜面編輯
                 </button>
               </div>
             </div>
@@ -707,7 +675,7 @@ const ScoreConverter = memo(({
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
                 <div className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-200/55">Pending Uploads</div>
-                <div className="mt-1 text-xs text-amber-50/55">本批待上傳清單。每次成功上傳後會自動清空。</div>
+                <div className="mt-1 text-xs text-amber-50/55">本批待上傳清單。可先逐筆載入到譜面編輯，成功上傳後會自動清空。</div>
               </div>
               <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-amber-50/70">
                 {convertedResults.length} items
@@ -717,7 +685,7 @@ const ScoreConverter = memo(({
             <div className="custom-scrollbar max-h-[220px] space-y-2 overflow-y-auto pr-1">
               {convertedResults.length === 0 ? (
                 <div className="rounded-[18px] border border-dashed border-white/10 px-4 py-6 text-center text-sm text-amber-50/45">
-                  尚未加入待上傳的轉換結果。
+                  尚未加入待上傳的轉換結果。一次選多檔後會先集中列在這裡。
                 </div>
               ) : convertedResults.map((result, index) => (
                 <div key={`${result.file.name}-${index}`} className="flex items-start justify-between gap-3 rounded-[18px] border border-white/10 bg-white/5 px-4 py-3">
@@ -729,14 +697,24 @@ const ScoreConverter = memo(({
                       {result.file.name} · {formatBytes(result.file.size)}
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveResult(index)}
-                    className="rounded-xl border border-rose-300/20 bg-rose-500/10 p-2 text-rose-100 hover:bg-rose-500/20"
-                    title="移除此項"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleLoadToEditor(result.payload)}
+                      className="rounded-xl border border-emerald-300/20 bg-emerald-500/10 p-2 text-emerald-100 hover:bg-emerald-500/20"
+                      title="載入到譜面編輯"
+                    >
+                      <Wand2 size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveResult(index)}
+                      className="rounded-xl border border-rose-300/20 bg-rose-500/10 p-2 text-rose-100 hover:bg-rose-500/20"
+                      title="移除此項"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
