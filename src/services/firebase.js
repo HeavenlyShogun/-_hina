@@ -1,10 +1,11 @@
 import { appId, getFirebaseConfig, getFirebaseConfigError, initialAuthToken } from '../config/appConfig';
 import { DEFAULT_SCORE_NAME } from '../config/branding';
-import { createScoreDocument, SCORE_SOURCE_TYPES } from '../utils/scoreDocument';
+import { createScoreDocument, SCORE_SOURCE_TYPES, serializeScoreContent } from '../utils/scoreDocument';
 
 let firebaseContextPromise;
 export const SCORE_COMPILER_VERSION = 'wind-poetry-score-compiler@2';
 const SCORE_LIST_LIMIT = 40;
+const FIRESTORE_SCORE_SAFE_BYTES = 850 * 1024;
 
 async function createFirebaseContext() {
   const configError = getFirebaseConfigError();
@@ -164,6 +165,11 @@ async function createScoreDocumentData(ctx, uid, title, payload) {
     id: payload.id ?? title,
     title,
   });
+  const storedRawText = normalized.rawText || (
+    normalized.sourceType === SCORE_SOURCE_TYPES.JSON
+      ? serializeScoreContent(normalized.content, normalized.sourceType)
+      : normalized.rawText
+  );
 
   const ref = scoreDoc(ctx, uid, normalized.id || title);
   const existingSnapshot = await ctx.getDoc(ref);
@@ -171,11 +177,32 @@ async function createScoreDocumentData(ctx, uid, title, payload) {
 
   return {
     ...normalized,
-    content: normalized.rawText,
+    rawText: storedRawText,
+    content: storedRawText,
     compilerVersion: SCORE_COMPILER_VERSION,
     createdAt: existingCreatedAt ?? ctx.serverTimestamp(),
     updatedAt: ctx.serverTimestamp(),
   };
+}
+
+function estimateJsonBytes(value) {
+  const text = JSON.stringify(value);
+  if (typeof TextEncoder !== 'undefined') {
+    return new TextEncoder().encode(text).length;
+  }
+
+  return text.length;
+}
+
+function assertCloudScoreSize(documentData) {
+  const estimatedBytes = estimateJsonBytes(documentData);
+  if (estimatedBytes <= FIRESTORE_SCORE_SAFE_BYTES) {
+    return;
+  }
+
+  throw new Error(
+    `譜面資料約 ${Math.round(estimatedBytes / 1024)} KB，已接近 Firestore 單文件上限。請先轉成 Slim JSON，或改用 Storage/Hosting 保存檔案。`,
+  );
 }
 
 export function normalizeLoadedScore(record) {
@@ -236,6 +263,7 @@ export async function loadScore(ctx, uid, id) {
 
 export async function saveScore(ctx, uid, title, data) {
   const documentData = await createScoreDocumentData(ctx, uid, title, data);
+  assertCloudScoreSize(documentData);
   const summaryData = createScoreSummary(documentData);
 
   await Promise.all([

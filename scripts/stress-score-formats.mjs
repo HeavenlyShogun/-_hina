@@ -1,9 +1,13 @@
-import { readdir, readFile } from 'node:fs/promises';
+import { access, readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { normalizeScoreSource } from '../src/utils/score.js';
 
-const SCORE_DIR = path.resolve(process.cwd(), '風物之琴譜', '可匯入譜面', '第二版');
+const TEXT_SCORE_DIRS = [
+  path.resolve(process.cwd(), '風物之琴譜', '可匯入譜面', '第二版'),
+  path.resolve(process.cwd(), '風物之琴譜', '可匯入譜面', '第一版'),
+];
+const SLIM_SCORE_DIR = path.resolve(process.cwd(), '風物之琴譜', '縮小版可匯入譜面', 'slim-json');
 const META_PREFIX = '// [META] ';
 const DEFAULT_ITERATIONS = 80;
 const DEFAULT_WARMUPS = 5;
@@ -93,9 +97,10 @@ function measureScore(score) {
   const noteEvents = lastNormalized.events.filter((event) => !event.isRest).length;
   return {
     file: score.file,
+    format: score.format,
     title: score.playback.title ?? score.file,
     notation: score.playback.textNotation,
-    bytes: Buffer.byteLength(score.content, 'utf8'),
+    bytes: score.bytes,
     events: lastNormalized.events.length,
     noteEvents,
     lines: lastNormalized.structure?.lines?.length ?? 0,
@@ -105,8 +110,21 @@ function measureScore(score) {
   };
 }
 
-async function loadScores() {
-  const entries = await readdir(SCORE_DIR, { withFileTypes: true });
+async function pathExists(targetPath) {
+  try {
+    await access(targetPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function loadTextScoresFromDir(scoreDir) {
+  if (!(await pathExists(scoreDir))) {
+    return [];
+  }
+
+  const entries = await readdir(scoreDir, { withFileTypes: true });
   const targets = entries
     .filter((entry) => entry.isFile())
     .filter((entry) => entry.name.toLowerCase().endsWith('.txt'))
@@ -114,13 +132,15 @@ async function loadScores() {
     .filter((entry) => !SCORE_FILTER || entry.name.toLowerCase().includes(SCORE_FILTER));
 
   return Promise.all(targets.map(async (entry) => {
-    const rawText = await readFile(path.join(SCORE_DIR, entry.name), 'utf8');
+    const rawText = await readFile(path.join(scoreDir, entry.name), 'utf8');
     const { meta, content } = parseMetaAndContent(rawText, entry.name);
     const playback = createPlaybackConfig(meta);
 
     return {
       file: entry.name,
+      format: 'text',
       content,
+      bytes: Buffer.byteLength(content, 'utf8'),
       playback: {
         ...playback,
         title: meta.title,
@@ -129,11 +149,54 @@ async function loadScores() {
   }));
 }
 
+async function loadSlimScores() {
+  if (!(await pathExists(SLIM_SCORE_DIR))) {
+    return [];
+  }
+
+  const entries = await readdir(SLIM_SCORE_DIR, { withFileTypes: true });
+  const targets = entries
+    .filter((entry) => entry.isFile())
+    .filter((entry) => entry.name.toLowerCase().endsWith('.json'))
+    .filter((entry) => !SCORE_FILTER || entry.name.toLowerCase().includes(SCORE_FILTER));
+
+  return Promise.all(targets.map(async (entry) => {
+    const rawText = await readFile(path.join(SLIM_SCORE_DIR, entry.name), 'utf8');
+    const content = JSON.parse(rawText);
+    const transport = content.transport ?? {};
+    const playback = content.playback ?? {};
+
+    return {
+      file: entry.name,
+      format: content.version ?? 'json',
+      content,
+      bytes: Buffer.byteLength(rawText, 'utf8'),
+      playback: {
+        bpm: Number(transport.bpm) || 125,
+        timeSigNum: Number(transport.timeSigNum) || 4,
+        timeSigDen: Number(transport.timeSigDen) || 4,
+        resolution: Number(transport.resolution) || 480,
+        globalKeyOffset: Number(playback.globalKeyOffset) || 0,
+        scaleMode: playback.scaleMode ?? 'major',
+        tone: playback.tone ?? 'piano',
+        reverb: playback.reverb ?? true,
+        title: content.meta?.title ?? path.basename(entry.name, path.extname(entry.name)),
+      },
+    };
+  }));
+}
+
+async function loadScores() {
+  const textScores = (await Promise.all(TEXT_SCORE_DIRS.map(loadTextScoresFromDir))).flat();
+  const slimScores = await loadSlimScores();
+  return [...textScores, ...slimScores];
+}
+
 async function main() {
   const scores = await loadScores();
 
   if (!scores.length) {
-    throw new Error(`No score files matched in ${SCORE_DIR}.`);
+    throw new Error('No score files matched in configured text or slim score directories.');
   }
 
   const startedAt = performance.now();
@@ -157,6 +220,7 @@ async function main() {
 
   console.table(results.map((item) => ({
     file: item.file,
+    format: item.format,
     notation: item.notation,
     bytes: item.bytes,
     events: item.events,
