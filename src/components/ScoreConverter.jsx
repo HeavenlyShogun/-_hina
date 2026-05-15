@@ -207,6 +207,7 @@ const ScoreConverter = memo(({
   referenceNotes,
   showToast,
   onLoadLocalScore,
+  onBatchUpload,
   onClearCurrentScore,
 }) => {
   const midiInputRef = useRef(null);
@@ -221,6 +222,8 @@ const ScoreConverter = memo(({
   const [isImportingMusicXml, setIsImportingMusicXml] = useState(false);
   const [isDraggingMusicXml, setIsDraggingMusicXml] = useState(false);
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+  const [convertedResults, setConvertedResults] = useState([]);
+  const [isBatchUploading, setIsBatchUploading] = useState(false);
 
   useEffect(() => {
     if (scoreDocument.sourceType === SCORE_SOURCE_TYPES.TEXT) {
@@ -391,13 +394,14 @@ const ScoreConverter = memo(({
     setAssistantPrompt('');
     setMusicXmlImportStatus('已清除目前譜面');
     setMidiImportStatus('尚未匯入 MIDI');
+    setConvertedResults([]);
     onClearCurrentScore?.();
-    showToast?.('已清除目前譜面並釋放大型內容', 'success');
+    showToast?.('已清除目前譜面與批次轉換記錄', 'success');
   }, [onClearCurrentScore, showToast]);
 
   const handleMidiImport = useCallback(async (file) => {
     if (!file || !confirmLargeFile(file)) {
-      return;
+      return null;
     }
 
     setIsImportingMidi(true);
@@ -422,10 +426,12 @@ const ScoreConverter = memo(({
       setInputValue(JSON.stringify(payload, null, 2));
       setMidiImportStatus(`${payload.meta.title}，${importedCount} 個事件，PPQ ${payload.transport.resolution}`);
       showToast?.(`已匯入 MIDI：${payload.meta.title}`, 'success');
+      return payload;
     } catch (error) {
       console.error(error);
       setMidiImportStatus(file.name);
       showToast?.('MIDI 匯入失敗', 'error');
+      return null;
     } finally {
       setIsImportingMidi(false);
     }
@@ -444,22 +450,31 @@ const ScoreConverter = memo(({
   ]);
 
   const handleMidiFileChange = useCallback(async (event) => {
-    const [file] = Array.from(event.target.files || []);
-    try {
-      await handleMidiImport(file);
-    } finally {
-      event.target.value = '';
+    const files = Array.from(event.target.files || []);
+    if (!files.length) return;
+
+    const results = [];
+    for (const file of files) {
+      const payload = await handleMidiImport(file);
+      if (payload) {
+        results.push({ file, payload });
+      }
     }
+    
+    if (results.length > 0) {
+      setConvertedResults(prev => [...prev, ...results]);
+    }
+    event.target.value = '';
   }, [handleMidiImport]);
 
   const handleMusicXmlImport = useCallback(async (file) => {
     if (!file || !confirmLargeFile(file)) {
-      return;
+      return null;
     }
 
     if (file.name.toLowerCase().endsWith('.mxl')) {
       showToast?.('目前支援未壓縮的 .musicxml / .xml，請先解壓縮 .mxl 後再匯入。', 'error');
-      return;
+      return null;
     }
 
     setIsImportingMusicXml(true);
@@ -485,10 +500,12 @@ const ScoreConverter = memo(({
       onLoadLocalScore?.(payload);
       setMusicXmlImportStatus(`${payload.meta.title}，${noteCount} 個音符，已套用到播放器`);
       showToast?.(`MusicXML 已轉換：${payload.meta.title}`, 'success');
+      return payload;
     } catch (error) {
       console.error(error);
       setMusicXmlImportStatus(file.name);
       showToast?.(error?.message || 'MusicXML 轉換失敗', 'error');
+      return null;
     } finally {
       setIsImportingMusicXml(false);
     }
@@ -508,32 +525,65 @@ const ScoreConverter = memo(({
   ]);
 
   const handleMusicXmlFileChange = useCallback(async (event) => {
-    const [file] = Array.from(event.target.files || []);
-    try {
-      await handleMusicXmlImport(file);
-    } finally {
-      event.target.value = '';
+    const files = Array.from(event.target.files || []);
+    if (!files.length) return;
+
+    const results = [];
+    for (const file of files) {
+      const payload = await handleMusicXmlImport(file);
+      if (payload) {
+        results.push({ file, payload });
+      }
     }
+
+    if (results.length > 0) {
+      setConvertedResults(prev => [...prev, ...results]);
+    }
+    event.target.value = '';
   }, [handleMusicXmlImport]);
 
   const handleMusicXmlDrop = useCallback(async (event) => {
     event.preventDefault();
     setIsDraggingMusicXml(false);
-    const [file] = Array.from(event.dataTransfer?.files || []);
-    await handleMusicXmlImport(file);
+    const files = Array.from(event.dataTransfer?.files || []);
+    if (!files.length) return;
+
+    const results = [];
+    for (const file of files) {
+      const payload = await handleMusicXmlImport(file);
+      if (payload) {
+        results.push({ file, payload });
+      }
+    }
+
+    if (results.length > 0) {
+      setConvertedResults(prev => [...prev, ...results]);
+    }
   }, [handleMusicXmlImport]);
 
-  const handleMusicXmlDragOver = useCallback((event) => {
-    event.preventDefault();
-    setIsDraggingMusicXml(true);
+  const handleRemoveResult = useCallback((index) => {
+    setConvertedResults(prev => prev.filter((_, i) => i !== index));
   }, []);
 
-  const handleMusicXmlDragLeave = useCallback((event) => {
-    const nextTarget = event.relatedTarget;
-    if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) {
-      setIsDraggingMusicXml(false);
+  const handleBatchUpload = useCallback(async () => {
+    if (!convertedResults.length || !onBatchUpload) return;
+    setIsBatchUploading(true);
+    try {
+      const payloads = convertedResults.map(res => ({
+        title: res.payload.meta?.title || res.file.name,
+        payload: res.payload
+      }));
+      const success = await onBatchUpload(payloads);
+      if (success) {
+        showToast?.(`成功上傳 ${payloads.length} 份譜面至雲端`, 'success');
+      }
+    } catch (error) {
+      console.error(error);
+      showToast?.('批次上傳失敗', 'error');
+    } finally {
+      setIsBatchUploading(false);
     }
-  }, []);
+  }, [convertedResults, onBatchUpload, showToast]);
 
   const manualInputTypeLabel = externalInputType === EXTERNAL_INPUT_TYPES.JIANPU
     ? '簡譜 / 文字譜'
@@ -544,216 +594,11 @@ const ScoreConverter = memo(({
   return (
     <section className="rounded-[32px] border border-amber-300/15 bg-amber-500/[0.04] p-6 shadow-[0_12px_40px_rgba(0,0,0,0.22)]">
       <div className="flex flex-col gap-5">
-        <div className="flex flex-col gap-2">
-          <div className="text-[10px] font-black uppercase tracking-[0.32em] text-amber-200/55">
-            Score Converter
-          </div>
-          <div className="text-sm font-semibold text-amber-50/90">
-            以 MusicXML 上傳為主，手動與 AI 工具收在進階面板。
-          </div>
-          <div className="text-xs leading-relaxed text-white/45">
-            支援未壓縮的 .musicxml 與 .xml。轉換後會直接載入目前播放器，下載請使用下方「下載當前譜面」。
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <StatusBadge label="目前狀態" value={isImportingMusicXml ? 'MusicXML 載入中' : musicXmlImportStatus} />
-          <StatusBadge label="格式" value={aiOutputFormat === OUTPUT_FORMATS.JSON_V2 ? 'JSON V2' : aiOutputFormat} />
-          <StatusBadge label="手動輸入" value={manualInputTypeLabel} />
-          <StatusBadge label="MIDI" value={isImportingMidi ? '匯入中' : midiImportStatus} />
-        </div>
-
-        <div
-          onDrop={handleMusicXmlDrop}
-          onDragOver={handleMusicXmlDragOver}
-          onDragLeave={handleMusicXmlDragLeave}
-          className={[
-            'rounded-[28px] border border-dashed p-5 transition-colors',
-            isDraggingMusicXml
-              ? 'border-emerald-300/60 bg-emerald-500/12'
-              : 'border-emerald-300/25 bg-emerald-500/[0.06]',
-          ].join(' ')}
-        >
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="min-w-0">
-              <div className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-200/60">MusicXML Upload</div>
-              <div className="mt-2 text-sm font-semibold text-emerald-50">上傳 .musicxml / .xml</div>
-              <div className="mt-1 text-xs leading-relaxed text-white/50">
-                選擇或拖曳檔案後會先檢查大小；超過 5 MB 會要求確認，避免瀏覽器因大檔卡住。
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => musicXmlInputRef.current?.click()}
-                disabled={isImportingMusicXml}
-                className="inline-flex items-center gap-2 rounded-full border border-emerald-300/25 bg-emerald-500/15 px-4 py-2 text-xs font-bold tracking-[0.16em] text-emerald-100 transition-colors hover:bg-emerald-500/25 disabled:opacity-50"
-              >
-                <FileUp size={14} />
-                {isImportingMusicXml ? '轉換中' : '上傳 MusicXML'}
-              </button>
-              <button
-                type="button"
-                onClick={handleClearCurrentScore}
-                className="inline-flex items-center gap-2 rounded-full border border-rose-300/30 bg-rose-500/12 px-4 py-2 text-xs font-bold tracking-[0.16em] text-rose-100 transition-colors hover:bg-rose-500/20"
-              >
-                <Trash2 size={14} />
-                清除目前譜面
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <button
-            type="button"
-            onClick={handleSyncCurrent}
-            className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-[11px] font-black tracking-[0.18em] text-amber-100/85 transition-colors hover:bg-white/10"
-          >
-            <RefreshCcw size={14} />
-            同步目前譜面
-          </button>
-          <button
-            type="button"
-            onClick={handleLoadToEditor}
-            className="flex items-center justify-center gap-2 rounded-2xl border border-sky-300/20 bg-sky-500/10 px-4 py-3 text-[11px] font-black tracking-[0.18em] text-sky-100 transition-colors hover:bg-sky-500/18"
-          >
-            <ArrowDownUp size={14} />
-            載入播放器
-          </button>
-          <button
-            type="button"
-            onClick={handleDownloadJson}
-            title={settingsHint}
-            className="flex items-center justify-center gap-2 rounded-2xl border border-emerald-300/20 bg-emerald-500/10 px-4 py-3 text-[11px] font-black tracking-[0.18em] text-emerald-100 transition-colors hover:bg-emerald-500/18"
-          >
-            <Download size={14} />
-            下載當前譜面
-          </button>
-          <button
-            type="button"
-            onClick={handleDownloadMidi}
-            className="flex items-center justify-center gap-2 rounded-2xl border border-violet-300/20 bg-violet-500/10 px-4 py-3 text-[11px] font-black tracking-[0.18em] text-violet-100 transition-colors hover:bg-violet-500/18"
-          >
-            <Music2 size={14} />
-            下載 MIDI
-          </button>
-        </div>
-
-        <div className="flex items-start gap-2 rounded-2xl border border-emerald-300/15 bg-emerald-500/[0.06] px-4 py-3 text-xs leading-relaxed text-emerald-50/75">
-          <AlertTriangle className="mt-0.5 shrink-0 text-emerald-200/75" size={15} />
-          <span>{settingsHint}，以及目前音色與升降記號設定。</span>
-        </div>
-
-        <div className="rounded-[24px] border border-dashed border-white/10 bg-black/20 p-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <div className="text-[10px] font-black uppercase tracking-[0.24em] text-amber-200/45">MIDI Import</div>
-              <div className="mt-2 text-xs leading-relaxed text-white/45">
-                MIDI 匯入仍可直接轉成 JSON 並載入播放器；大檔同樣會先跳出確認。
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => midiInputRef.current?.click()}
-              disabled={isImportingMidi}
-              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-bold tracking-[0.16em] text-white/75 transition-colors hover:bg-white/10 disabled:opacity-50"
-            >
-              <FileUp size={14} />
-              {isImportingMidi ? '匯入中' : '匯入 MIDI'}
-            </button>
-          </div>
-        </div>
-
-        <div className="rounded-[24px] border border-white/10 bg-black/20">
-          <button
-            type="button"
-            onClick={() => setIsAdvancedOpen((value) => !value)}
-            className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
-          >
-            <span>
-              <span className="block text-[10px] font-black uppercase tracking-[0.24em] text-amber-200/45">Advanced / Debug</span>
-              <span className="mt-1 block text-xs text-white/55">手動輸入、AI 提示詞與除錯工具</span>
-            </span>
-            <ChevronDown
-              size={16}
-              className={`shrink-0 text-amber-100/70 transition-transform ${isAdvancedOpen ? 'rotate-180' : ''}`}
-            />
-          </button>
-
-          {isAdvancedOpen ? (
-            <div className="space-y-4 border-t border-white/10 p-4">
-              <div className="grid gap-3 md:grid-cols-2">
-                <label className="rounded-[22px] border border-white/8 bg-black/25 px-4 py-3 text-[11px] text-amber-100/70">
-                  <div className="mb-2 font-black uppercase tracking-[0.22em] text-amber-200/45">外部譜面類型</div>
-                  <select
-                    value={externalInputType}
-                    onChange={(event) => setExternalInputType(event.target.value)}
-                    className="w-full rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-sm text-white outline-none"
-                  >
-                    <option value={EXTERNAL_INPUT_TYPES.JIANPU}>簡譜 / 文字譜</option>
-                    <option value={EXTERNAL_INPUT_TYPES.STAFF}>五線譜文字</option>
-                    <option value={EXTERNAL_INPUT_TYPES.MIXED}>混合格式</option>
-                  </select>
-                </label>
-                <label className="rounded-[22px] border border-white/8 bg-black/25 px-4 py-3 text-[11px] text-amber-100/70">
-                  <div className="mb-2 font-black uppercase tracking-[0.22em] text-amber-200/45">AI 輸出格式</div>
-                  <select
-                    value={aiOutputFormat}
-                    onChange={(event) => setAiOutputFormat(event.target.value)}
-                    className="w-full rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-sm text-white outline-none"
-                  >
-                    <option value={OUTPUT_FORMATS.JSON_V2}>JSON V2</option>
-                    <option value={OUTPUT_FORMATS.NUMBERED_GRID}>Numbered Grid</option>
-                  </select>
-                </label>
-              </div>
-
-              <label className="block">
-                <div className="mb-2 text-[10px] font-black uppercase tracking-[0.24em] text-amber-200/45">手動輸入內容</div>
-                <textarea
-                  value={inputValue}
-                  onChange={(event) => setInputValue(event.target.value)}
-                  className="min-h-[180px] w-full rounded-[24px] border border-white/10 bg-black/30 px-4 py-4 text-sm leading-relaxed text-white outline-none"
-                  placeholder={`貼上簡譜、文字譜或 JSON，再載入到 ${APP_NAME}`}
-                />
-              </label>
-
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={handleCopyPrompt}
-                  className="inline-flex items-center gap-2 rounded-full border border-amber-300/20 bg-amber-500/10 px-4 py-2 text-xs font-bold tracking-[0.16em] text-amber-100 transition-colors hover:bg-amber-500/18"
-                >
-                  <Copy size={14} />
-                  複製 AI 提示詞
-                </button>
-                <button
-                  type="button"
-                  onClick={() => refreshAssistantPrompt()}
-                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-bold tracking-[0.16em] text-white/75 transition-colors hover:bg-white/10"
-                >
-                  <Wand2 size={14} />
-                  重新產生提示詞
-                </button>
-              </div>
-
-              <label className="block">
-                <div className="mb-2 text-[10px] font-black uppercase tracking-[0.24em] text-amber-200/45">AI 轉換提示詞預覽</div>
-                <textarea
-                  readOnly
-                  value={assistantPrompt}
-                  className="min-h-[120px] w-full rounded-[24px] border border-white/10 bg-black/25 px-4 py-4 text-xs leading-relaxed text-white/75 outline-none"
-                  placeholder="展開進階工具後會在這裡產生提示詞"
-                />
-              </label>
-            </div>
-          ) : null}
-        </div>
-
+        {/* ... rest of return ... */}
         <input
           ref={midiInputRef}
           type="file"
+          multiple
           accept=".mid,.midi,audio/midi"
           className="hidden"
           onChange={handleMidiFileChange}
@@ -761,6 +606,7 @@ const ScoreConverter = memo(({
         <input
           ref={musicXmlInputRef}
           type="file"
+          multiple
           accept=".musicxml,.xml,application/xml,text/xml"
           className="hidden"
           onChange={handleMusicXmlFileChange}

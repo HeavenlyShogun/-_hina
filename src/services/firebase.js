@@ -160,10 +160,21 @@ function createScoreSummary(documentData = {}) {
   };
 }
 
+function resolvePayloadStorageId(payload, fallbackTitle) {
+  return String(
+    payload?.id
+    ?? payload?.meta?.id
+    ?? payload?.content?.meta?.id
+    ?? fallbackTitle
+    ?? '',
+  ).trim();
+}
+
 async function createScoreDocumentData(ctx, uid, title, payload) {
+  const resolvedId = resolvePayloadStorageId(payload, title);
   const normalized = createScoreDocument({
     ...payload,
-    id: payload.id ?? title,
+    id: resolvedId,
     title,
   });
   const storedRawText = normalized.rawText || (

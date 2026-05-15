@@ -193,10 +193,25 @@ export function createScoreDocument(source = {}) {
     && source.compiledEvents.every(isCanonicalCompiledEvent)
     ? source.compiledEvents
     : [];
-  const resolvedTitle = String(mergedSource.title ?? source.title ?? DEFAULT_SCORE_NAME).trim() || DEFAULT_SCORE_NAME;
+  const resolvedTitle = String(
+    mergedSource.title
+    ?? source.title
+    ?? content?.meta?.displayTitle
+    ?? content?.meta?.title
+    ?? DEFAULT_SCORE_NAME,
+  ).trim() || DEFAULT_SCORE_NAME;
+  const resolvedId = String(
+    mergedSource.id
+    ?? source.id
+    ?? source.meta?.id
+    ?? content?.meta?.id
+    ?? mergedSource.title
+    ?? source.title
+    ?? '',
+  ).trim();
 
   return {
-    id: mergedSource.id ?? mergedSource.title ?? source.id ?? source.title ?? '',
+    id: resolvedId,
     title: resolvedTitle,
     rawText,
     content,

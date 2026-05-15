@@ -8,6 +8,16 @@ import {
   uploadScores,
 } from '../services/firebase';
 
+function resolvePayloadStorageId(title, payload) {
+  return String(
+    payload?.id
+    ?? payload?.meta?.id
+    ?? payload?.content?.meta?.id
+    ?? title
+    ?? '',
+  ).trim();
+}
+
 export function useCloudScores() {
   const [savedScores, setSavedScores] = useState([]);
   const [user, setUser] = useState(null);
@@ -134,7 +144,7 @@ export function useCloudScores() {
     setIsSaving(true);
     try {
       await saveScore(connection.ctx, connection.uid, title, payload);
-      scoreCacheRef.current.delete(payload.id ?? title);
+      scoreCacheRef.current.delete(resolvePayloadStorageId(title, payload));
       setCloudError('');
       return true;
     } catch (error) {
@@ -181,6 +191,9 @@ export function useCloudScores() {
     if (!connection) return false;
     try {
       await uploadScores(connection.ctx, connection.uid, files);
+      files.forEach((file) => {
+        scoreCacheRef.current.delete(resolvePayloadStorageId(file.title, file.payload));
+      });
       setCloudError('');
       return true;
     } catch (error) {

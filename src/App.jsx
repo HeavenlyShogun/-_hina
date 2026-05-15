@@ -503,6 +503,7 @@ function AppContent({
 
   const handleClearCurrentScore = useCallback(() => {
     loadScoreSource({
+      id: `cleared-score-${Date.now()}`,
       title: '未命名譜面',
       rawText: '',
       sourceType: SCORE_SOURCE_TYPES.TEXT,
@@ -539,7 +540,9 @@ function AppContent({
 
   const handleLoadLocalConvertedScore = useCallback((payload) => {
     loadScoreSource({
+      id: payload?.meta?.id ?? payload?.id,
       title: payload?.meta?.title ?? 'Converted score',
+      rawText: JSON.stringify(payload, null, 2),
       content: payload,
       sourceType: SCORE_SOURCE_TYPES.JSON,
       ...payload?.transport,
@@ -755,6 +758,7 @@ function AppContent({
                   referenceNotes={referenceNotes}
                   showToast={showToast}
                   onLoadLocalScore={handleLoadLocalConvertedScore}
+                  onBatchUpload={uploadCloudScores}
                   onClearCurrentScore={handleClearCurrentScore}
                 />
               </div>
