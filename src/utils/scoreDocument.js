@@ -218,3 +218,100 @@ export function createScoreTextMeta(source = {}) {
     ppq: source.ppq ?? 96,
   });
 }
+
+function hasOwnValue(source, key) {
+  return source && Object.prototype.hasOwnProperty.call(source, key) && source[key] !== undefined;
+}
+
+function numberOrFallback(value, fallback) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function cloneJsonValue(value) {
+  if (typeof structuredClone === 'function') {
+    return structuredClone(value);
+  }
+
+  return JSON.parse(JSON.stringify(value));
+}
+
+function buildTransportPatch(settings = {}) {
+  const patch = {};
+
+  ['bpm', 'timeSigNum', 'timeSigDen'].forEach((key) => {
+    if (hasOwnValue(settings, key)) {
+      patch[key] = numberOrFallback(settings[key], DEFAULT_SCORE_PARAMS[key]);
+    }
+  });
+
+  if (hasOwnValue(settings, 'resolution')) {
+    patch.resolution = Math.max(1, Math.round(numberOrFallback(settings.resolution, 480)));
+  }
+
+  return patch;
+}
+
+function buildPlaybackPatch(settings = {}) {
+  const patch = {};
+
+  if (hasOwnValue(settings, 'tone')) {
+    patch.tone = settings.tone;
+  }
+  if (hasOwnValue(settings, 'globalKeyOffset')) {
+    patch.globalKeyOffset = numberOrFallback(
+      settings.globalKeyOffset,
+      DEFAULT_SCORE_PARAMS.globalKeyOffset,
+    );
+  }
+  if (hasOwnValue(settings, 'scaleMode')) {
+    patch.scaleMode = settings.scaleMode ?? DEFAULT_SCORE_PARAMS.scaleMode;
+  }
+  if (hasOwnValue(settings, 'reverb')) {
+    patch.reverb = Boolean(settings.reverb);
+  }
+  if (settings.accidentals && typeof settings.accidentals === 'object' && !Array.isArray(settings.accidentals)) {
+    patch.accidentals = { ...settings.accidentals };
+  }
+
+  return patch;
+}
+
+export function applyScoreSettingsToJsonContent(content, settings = {}) {
+  if (!content || typeof content !== 'object' || Array.isArray(content)) {
+    return content;
+  }
+
+  const nextContent = cloneJsonValue(content);
+  const transportPatch = buildTransportPatch(settings);
+  const playbackPatch = buildPlaybackPatch(settings);
+
+  nextContent.transport = {
+    ...(nextContent.transport ?? {}),
+    ...transportPatch,
+  };
+
+  nextContent.playback = {
+    ...(nextContent.playback ?? {}),
+    ...playbackPatch,
+  };
+
+  if (hasOwnValue(settings, 'title')) {
+    nextContent.meta = {
+      ...(nextContent.meta ?? {}),
+      title: String(settings.title || nextContent.meta?.title || DEFAULT_SCORE_NAME),
+      displayTitle: nextContent.meta?.displayTitle ?? String(settings.title || DEFAULT_SCORE_NAME),
+    };
+  }
+
+  if (
+    Array.isArray(nextContent.playback.tempoMap)
+    && nextContent.playback.tempoMap.length === 1
+    && Array.isArray(nextContent.playback.tempoMap[0])
+    && hasOwnValue(settings, 'bpm')
+  ) {
+    nextContent.playback.tempoMap = [[0, transportPatch.bpm]];
+  }
+
+  return nextContent;
+}

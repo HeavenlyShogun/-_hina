@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BookOpen, ChevronRight, Download, Edit3, FolderOpen, Link2, Plus, RotateCcw, Trash2, UploadCloud } from 'lucide-react';
 import { usePlayback } from '../contexts/PlaybackContext';
+import { useAudioConfig } from '../contexts/AudioConfigContext';
 import useLivePlaybackFrame from '../hooks/useLivePlaybackFrame';
 import { usePlayheadSync } from '../hooks/usePlayheadSync';
 import { SCORE_NAME_PRESETS, SCORE_TITLE_DATALIST_ID } from '../config/branding';
@@ -184,6 +185,7 @@ const SheetDisplay = memo(({
     legacyTimingMode,
     playbackState,
   } = usePlayback();
+  const audioConfig = useAudioConfig();
   const livePlaybackState = useLivePlaybackFrame();
   const isJsonScore = typeof score === 'object' && score !== null;
   const jsonScoreEventCount = isJsonScore ? countJsonScoreEvents(score) : 0;
@@ -221,6 +223,8 @@ const SheetDisplay = memo(({
         timeSigNum,
         timeSigDen,
         charResolution,
+        globalKeyOffset: audioConfig?.globalKeyOffset,
+        scaleMode: audioConfig?.scaleMode,
         textNotation,
         legacyTimingMode,
       });
@@ -252,7 +256,17 @@ const SheetDisplay = memo(({
         },
       };
     }
-  }, [bpm, charResolution, legacyTimingMode, score, textNotation, timeSigDen, timeSigNum]);
+  }, [
+    audioConfig?.globalKeyOffset,
+    audioConfig?.scaleMode,
+    bpm,
+    charResolution,
+    legacyTimingMode,
+    score,
+    textNotation,
+    timeSigDen,
+    timeSigNum,
+  ]);
   const effectiveMaxTick = Math.max(Number(playbackState.maxTick) || 0, normalizedScore.maxTick || 0);
   const timelineResolution = Math.max(Number(normalizedScore.playback?.resolution) || PPQ, 1);
   const timelineBeatTick = Math.max(

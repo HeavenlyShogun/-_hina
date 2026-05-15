@@ -3,8 +3,6 @@ import { Keyboard, Music2, Play, Square } from 'lucide-react';
 import { APP_NAME, APP_SUBTITLE, APP_TAGLINE, DEFAULT_SCORE_NAME } from '../config/branding';
 import { usePlayback } from '../contexts/PlaybackContext';
 
-const BRAND_NAME = APP_NAME;
-const BRAND_SUBTITLE = APP_TAGLINE;
 const STAR_POSITIONS = [
   { left: '8%', top: '18%', size: 'h-14 w-14' },
   { left: '28%', top: '42%', size: 'h-12 w-12' },
@@ -28,7 +26,7 @@ const AppHeader = memo(({
   const { isPlaying, onTogglePlay } = usePlayback();
 
   const stellarScoreGroups = useMemo(() =>
-    scoreGroups.map(group => ({
+    scoreGroups.map((group) => ({
       ...group,
       files: (group.files || []).slice(0, STAR_POSITIONS.length).map((score, index) => ({
         ...score,
@@ -38,7 +36,7 @@ const AppHeader = memo(({
   [scoreGroups]);
 
   return (
-    <header className="relative z-30 mt-6 flex w-full max-w-6xl flex-col gap-5 overflow-hidden rounded-[32px] border border-sky-200/30 bg-slate-950/75 px-4 py-5 text-slate-50 shadow-[0_30px_90px_rgba(2,6,23,0.5)] backdrop-blur-xl sm:mt-8 sm:px-6 sm:py-6">
+    <header className="relative z-30 mt-6 flex w-full max-w-6xl scroll-mt-6 flex-col gap-5 overflow-hidden rounded-[32px] border border-sky-200/30 bg-slate-950/75 px-4 py-5 text-slate-50 shadow-[0_30px_90px_rgba(2,6,23,0.5)] backdrop-blur-xl sm:mt-8 sm:px-6 sm:py-6">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.18),transparent_28%),radial-gradient(circle_at_80%_18%,rgba(250,204,21,0.16),transparent_20%),radial-gradient(circle_at_50%_120%,rgba(59,130,246,0.24),transparent_42%),linear-gradient(180deg,rgba(2,6,23,0.82),rgba(15,23,42,0.92))]" />
       <div className="pointer-events-none absolute inset-0 starfield-grid opacity-70" />
 
@@ -50,10 +48,10 @@ const AppHeader = memo(({
             </div>
             <div>
               <h1 className="text-[1.75rem] font-black tracking-tight text-white sm:text-3xl">
-                {BRAND_NAME}
+                {APP_NAME}
               </h1>
               <p className="mt-1 font-sans text-[10px] uppercase tracking-[0.38em] text-sky-100/60">
-                {BRAND_SUBTITLE}
+                {APP_TAGLINE}
               </p>
               <p className="mt-2 text-xs text-sky-100/55">
                 {APP_SUBTITLE}
@@ -62,8 +60,9 @@ const AppHeader = memo(({
           </div>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-[1fr_auto]">
-            <div className="flex items-center gap-2 rounded-full border border-slate-700/80 bg-slate-900/60 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+            <label className="flex items-center gap-2 rounded-full border border-slate-700/80 bg-slate-900/60 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
               <Keyboard size={14} className="shrink-0 text-sky-300" />
+              <span className="sr-only">播放快捷鍵</span>
               <select
                 value={playHotkey}
                 onChange={(event) => setPlayHotkey(event.target.value)}
@@ -73,7 +72,7 @@ const AppHeader = memo(({
                 <option value="Enter" className="bg-slate-900 text-white">Enter 播放</option>
                 <option value="None" className="bg-slate-900 text-white">停用快捷鍵</option>
               </select>
-            </div>
+            </label>
 
             <button
               type="button"
@@ -85,46 +84,32 @@ const AppHeader = memo(({
             </button>
           </div>
 
-          <div className="mt-5 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-              className="rounded-full border border-sky-300/20 bg-sky-400/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-sky-100 transition-colors hover:bg-sky-400/18"
-            >
-              主畫面
-            </button>
-            <button
-              type="button"
-              onClick={() => document.getElementById('lyre-keyboard')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
-              className="rounded-full border border-sky-300/20 bg-sky-400/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-sky-100 transition-colors hover:bg-sky-400/18"
-            >
-              鍵盤
-            </button>
+          <nav className="mt-5 flex flex-wrap gap-2" aria-label="Workspace quick navigation">
             {workspaceSections.map((section) => (
               <button
                 key={section.id}
                 type="button"
                 onClick={() => onJumpToSection?.(section.id)}
-                className="rounded-full border border-sky-300/20 bg-sky-400/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-sky-100 transition-colors hover:bg-sky-400/18"
+                title={section.caption}
+                className="rounded-full border border-sky-300/20 bg-sky-400/10 px-3 py-2 text-[10px] font-black tracking-[0.16em] text-sky-100 transition-colors hover:bg-sky-400/18"
               >
-                {section.label}
+                {section.shortLabel ?? section.label}
               </button>
             ))}
-          </div>
-
+          </nav>
         </div>
 
         <div className="rounded-[28px] border border-amber-200/15 bg-slate-950/35 p-5">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
               <div className="text-[10px] font-black uppercase tracking-[0.32em] text-amber-100/55">
-                星座選曲
+                Featured Scores
               </div>
               <div className="mt-1 text-sm font-semibold text-white/90">
-                以星圖方式快速切換常用曲目
+                從內建曲庫快速載入可演奏譜面。
               </div>
             </div>
-            <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.28em] text-slate-300">
+            <div className="max-w-[12rem] truncate rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-slate-300">
               {scoreTitle || DEFAULT_SCORE_NAME}
             </div>
           </div>
@@ -136,7 +121,7 @@ const AppHeader = memo(({
               <path d="M28 42 L17 74 L52 78 L78 70 L82 22" stroke="rgba(250,204,21,0.18)" strokeWidth="0.4" fill="none" />
             </svg>
 
-            {stellarScoreGroups.map(group => group.files.map((score) => {
+            {stellarScoreGroups.map((group) => group.files.map((score) => {
               const isActive = score.title === scoreTitle || score.displayTitle === scoreTitle;
 
               return (
@@ -147,7 +132,7 @@ const AppHeader = memo(({
                   className={`absolute flex flex-col items-center justify-center rounded-full border text-center transition-all ${score.position.size} ${isActive ? 'border-amber-200 bg-amber-300/20 text-amber-50 shadow-[0_0_32px_rgba(251,191,36,0.35)]' : 'border-sky-200/30 bg-sky-300/10 text-sky-50 hover:bg-sky-300/18 hover:shadow-[0_0_26px_rgba(56,189,248,0.22)]'}`}
                   style={{ left: score.position.left, top: score.position.top, transform: 'translate(-50%, -50%)' }}
                 >
-                  <span className="text-[15px] leading-none">✦</span>
+                  <span className="text-[15px] leading-none">星</span>
                   <span className="mt-1 max-w-[5rem] truncate px-2 text-[9px] font-black tracking-[0.14em]">
                     {score.displayTitle ?? score.title}
                   </span>

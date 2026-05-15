@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Clock, Globe, Volume2, Zap } from 'lucide-react';
+import { Clock, Globe, Save, Volume2, Zap } from 'lucide-react';
 import { KEY_OPTIONS, SCALE_MODE_OPTIONS } from '../constants/music';
 import { useAudioConfig } from '../contexts/AudioConfigContext';
 import { usePlayback } from '../contexts/PlaybackContext';
@@ -34,6 +34,7 @@ const ControlPanel = memo(({ embedded = false, compact = false }) => {
     setTimeSigDen,
     charResolution,
     setCharResolution,
+    onApplySettingsToScore,
   } = usePlayback();
   const [bpmDraft, setBpmDraft] = useState(() => String(bpm));
   const lastValidBpmRef = useRef(Number(bpm) || 90);
@@ -254,6 +255,16 @@ const ControlPanel = memo(({ embedded = false, compact = false }) => {
                 </div>
               </div>
             </div>
+
+            <button
+              type="button"
+              onClick={onApplySettingsToScore}
+              disabled={!onApplySettingsToScore}
+              className="mt-auto flex min-h-[3rem] w-full min-w-0 items-center justify-center gap-2 rounded-[22px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-[10px] font-black tracking-[0.26em] text-emerald-800 shadow-[0_0_24px_rgba(16,185,129,0.10)] transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+            >
+              <Save size={14} className="shrink-0" />
+              <span className="truncate">套用到譜面預設值</span>
+            </button>
           </div>
         </div>
       </div>

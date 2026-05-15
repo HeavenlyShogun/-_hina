@@ -15,6 +15,7 @@ import { useScorePlayback } from './hooks/useScorePlayback';
 import { useScoreState } from './hooks/useScoreState';
 import { APP_NAME, APP_TAGLINE } from './config/branding';
 import {
+  applyScoreSettingsToJsonContent,
   createScoreDocument,
   createScoreTextMeta,
   parseScoreContent,
@@ -81,6 +82,7 @@ function AppContent({
   loadScoreSource,
   applySavedScore,
   resetScoreState,
+  updateScoreDocument,
 }) {
   const audioConfig = useAudioConfig();
   const [playHotkey, setPlayHotkey] = useState('Space');
@@ -224,10 +226,13 @@ function AppContent({
   const selectableScoreGroups = useMemo(() => IMPORTABLE_SCORE_GROUPS, []);
 
   const workspaceSections = useMemo(() => ([
-    { id: 'playback-preview', label: '演奏預覽', caption: 'Live Preview' },
-    { id: 'editor', label: '譜面編輯', caption: 'Score Editor' },
-    { id: 'cloud-library', label: '雲端曲庫', caption: 'Firebase / Cloud' },
-    { id: 'converter', label: '譜面轉換', caption: 'Converter' },
+    { id: 'main-screen', label: '\u4e3b\u756b\u9762', shortLabel: '\u4e3b\u756b\u9762', caption: '\u66f2\u5eab\u8207\u64ad\u653e\u5165\u53e3' },
+    { id: 'lyre-keyboard', label: '\u9375\u76e4', shortLabel: '\u9375\u76e4', caption: '\u5373\u6642\u6f14\u594f\u9375\u76e4' },
+    { id: 'rhythm-controls', label: '\u7bc0\u594f\u8207\u8abf\u6027\u8abf\u6574', shortLabel: '\u7bc0\u594f\u8abf\u6027', caption: 'BPM\u3001\u62cd\u865f\u3001\u97f3\u8272\u8207\u8abf\u6027' },
+    { id: 'playback-preview', label: '\u6f14\u594f\u9810\u89bd', shortLabel: '\u6f14\u594f\u9810\u89bd', caption: 'Live Preview' },
+    { id: 'editor', label: '\u8b5c\u9762\u7de8\u8f2f', shortLabel: '\u8b5c\u9762\u7de8\u8f2f', caption: 'Score Editor' },
+    { id: 'converter', label: '\u8b5c\u9762\u8f49\u63db', shortLabel: '\u8b5c\u9762\u8f49\u63db', caption: 'MusicXML / MIDI Converter' },
+    { id: 'cloud-library', label: '\u96f2\u7aef\u66f2\u5eab', shortLabel: '\u96f2\u7aef\u66f2\u5eab', caption: 'Firebase / Cloud' },
   ]), []);
 
   const playbackScore = useMemo(() => {
@@ -294,57 +299,124 @@ function AppContent({
     }));
   }, [setAccidentals]);
 
+  const buildCurrentScoreSnapshot = useCallback((titleOverride = scoreTitle.trim() || scoreDocument.title) => {
+    const effectiveScoreDocument = {
+      ...scoreDocument,
+      bpm,
+      timeSigNum,
+      timeSigDen,
+      charResolution,
+      accidentals,
+      tone: audioConfig.tone,
+      reverb: audioConfig.reverb,
+      globalKeyOffset: audioConfig.globalKeyOffset,
+      scaleMode: audioConfig.scaleMode,
+    };
+
+    if (effectiveScoreDocument.sourceType === SCORE_SOURCE_TYPES.JSON) {
+      const currentContent = effectiveScoreDocument.content ?? parseScoreContent(
+        effectiveScoreDocument.rawText,
+        SCORE_SOURCE_TYPES.JSON,
+      );
+      const content = applyScoreSettingsToJsonContent(currentContent, {
+        ...effectiveScoreDocument,
+        title: titleOverride,
+      });
+
+      return createScoreDocument({
+        ...effectiveScoreDocument,
+        title: titleOverride,
+        content,
+        rawText: JSON.stringify(content, null, 2),
+        sourceType: SCORE_SOURCE_TYPES.JSON,
+      });
+    }
+
+    return createScoreDocument({
+      ...effectiveScoreDocument,
+      title: titleOverride,
+      rawText: buildScoreTextWithMeta(
+        effectiveScoreDocument.rawText,
+        createScoreTextMeta({
+          ...effectiveScoreDocument,
+          title: titleOverride,
+        }),
+      ),
+      sourceType: SCORE_SOURCE_TYPES.TEXT,
+    });
+  }, [
+    accidentals,
+    audioConfig.globalKeyOffset,
+    audioConfig.reverb,
+    audioConfig.scaleMode,
+    audioConfig.tone,
+    bpm,
+    charResolution,
+    scoreDocument,
+    scoreTitle,
+    timeSigDen,
+    timeSigNum,
+  ]);
+
+  const handleApplyCurrentSettingsToScore = useCallback(() => {
+    const title = scoreTitle.trim() || scoreDocument.title;
+    const snapshot = buildCurrentScoreSnapshot(title);
+
+    updateScoreDocument(snapshot);
+    showToast('Applied current rhythm and key settings to score defaults', 'success');
+  }, [buildCurrentScoreSnapshot, scoreDocument.title, scoreTitle, showToast, updateScoreDocument]);
+
   const handleConnectCloud = useCallback(async () => {
     const result = await ensureCloudConnection();
     if (!result) {
-      showToast(cloudError || 'Firebase 連線失敗', 'error');
+      showToast(cloudError || 'Firebase ???憭望?', 'error');
       return;
     }
-    showToast('已連接 Firebase', 'success');
+    showToast('撌脤? Firebase', 'success');
   }, [cloudError, ensureCloudConnection, showToast]);
 
   const handleLoadScore = useCallback(async (savedScore) => {
     const fullScore = savedScore?.rawText ? savedScore : await loadCloudScore(savedScore.id);
 
     if (!fullScore) {
-      showToast('雲端譜面讀取失敗', 'error');
+      showToast('Cloud score load failed', 'error');
       return;
     }
 
     applySavedScore(fullScore);
     stopAll();
-    showToast(`已載入 ${fullScore.title}`, 'success');
+    showToast(`撌脰???${fullScore.title}`, 'success');
   }, [applySavedScore, loadCloudScore, showToast, stopAll]);
 
   const handleSaveScore = useCallback(async () => {
     const title = scoreTitle.trim();
 
     if (!title) {
-      showToast('請先輸入譜面名稱', 'error');
+      showToast('隢?頛詨霅?迂', 'error');
       return;
     }
 
-    const saved = await saveCloudScore(title, scoreDocument);
+    const saved = await saveCloudScore(title, buildCurrentScoreSnapshot(title));
     if (!saved) {
-      showToast(cloudError || 'Firebase 儲存失敗', 'error');
+      showToast(cloudError || 'Firebase ?脣?憭望?', 'error');
       return;
     }
 
-    showToast('已儲存到雲端曲庫', 'success');
-  }, [cloudError, saveCloudScore, scoreDocument, scoreTitle, showToast]);
+    showToast('撌脣摮?脩垢?脣澈', 'success');
+  }, [buildCurrentScoreSnapshot, cloudError, saveCloudScore, scoreTitle, showToast]);
 
   const handleDeleteScore = useCallback(async (id) => {
     const deleted = await deleteCloudScore(id);
-    showToast(deleted ? '已刪除雲端譜面' : '刪除失敗', deleted ? 'success' : 'error');
+    showToast(deleted ? 'Cloud score deleted' : 'Delete failed', deleted ? 'success' : 'error');
   }, [deleteCloudScore, showToast]);
 
   const handleClearAllScores = useCallback(async () => {
-    if (!window.confirm('確定要刪除所有雲端譜面嗎？')) {
+    if (!window.confirm('Delete all cloud scores?')) {
       return;
     }
 
     const cleared = await clearAllCloudScores();
-    showToast(cleared ? '已清空雲端曲庫' : '清空失敗', cleared ? 'success' : 'error');
+    showToast(cleared ? 'Cloud library cleared' : 'Clear failed', cleared ? 'success' : 'error');
   }, [clearAllCloudScores, showToast]);
 
   const handleImportLocal = useCallback(async (event) => {
@@ -362,7 +434,7 @@ function AppContent({
             : source,
         );
         stopAll();
-        showToast(`已匯入 ${source.title}`, 'success');
+        showToast(`撌脣??${source.title}`, 'success');
       } else {
         const payloads = await Promise.all(
           files.map(async (file) => {
@@ -380,13 +452,13 @@ function AppContent({
 
         const uploaded = await uploadCloudScores(payloads);
         showToast(
-          uploaded ? `已批次上傳 ${payloads.length} 份譜面` : '批次上傳失敗',
+          uploaded ? `Uploaded ${payloads.length} scores` : 'Batch upload failed',
           uploaded ? 'success' : 'error',
         );
       }
     } catch (error) {
       console.error(error);
-      showToast('匯入失敗', 'error');
+      showToast('?臬憭望?', 'error');
     } finally {
       event.target.value = '';
     }
@@ -395,15 +467,10 @@ function AppContent({
   const handleExportLocal = useCallback(() => {
     const extension = scoreDocument.sourceType === SCORE_SOURCE_TYPES.JSON ? 'json' : 'txt';
     const filename = `${scoreTitle.trim() || 'score'}.${extension}`;
+    const snapshot = buildCurrentScoreSnapshot(scoreTitle.trim() || scoreDocument.title);
     const payload = scoreDocument.sourceType === SCORE_SOURCE_TYPES.JSON
-      ? (scoreDocument.rawText || JSON.stringify(scoreDocument.content ?? {}, null, 2))
-      : buildScoreTextWithMeta(
-        scoreDocument.rawText,
-        createScoreTextMeta({
-          ...scoreDocument,
-          title: scoreTitle.trim() || scoreDocument.title,
-        }),
-      );
+      ? JSON.stringify(snapshot.content ?? {}, null, 2)
+      : snapshot.rawText;
 
     const blob = new Blob([payload], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -414,14 +481,23 @@ function AppContent({
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    showToast(`已匯出 ${filename}`, 'success');
-  }, [scoreDocument, scoreTitle, showToast]);
+    showToast(`撌脣??${filename}`, 'success');
+  }, [buildCurrentScoreSnapshot, scoreDocument, scoreTitle, showToast]);
 
   const handleResetScore = useCallback(() => {
     resetScoreState();
     stopAll();
-    showToast('已重設目前譜面', 'success');
+    showToast('Current score has been reset', 'success');
   }, [resetScoreState, showToast, stopAll]);
+
+  const handleClearCurrentScore = useCallback(() => {
+    loadScoreSource({
+      title: '蝛箇霅',
+      rawText: '',
+      sourceType: SCORE_SOURCE_TYPES.TEXT,
+    });
+    stopAll();
+  }, [loadScoreSource, stopAll]);
 
   const handlePlayFeaturedScore = useCallback(async (featuredScore) => {
     const nextScore = await featuredScore.load();
@@ -447,12 +523,12 @@ function AppContent({
 
     loadScoreSource(applyScoreRecommendation(source, { force: true }));
     stopAll();
-    showToast(`已載入 ${nextScore.displayTitle ?? nextScore.title}`, 'success');
+    showToast(`撌脰???${nextScore.displayTitle ?? nextScore.title}`, 'success');
   }, [loadScoreSource, showToast, stopAll]);
 
   const handleLoadLocalConvertedScore = useCallback((payload) => {
     loadScoreSource({
-      title: payload?.meta?.title ?? '轉換後譜面',
+      title: payload?.meta?.title ?? 'Converted score',
       content: payload,
       sourceType: SCORE_SOURCE_TYPES.JSON,
       ...payload?.transport,
@@ -499,9 +575,11 @@ function AppContent({
     onSeekToTick: seekToTick,
     onScrubToTick: scrubToTick,
     onSetPlaybackRate: setPlaybackRate,
+    onApplySettingsToScore: handleApplyCurrentSettingsToScore,
   }), [
     bpm,
     charResolution,
+    handleApplyCurrentSettingsToScore,
     isPlaying,
     isPaused,
     scoreDocument.legacyTimingMode,
@@ -563,7 +641,7 @@ function AppContent({
         />
 
         <section className="z-20 w-full max-w-6xl px-4">
-          <div className="grid gap-6 xl:grid-cols-[220px_minmax(0,1fr)]">
+          <div className="grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)]">
             <aside className="xl:sticky xl:top-6 xl:self-start">
               <div className="rounded-[32px] border border-white/10 bg-black/25 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-sm">
                 <div className="mb-4 px-2">
@@ -571,7 +649,7 @@ function AppContent({
                     Workspace
                   </div>
                   <div className="mt-2 text-sm font-semibold text-sky-50/80">
-                    保留主要流程，先收斂未完成系統的介面資源。
+                    快速跳到演奏、設定、編輯、轉換與雲端區塊。
                   </div>
                 </div>
 
@@ -595,13 +673,13 @@ function AppContent({
             </aside>
 
             <div className="space-y-8">
-              <div id="playback-preview" className="rounded-[36px] border border-white/10 bg-black/30 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-sm md:p-6">
+              <div id="playback-preview" className="scroll-mt-6 rounded-[36px] border border-white/10 bg-black/30 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-sm md:p-6">
                 <div className="mb-5 flex flex-col gap-2 px-1">
                   <div className="text-[10px] font-black uppercase tracking-[0.34em] text-emerald-200/55">
                     Playback Preview
                   </div>
                   <div className="mt-2 text-sm font-semibold text-emerald-50/80">
-                    即時保留演奏預覽與鍵位視覺回饋，作為核心操作區。
+                    Live timeline and section preview for the current score.
                   </div>
                 </div>
 
@@ -612,13 +690,13 @@ function AppContent({
                 />
               </div>
 
-              <div id="editor" className="rounded-[36px] border border-white/10 bg-black/30 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-sm md:p-6">
+              <div id="editor" className="scroll-mt-6 rounded-[36px] border border-white/10 bg-black/30 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-sm md:p-6">
                 <div className="mb-5 flex flex-col gap-2 px-1">
                   <div className="text-[10px] font-black uppercase tracking-[0.34em] text-violet-200/55">
                     Score Editor
                   </div>
                   <div className="mt-2 text-sm font-semibold text-violet-50/80">
-                    編輯器維持原有匯入、匯出、儲存與重設流程。
+                    Edit, import, export, and save the current score.
                   </div>
                 </div>
 
@@ -643,53 +721,13 @@ function AppContent({
                 />
               </div>
 
-              <div id="cloud-library" className="rounded-[36px] border border-white/10 bg-black/30 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-sm md:p-6">
-                <div className="mb-5 flex flex-col gap-2 px-1">
-                  <div className="text-[10px] font-black uppercase tracking-[0.34em] text-sky-200/55">
-                    Cloud Library
-                  </div>
-                  <div className="mt-2 text-sm font-semibold text-sky-50/80">
-                    雲端曲庫存系統先保留同步、讀取與摘要管理骨架。
-                  </div>
-                </div>
-
-                <div className="mb-5 flex flex-col gap-3 rounded-[28px] border border-white/8 bg-white/[0.03] p-4 md:flex-row md:items-center">
-                  <input
-                    type="text"
-                    value={scoreTitle}
-                    onChange={(event) => setScoreTitle(event.target.value)}
-                    className="w-full rounded-2xl border border-sky-300/20 bg-slate-900/55 px-4 py-3 text-sm text-white outline-none"
-                    placeholder="輸入目前譜面的雲端名稱"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleSaveScore}
-                    disabled={isSaving}
-                    className="rounded-2xl bg-sky-500 px-5 py-3 text-sm font-bold text-white disabled:bg-sky-800/70"
-                  >
-                    {isSaving ? '儲存中...' : '儲存到雲端'}
-                  </button>
-                </div>
-
-                <ScoreLibrary
-                  user={user}
-                  savedScores={savedScores}
-                  onLoadScore={handleLoadScore}
-                  onClearAll={handleClearAllScores}
-                  onDeleteScore={handleDeleteScore}
-                  onConnectCloud={handleConnectCloud}
-                  cloudStatus={cloudStatus}
-                  cloudError={cloudError}
-                />
-              </div>
-
-              <div id="converter" className="rounded-[36px] border border-white/10 bg-black/30 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-sm md:p-6">
+              <div id="converter" className="scroll-mt-6 rounded-[36px] border border-white/10 bg-black/30 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-sm md:p-6">
                 <div className="mb-5 flex flex-col gap-2 px-1">
                   <div className="text-[10px] font-black uppercase tracking-[0.34em] text-amber-200/55">
                     Converter
                   </div>
                   <div className="mt-2 text-sm font-semibold text-amber-50/80">
-                    上傳 MusicXML 或 MIDI，轉換成可播放譜面並下載 slim JSON。
+                    Convert MusicXML or MIDI into the current playable score.
                   </div>
                 </div>
 
@@ -706,6 +744,47 @@ function AppContent({
                   referenceNotes={referenceNotes}
                   showToast={showToast}
                   onLoadLocalScore={handleLoadLocalConvertedScore}
+                  onClearCurrentScore={handleClearCurrentScore}
+                />
+              </div>
+
+              <div id="cloud-library" className="scroll-mt-6 rounded-[36px] border border-white/10 bg-black/30 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-sm md:p-6">
+                <div className="mb-5 flex flex-col gap-2 px-1">
+                  <div className="text-[10px] font-black uppercase tracking-[0.34em] text-sky-200/55">
+                    Cloud Library
+                  </div>
+                  <div className="mt-2 text-sm font-semibold text-sky-50/80">
+                    Save and reload scores from the cloud library.
+                  </div>
+                </div>
+
+                <div className="mb-5 flex flex-col gap-3 rounded-[28px] border border-white/8 bg-white/[0.03] p-4 md:flex-row md:items-center">
+                  <input
+                    type="text"
+                    value={scoreTitle}
+                    onChange={(event) => setScoreTitle(event.target.value)}
+                    className="w-full rounded-2xl border border-sky-300/20 bg-slate-900/55 px-4 py-3 text-sm text-white outline-none"
+                    placeholder="Score title"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSaveScore}
+                    disabled={isSaving}
+                    className="rounded-2xl bg-sky-500 px-5 py-3 text-sm font-bold text-white disabled:bg-sky-800/70"
+                  >
+                    {isSaving ? 'Saving...' : 'Save'}
+                  </button>
+                </div>
+
+                <ScoreLibrary
+                  user={user}
+                  savedScores={savedScores}
+                  onLoadScore={handleLoadScore}
+                  onClearAll={handleClearAllScores}
+                  onDeleteScore={handleDeleteScore}
+                  onConnectCloud={handleConnectCloud}
+                  cloudStatus={cloudStatus}
+                  cloudError={cloudError}
                 />
               </div>
             </div>
@@ -713,7 +792,7 @@ function AppContent({
         </section>
 
         <footer className="z-20 mt-16 text-[10px] uppercase tracking-[0.6em] text-slate-400">
-          {APP_NAME} 繚 {APP_TAGLINE}
+          {APP_NAME} 蝜?{APP_TAGLINE}
         </footer>
 
         <style>{`
@@ -844,6 +923,7 @@ export default function App() {
         loadScoreSource={loadScoreSource}
         applySavedScore={applySavedScore}
         resetScoreState={resetScoreState}
+        updateScoreDocument={updateScoreDocument}
       />
     </AudioConfigProvider>
   );

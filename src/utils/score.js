@@ -166,6 +166,24 @@ function midiToNoteName(midi) {
   return `${semitoneToNoteName(pitchClass)}${octave}`;
 }
 
+function transposeMidi(midi, semitoneOffset = 0) {
+  const numericMidi = Number(midi);
+  if (!Number.isFinite(numericMidi)) {
+    return null;
+  }
+
+  return Math.max(0, Math.min(127, Math.round(numericMidi + (Number(semitoneOffset) || 0))));
+}
+
+function transposeFrequency(frequency, semitoneOffset = 0) {
+  const numericFrequency = Number(frequency);
+  if (!Number.isFinite(numericFrequency) || numericFrequency <= 0) {
+    return null;
+  }
+
+  return numericFrequency * (2 ** ((Number(semitoneOffset) || 0) / 12));
+}
+
 function noteNameToMidi(noteName) {
   const match = /^([A-G])([#b]?)(-?\d+)$/u.exec(String(noteName ?? '').trim());
   if (!match) {
@@ -1847,7 +1865,18 @@ function normalizeJsonEvent(event, context) {
   }
 
   const mappedKey = mapKey(event?.key);
-  const frequency = Number.isFinite(Number(event?.frequency)) ? Number(event.frequency) : null;
+  const fixedPitchOffset = Number(context.fixedPitchOffset) || 0;
+  const rawMidi = toFiniteOrNull(event?.midi);
+  const transposedMidi = context.transposeFixedPitch && rawMidi !== null
+    ? transposeMidi(rawMidi, fixedPitchOffset)
+    : rawMidi;
+  const rawFrequency = Number.isFinite(Number(event?.frequency)) ? Number(event.frequency) : null;
+  const frequency = context.transposeFixedPitch && rawFrequency !== null
+    ? transposeFrequency(rawFrequency, fixedPitchOffset)
+    : rawFrequency;
+  const noteName = context.transposeFixedPitch && transposedMidi !== null
+    ? midiToNoteName(transposedMidi)
+    : (event?.noteName ?? event?.note ?? null);
   if (!mappedKey && !frequency) return [];
 
   return [createNormalizedNoteEvent({
@@ -1859,10 +1888,10 @@ function normalizeJsonEvent(event, context) {
     velocity,
     trackId,
     frequency,
-    noteName: event?.noteName ?? event?.note ?? null,
-    midi: event?.midi ?? null,
-    pitchClass: event?.pitchClass ?? null,
-    octave: event?.octave ?? null,
+    noteName,
+    midi: transposedMidi,
+    pitchClass: noteName ? noteName.replace(/-?\d+$/u, '') : event?.pitchClass ?? null,
+    octave: transposedMidi !== null ? Math.floor(transposedMidi / 12) - 1 : event?.octave ?? null,
   })];
 }
 
@@ -1891,6 +1920,13 @@ export function parseScoreJson(scoreJson, config = {}) {
     ...playbackConfig,
   });
   const resolution = playback.resolution;
+  const originalFormat = String(scoreJson.meta?.originalFormat ?? scoreJson.meta?.sourceType ?? '').toLowerCase();
+  const transposeFixedPitch = (
+    originalFormat === 'midi'
+    || originalFormat === 'musicxml'
+    || scoreJson.version === '3.2-ultra-slim'
+  );
+  const fixedPitchOffset = transposeFixedPitch ? playback.globalKeyOffset : 0;
 
   if (scoreJson.version === '3.2-ultra-slim') {
     const events = Array.isArray(scoreJson.notes)
@@ -1900,7 +1936,7 @@ export function parseScoreJson(scoreJson, config = {}) {
         }
 
         const [startTick, durationTicks, note, velocity = DEFAULT_NOTE_VELOCITY, trackId = 0] = entry;
-        const midi = Math.round(Number(note));
+        const midi = transposeMidi(note, fixedPitchOffset);
         if (!Number.isFinite(midi)) {
           return [];
         }
@@ -1953,7 +1989,8 @@ export function parseScoreJson(scoreJson, config = {}) {
           const durationTicks = event.tick - startTick;
           
           if (durationTicks > 0) {
-            const noteName = midiToNoteName(event.note);
+            const midi = transposeMidi(event.note, fixedPitchOffset);
+            const noteName = midiToNoteName(midi);
             const mappedKey = NOTE_NAME_TO_KEY[noteName] ?? null;
             events.push(createNormalizedNoteEvent({
               tick: startTick,
@@ -1963,11 +2000,11 @@ export function parseScoreJson(scoreJson, config = {}) {
               bpm: playback.bpm,
               velocity: openNote.event.velocity,
               trackId,
-              frequency: midiToFrequency(event.note),
+              frequency: midiToFrequency(midi),
               noteName: noteName,
-              midi: event.note,
+              midi,
               pitchClass: noteName.replace(/-?\d+$/u, ''),
-              octave: Math.floor(event.note / 12) - 1,
+              octave: Math.floor(midi / 12) - 1,
             }));
           }
           // Remove the note from openNotes once its duration is calculated.
@@ -1994,6 +2031,8 @@ export function parseScoreJson(scoreJson, config = {}) {
         bpm: playback.bpm,
         resolution,
         trackId,
+        transposeFixedPitch,
+        fixedPitchOffset,
       }));
     });
   });

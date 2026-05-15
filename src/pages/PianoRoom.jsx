@@ -21,7 +21,7 @@ const PianoRoom = memo(({
   onJumpToSection,
   workspaceSections,
 }) => (
-  <>
+  <div id="main-screen" className="flex w-full scroll-mt-6 flex-col items-center">
     <AppHeader
       playHotkey={playHotkey}
       setPlayHotkey={setPlayHotkey}
@@ -41,11 +41,11 @@ const PianoRoom = memo(({
       onToggleSharp={onToggleSharp}
       progressBarRef={progressBarRef}
     />
-    <div className="relative z-20 mt-4 flex w-full max-w-6xl flex-col gap-4 px-3 sm:mt-5 sm:px-4">
+    <div id="rhythm-controls" className="relative z-20 mt-4 flex w-full max-w-6xl scroll-mt-6 flex-col gap-4 px-3 sm:mt-5 sm:px-4">
       <InstrumentSelector />
       <ControlPanel embedded compact />
     </div>
-  </>
+  </div>
 ));
 
 export default PianoRoom;

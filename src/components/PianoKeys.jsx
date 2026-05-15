@@ -219,7 +219,7 @@ const PianoKeys = memo(({
   }, [finishScrub]);
 
   return (
-    <main className="relative z-20 mt-6 w-full max-w-6xl px-1 sm:mt-10 sm:px-4">
+    <main id="lyre-keyboard" className="relative z-20 mt-6 w-full max-w-6xl scroll-mt-6 px-1 sm:mt-10 sm:px-4">
       <div className="group relative overflow-hidden rounded-[24px] border border-sky-200/25 bg-slate-950/70 p-2 text-slate-100 shadow-[0_35px_120px_rgba(2,6,23,0.42)] backdrop-blur-xl sm:rounded-[36px] sm:p-6 md:rounded-[60px] md:p-14">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.12),transparent_30%),radial-gradient(circle_at_80%_22%,rgba(250,204,21,0.08),transparent_24%),linear-gradient(180deg,rgba(2,6,23,0.76),rgba(15,23,42,0.86))]" />
         <div className="absolute inset-x-0 top-0 px-4 pt-4 sm:px-6 md:px-8">
