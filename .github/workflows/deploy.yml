@@ -32,7 +32,7 @@ jobs:
         run: npm ci
 
       - name: Build
-        run: npm run build
+        run: npm run build:pages
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
           VITE_APP_ID: ${{ vars.VITE_APP_ID }}

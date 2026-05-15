@@ -15,7 +15,7 @@
     "scores:slim:midi": "node scripts/slim-midi-score.mjs",
     "scores:migrate:numbered": "node scripts/rewrite-importable-scores-to-numbered.mjs",
     "preview": "vite preview",
-    "preview:pages": "npm run build && node scripts/preview-github-pages.mjs",
+    "preview:pages": "npm run build:pages && node scripts/preview-github-pages.mjs",
     "preview:firebase": "npm run build:firebase && vite preview"
   },
   "dependencies": {
