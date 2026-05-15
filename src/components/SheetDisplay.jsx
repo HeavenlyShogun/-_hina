@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpen, ChevronRight, Download, Edit3, FolderOpen, Link2, Plus, RotateCcw, Trash2, UploadCloud } from 'lucide-react';
+import { BookOpen, ChevronRight, Download, Edit3, FileJson, FolderOpen, Link2, Music2, Plus, RotateCcw, Trash2, UploadCloud } from 'lucide-react';
 import { usePlayback } from '../contexts/PlaybackContext';
 import { useAudioConfig } from '../contexts/AudioConfigContext';
 import useLivePlaybackFrame from '../hooks/useLivePlaybackFrame';
@@ -149,6 +149,14 @@ function countJsonScoreEvents(scoreJson) {
   );
 }
 
+function getJsonTrackSummaries(scoreJson) {
+  return (Array.isArray(scoreJson?.tracks) ? scoreJson.tracks : []).map((track, index) => ({
+    id: track?.id ?? `track-${index + 1}`,
+    name: track?.name ?? track?.id ?? `Track ${index + 1}`,
+    events: Array.isArray(track?.events) ? track.events.length : 0,
+  }));
+}
+
 const SheetDisplay = memo(({
   score,
   setScore,
@@ -191,6 +199,7 @@ const SheetDisplay = memo(({
   const isJsonScore = typeof score === 'object' && score !== null;
   const jsonScoreEventCount = isJsonScore ? countJsonScoreEvents(score) : 0;
   const shouldSummarizeJsonEditor = isJsonScore && jsonScoreEventCount > LARGE_JSON_EVENT_LIMIT;
+  const jsonTrackSummaries = useMemo(() => (isJsonScore ? getJsonTrackSummaries(score) : []), [isJsonScore, score]);
   const scoreEditorValue = useMemo(
     () => {
       if (typeof score === 'string') {
@@ -209,7 +218,7 @@ const SheetDisplay = memo(({
           `Events: ${jsonScoreEventCount}`,
           `BPM: ${scoreBpm}`,
           '',
-          'Use Export to write the full JSON file.',
+          'Use JSON or MIDI export from the editor toolbar.',
         ].join('\n');
       }
 
@@ -456,7 +465,13 @@ const SheetDisplay = memo(({
                 JSON Demo
               </button>
             ) : null}
-            <button onClick={onExport} className="flex items-center justify-center rounded-2xl border border-white/5 bg-white/5 p-3 text-emerald-400 transition-all hover:bg-white/10" title="匯出譜面">
+            <button onClick={() => onExport?.('json')} className="flex items-center justify-center rounded-2xl border border-white/5 bg-white/5 p-3 text-emerald-400 transition-all hover:bg-white/10" title="下載 JSON">
+              <FileJson size={18} />
+            </button>
+            <button onClick={() => onExport?.('midi')} className="flex items-center justify-center rounded-2xl border border-white/5 bg-white/5 p-3 text-sky-300 transition-all hover:bg-white/10" title="下載 MIDI">
+              <Music2 size={18} />
+            </button>
+            <button onClick={() => onExport?.('source')} className="flex items-center justify-center rounded-2xl border border-white/5 bg-white/5 p-3 text-emerald-400 transition-all hover:bg-white/10" title="下載原始譜面">
               <Download size={18} />
             </button>
             <button onClick={cloudStatus === 'ready' ? onSave : onConnectCloud} disabled={isSaving || cloudStatus === 'loading'} className="ml-1 flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600/80 px-6 py-3 text-xs font-black text-white shadow-lg transition-all hover:bg-emerald-600 disabled:opacity-60 sm:ml-2 sm:flex-none">
@@ -683,7 +698,49 @@ const SheetDisplay = memo(({
       ) : null}
 
       {showEditor ? (
-        <textarea value={scoreEditorValue} onChange={(event) => setScore(event.target.value)} readOnly={isJsonScore} spellCheck={false} className="custom-scrollbar flex-1 min-h-[300px] rounded-3xl border border-white/5 bg-black/50 p-5 font-mono text-xs leading-relaxed text-emerald-100/60 shadow-inner outline-none focus:border-emerald-500/20 md:min-h-[350px] md:p-6" />
+        <div className="space-y-4">
+          {isJsonScore ? (
+            <div className="grid gap-3 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+              <div className="rounded-[24px] border border-emerald-400/12 bg-emerald-500/[0.05] p-4">
+                <div className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-200/55">Score Summary</div>
+                <div className="mt-3 grid grid-cols-2 gap-3 text-sm text-emerald-50/85">
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/40">Title</div>
+                    <div className="mt-1 break-words font-semibold">{score?.meta?.displayTitle ?? score?.meta?.title ?? 'JSON Score'}</div>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/40">Format</div>
+                    <div className="mt-1 font-semibold">{score?.version ?? 'json'} / {score?.meta?.originalFormat ?? score?.meta?.sourceType ?? 'score'}</div>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/40">Tempo</div>
+                    <div className="mt-1 font-semibold">{score?.transport?.bpm ?? bpm} BPM</div>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/40">Time</div>
+                    <div className="mt-1 font-semibold">{score?.transport?.timeSigNum ?? timeSigNum}/{score?.transport?.timeSigDen ?? timeSigDen}</div>
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-[24px] border border-white/10 bg-black/25 p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-200/55">Tracks</div>
+                  <div className="text-xs text-emerald-100/45">{jsonScoreEventCount} events</div>
+                </div>
+                <div className="custom-scrollbar max-h-[160px] space-y-2 overflow-y-auto pr-1">
+                  {jsonTrackSummaries.map((track) => (
+                    <div key={track.id} className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-emerald-50/80">
+                      <span className="truncate font-semibold">{track.name}</span>
+                      <span className="shrink-0 text-xs text-emerald-100/45">{track.events} notes</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          <textarea value={scoreEditorValue} onChange={(event) => setScore(event.target.value)} readOnly={isJsonScore} spellCheck={false} className="custom-scrollbar flex-1 min-h-[320px] rounded-3xl border border-white/5 bg-black/55 p-5 font-mono text-[13px] leading-7 text-emerald-50/78 shadow-inner outline-none focus:border-emerald-500/20 md:min-h-[380px] md:p-6" />
+        </div>
       ) : null}
     </div>
   );

@@ -24,6 +24,7 @@ import {
 import { applyScoreRecommendation } from './utils/scoreRecommendations';
 import { buildScoreTextWithMeta } from './utils/scoreTextMeta';
 import { normalizeScoreSource } from './utils/score';
+import { scoreJsonToMidiBytes } from './utils/scoreToMidi';
 import StarrySky from './components/StarrySky';
 
 function getFileTitle(filename) {
@@ -621,15 +622,68 @@ function AppContent({
     }
   }, [loadScoreSource, showToast, stopAll, uploadCloudScores]);
 
-  const handleExportLocal = useCallback(() => {
-    const extension = scoreDocument.sourceType === SCORE_SOURCE_TYPES.JSON ? 'json' : 'txt';
-    const filename = `${scoreTitle.trim() || 'score'}.${extension}`;
+  const handleExportLocal = useCallback((format = 'source') => {
     const snapshot = buildCurrentScoreSnapshot(scoreTitle.trim() || scoreDocument.title);
-    const payload = scoreDocument.sourceType === SCORE_SOURCE_TYPES.JSON
-      ? JSON.stringify(snapshot.content ?? {}, null, 2)
-      : snapshot.rawText;
+    let filename = `${scoreTitle.trim() || 'score'}.txt`;
+    let blob = null;
 
-    const blob = new Blob([payload], { type: 'text/plain;charset=utf-8' });
+    if (format === 'midi') {
+      const scoreJson = snapshot.sourceType === SCORE_SOURCE_TYPES.JSON
+        ? snapshot.content
+        : normalizeScoreSource(snapshot.rawText, snapshot);
+      const midiBytes = scoreJsonToMidiBytes(
+        snapshot.sourceType === SCORE_SOURCE_TYPES.JSON
+          ? scoreJson
+          : {
+            version: '2.0',
+            meta: {
+              title: snapshot.title,
+              sourceType: 'text',
+            },
+            transport: {
+              bpm: snapshot.bpm,
+              timeSigNum: snapshot.timeSigNum,
+              timeSigDen: snapshot.timeSigDen,
+              resolution: scoreJson?.playback?.resolution ?? 480,
+            },
+            playback: {
+              tone: snapshot.tone,
+              globalKeyOffset: snapshot.globalKeyOffset,
+              reverb: snapshot.reverb,
+              scaleMode: snapshot.scaleMode,
+              accidentals: snapshot.accidentals,
+            },
+            tracks: [
+              {
+                id: 'main',
+                name: 'Main',
+                mute: false,
+                events: (scoreJson?.events ?? [])
+                  .filter((event) => !event?.isRest)
+                  .map((event) => ({
+                    type: 'note',
+                    startTick: event.startTick ?? event.tick,
+                    durationTicks: event.durationTicks,
+                    key: event.k ?? null,
+                    velocity: event.v ?? 0.85,
+                    frequency: event.frequency ?? null,
+                    noteName: event.noteName ?? null,
+                    midi: event.midi ?? null,
+                  })),
+              },
+            ],
+          },
+      );
+      filename = `${scoreTitle.trim() || 'score'}.mid`;
+      blob = new Blob([midiBytes], { type: 'audio/midi' });
+    } else if (snapshot.sourceType === SCORE_SOURCE_TYPES.JSON) {
+      filename = `${scoreTitle.trim() || 'score'}.json`;
+      blob = new Blob([JSON.stringify(snapshot.content ?? {}, null, 2)], { type: 'application/json;charset=utf-8' });
+    } else {
+      filename = `${scoreTitle.trim() || 'score'}.txt`;
+      blob = new Blob([snapshot.rawText], { type: 'text/plain;charset=utf-8' });
+    }
+
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;

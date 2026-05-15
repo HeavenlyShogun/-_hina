@@ -171,12 +171,13 @@ export function buildAiConversionPrompt({
   const outputInstructions = safeOutputFormat === 'json-v2'
     ? [
       'Output valid JSON only. No markdown fences, no explanation.',
-      'Use this schema: version, meta, transport, playback, source, tracks.',
-      'Put notes in tracks[].events[] with type, startTick, durationTicks, key, velocity, frequency, and noteName.',
+      'Use the current editor schema: version 2.0 with meta, transport, playback, source, and tracks.',
+      'Put playable notes in tracks[].events[] with type, startTick, durationTicks, key, velocity, frequency, noteName, and midi when known.',
       'Use integer ticks only. A quarter note is 480 ticks; a 4/4 measure is 1920 ticks.',
       'For chords, emit multiple note events at the same startTick.',
       'Do not emit rest events. Rests are silent gaps between note end ticks and the next note startTick.',
       'Keep transport.resolution explicit. Recommended resolution: 480.',
+      'The result must be directly loadable by the current score editor and playable without extra conversion.',
       'If a pitch is outside the 21-key range C3-B5, transpose by octave into range and keep a note in meta.referenceNotes.',
       'If the original includes sharps/flats not playable on the natural 21-key layout, choose the closest musical substitute and mention the substitution in meta.referenceNotes.',
     ]
@@ -193,8 +194,8 @@ export function buildAiConversionPrompt({
       : safeOutputFormat === 'timed-token'
       ? [
         'Output valid JSON only. No markdown fences, no explanation.',
-        'The old timed-token rest syntax is deprecated for second-version work.',
-        'Use the Universal Rythem Recorder JSON v2 schema with integer startTick and durationTicks instead.',
+        'Timed-token output is deprecated in this project.',
+        'Use the current version 2.0 score editor schema with integer startTick and durationTicks instead.',
         'Do not use deprecated beat/rest token syntax; encode rests as silent gaps between note events.',
       ]
     : [
@@ -209,8 +210,8 @@ export function buildAiConversionPrompt({
     ];
 
   return [
-    '你現在是 Universal Rythem Recorder 的編曲助手。',
-    `請把下面的 ${safeNotationType === 'staff' ? '五線譜文字描述' : safeNotationType === 'mixed' ? '混合記譜資料' : '簡譜'} 轉成我的專案可匯入格式。`,
+    '你要幫我產出可直接貼進目前譜面編輯系統的內容。',
+    `請把下面的 ${safeNotationType === 'staff' ? '五線譜文字描述' : safeNotationType === 'mixed' ? '混合記譜資料' : '簡譜'} 轉成目前系統可直接載入的格式。`,
     '',
     '樂器限制:',
     ...NOTE_LAYOUT_GUIDE,
@@ -223,6 +224,7 @@ export function buildAiConversionPrompt({
     `- target format: ${safeOutputFormat}`,
     '',
     '轉換原則:',
+    '- 以目前網站可播放、可編輯、可匯出的譜面系統為準。',
     '- 優先保留主旋律、節奏骨架、和聲關係。',
     '- 不要輸出超出 21 鍵自然音範圍的結果。',
     '- 可以合理簡化裝飾音、琶音、過密和弦。',

@@ -228,8 +228,6 @@ const ScoreConverter = memo(({
     timeSigNum,
   ]);
 
-  const settingsHint = `下載的 JSON 將包含目前 BPM ${bpm}、拍號 ${timeSigNum}/${timeSigDen}、調性偏移 ${audioConfig?.globalKeyOffset ?? 0}`;
-
   const refreshAssistantPrompt = useCallback((nextInputValue = inputValue) => {
     const prompt = buildAiConversionPrompt({
       title: scoreTitle.trim() || DEFAULT_SCORE_NAME,
@@ -647,44 +645,7 @@ const ScoreConverter = memo(({
           可直接把多個 `.musicxml` / `.xml` 檔拖曳到這裡。若要分批上傳，上一批成功後待上傳清單會自動清空。
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-          <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <div>
-                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-200/55">Current Payload</div>
-                <div className="mt-1 text-xs text-amber-50/55">{settingsHint}</div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleLoadToEditor(null, { mode: 'replace' })}
-                  className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-amber-50/80 hover:bg-white/10"
-                  title="覆蓋到譜面編輯"
-                >
-                  <Wand2 size={14} />
-                  覆蓋到譜面編輯
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleLoadToEditor(null, { mode: 'append' })}
-                  className="inline-flex items-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-50/90 hover:bg-emerald-500/20"
-                  title="接到目前譜面後面"
-                >
-                  <Wand2 size={14} />
-                  接到後面
-                </button>
-              </div>
-            </div>
-
-            <textarea
-              value={inputValue}
-              onChange={(event) => setInputValue(event.target.value)}
-              spellCheck={false}
-              className="custom-scrollbar min-h-[240px] w-full rounded-[20px] border border-white/10 bg-black/30 p-4 font-mono text-xs leading-relaxed text-amber-50/80 outline-none"
-              placeholder="可貼上簡譜、JSON 或檢查目前轉換結果。"
-            />
-          </div>
-
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
@@ -740,11 +701,13 @@ const ScoreConverter = memo(({
                 </div>
               ))}
             </div>
+          </div>
 
+          <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
             <button
               type="button"
               onClick={() => setIsAdvancedOpen((open) => !open)}
-              className="mt-4 inline-flex items-center gap-2 text-xs font-semibold text-amber-100/75"
+              className="inline-flex items-center gap-2 text-xs font-semibold text-amber-100/75"
             >
               <ChevronDown size={14} className={`transition ${isAdvancedOpen ? 'rotate-180' : ''}`} />
               AI 輔助轉換
@@ -752,6 +715,35 @@ const ScoreConverter = memo(({
 
             {isAdvancedOpen ? (
               <div className="mt-3 space-y-3 rounded-[18px] border border-white/10 bg-black/25 p-3">
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-200/55">Source Draft</div>
+                  <div className="mt-1 text-xs text-amber-50/55">貼入簡譜、五線譜描述或 JSON 後，可直接覆蓋到譜面編輯，或產生符合目前譜面系統的 AI 提示詞。</div>
+                </div>
+                <textarea
+                  value={inputValue}
+                  onChange={(event) => setInputValue(event.target.value)}
+                  spellCheck={false}
+                  className="custom-scrollbar min-h-[220px] w-full rounded-[18px] border border-white/10 bg-black/30 p-4 font-mono text-xs leading-relaxed text-amber-50/80 outline-none"
+                  placeholder="貼上簡譜、JSON、外部轉譜結果，或 AI 要參考的草稿。"
+                />
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleLoadToEditor(null, { mode: 'replace' })}
+                    className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-amber-50/80 hover:bg-white/10"
+                  >
+                    <Wand2 size={14} />
+                    覆蓋到譜面編輯
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleLoadToEditor(null, { mode: 'append' })}
+                    className="inline-flex items-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-50/90 hover:bg-emerald-500/20"
+                  >
+                    <Wand2 size={14} />
+                    接到後面
+                  </button>
+                </div>
                 <div className="flex flex-wrap gap-2">
                   {[
                     [EXTERNAL_INPUT_TYPES.JIANPU, '簡譜'],
