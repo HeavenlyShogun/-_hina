@@ -41,7 +41,7 @@ export function useCloudScores() {
       .then((result) => {
         if (!result?.ctx) {
           setCloudStatus('unavailable');
-          setCloudError('Firebase 尚未完成設定或初始化失敗。');
+          setCloudError('Firebase 尚未連線，請確認環境設定。');
           return null;
         }
 
@@ -85,7 +85,7 @@ export function useCloudScores() {
       (error) => {
         console.error(error);
         setCloudStatus('error');
-        setCloudError(error?.message || 'Firestore 摘要同步失敗。');
+        setCloudError(error?.message || 'Firestore 訂閱失敗。');
       },
     );
     scoresUnsubscribeRef.current = unsubscribe;
@@ -139,7 +139,7 @@ export function useCloudScores() {
       return true;
     } catch (error) {
       console.error(error);
-      setCloudError(error?.message || 'Firestore 儲存失敗。');
+      setCloudError(error?.message || 'Firestore 存檔失敗。');
       return false;
     } finally {
       setIsSaving(false);

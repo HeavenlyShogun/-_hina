@@ -252,6 +252,43 @@ function buildTransportPatch(settings = {}) {
   return patch;
 }
 
+function resolveTransportResolution(content = {}, settings = {}) {
+  const candidates = [
+    settings.resolution,
+    content?.transport?.resolution,
+    content?.playback?.resolution,
+    settings.ppq,
+  ];
+
+  const resolved = candidates
+    .map((value) => Number(value))
+    .find((value) => Number.isFinite(value) && value > 0);
+
+  return resolved || 480;
+}
+
+function applySingleTempoMapBpm(content, bpm, settings = {}) {
+  if (!Array.isArray(content?.playback?.tempoMap) || content.playback.tempoMap.length !== 1) {
+    return;
+  }
+
+  const [entry] = content.playback.tempoMap;
+  if (Array.isArray(entry)) {
+    content.playback.tempoMap = [[Number(entry[0]) || 0, bpm]];
+    return;
+  }
+
+  if (entry && typeof entry === 'object') {
+    const resolution = resolveTransportResolution(content, settings);
+    content.playback.tempoMap = [{
+      ...entry,
+      startTick: Math.max(0, Math.round(Number(entry.startTick ?? entry.ticks ?? 0) || 0)),
+      bpm,
+      secondsPerTick: (60 / bpm) / resolution,
+    }];
+  }
+}
+
 function buildPlaybackPatch(settings = {}) {
   const patch = {};
 
@@ -304,13 +341,8 @@ export function applyScoreSettingsToJsonContent(content, settings = {}) {
     };
   }
 
-  if (
-    Array.isArray(nextContent.playback.tempoMap)
-    && nextContent.playback.tempoMap.length === 1
-    && Array.isArray(nextContent.playback.tempoMap[0])
-    && hasOwnValue(settings, 'bpm')
-  ) {
-    nextContent.playback.tempoMap = [[0, transportPatch.bpm]];
+  if (hasOwnValue(settings, 'bpm')) {
+    applySingleTempoMapBpm(nextContent, transportPatch.bpm, settings);
   }
 
   return nextContent;

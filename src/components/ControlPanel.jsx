@@ -82,8 +82,8 @@ const ControlPanel = memo(({ embedded = false, compact = false }) => {
                 <Zap size={16} className="shrink-0 text-amber-600" />
               </div>
               <div className="min-w-0">
-                <div className="truncate text-[10px] font-black uppercase tracking-[0.35em] text-amber-700/70">速度</div>
-                <div className="truncate text-sm font-semibold text-slate-700">可暫存輸入的 BPM</div>
+                <div className="truncate text-[10px] font-black uppercase tracking-[0.35em] text-amber-700/70">節奏</div>
+                <div className="truncate text-sm font-semibold text-slate-700">速度、拍號與節拍解析度</div>
               </div>
             </div>
 
@@ -105,13 +105,7 @@ const ControlPanel = memo(({ embedded = false, compact = false }) => {
                 <div className="min-w-0 overflow-hidden rounded-[22px] border border-slate-200/80 bg-slate-50/95 px-3 py-3 shadow-sm">
                   <div className="mb-2 truncate text-[10px] font-black tracking-[0.24em] text-slate-500">BPM</div>
                   <div className="flex min-w-0 items-center overflow-hidden rounded-xl border border-slate-200 bg-white/80 p-1 transition-colors focus-within:border-amber-400/70">
-                    <button
-                      type="button"
-                      onClick={() => applyBpm(lastValidBpmRef.current - 1)}
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-lg leading-none text-amber-700 transition-colors hover:bg-amber-100"
-                    >
-                      -
-                    </button>
+                    <button type="button" onClick={() => applyBpm(lastValidBpmRef.current - 1)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-lg leading-none text-amber-700 transition-colors hover:bg-amber-100">-</button>
                     <input
                       type="number"
                       min={BPM_MIN}
@@ -126,13 +120,7 @@ const ControlPanel = memo(({ embedded = false, compact = false }) => {
                       }}
                       className="no-spinners min-w-0 flex-1 bg-transparent px-1 text-center text-sm font-mono text-slate-900 outline-none"
                     />
-                    <button
-                      type="button"
-                      onClick={() => applyBpm(lastValidBpmRef.current + 1)}
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-lg leading-none text-amber-700 transition-colors hover:bg-amber-100"
-                    >
-                      +
-                    </button>
+                    <button type="button" onClick={() => applyBpm(lastValidBpmRef.current + 1)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-lg leading-none text-amber-700 transition-colors hover:bg-amber-100">+</button>
                   </div>
                 </div>
 
@@ -142,43 +130,25 @@ const ControlPanel = memo(({ embedded = false, compact = false }) => {
                     <span className="truncate text-[10px] font-black tracking-[0.24em] text-slate-500">拍號</span>
                   </div>
                   <div className="flex min-w-0 items-center gap-1 overflow-hidden rounded-xl border border-slate-200 bg-white/80 px-2 py-1">
-                    <select
-                      value={timeSigNum}
-                      onChange={(event) => setTimeSigNum(Number(event.target.value))}
-                      className="min-w-0 flex-1 bg-transparent px-1 py-1 text-center text-sm font-black text-slate-800 outline-none"
-                    >
+                    <select value={timeSigNum} onChange={(event) => setTimeSigNum(Number(event.target.value))} className="min-w-0 flex-1 bg-transparent px-1 py-1 text-center text-sm font-black text-slate-800 outline-none">
                       {[2, 3, 4, 5, 6, 7, 8, 9, 12].map((value) => (
-                        <option key={value} value={value} className="bg-white text-slate-900">
-                          {value}
-                        </option>
+                        <option key={value} value={value} className="bg-white text-slate-900">{value}</option>
                       ))}
                     </select>
                     <span className="shrink-0 font-bold text-slate-400">/</span>
-                    <select
-                      value={timeSigDen}
-                      onChange={(event) => setTimeSigDen(Number(event.target.value))}
-                      className="min-w-0 flex-1 bg-transparent px-1 py-1 text-center text-sm font-black text-slate-800 outline-none"
-                    >
+                    <select value={timeSigDen} onChange={(event) => setTimeSigDen(Number(event.target.value))} className="min-w-0 flex-1 bg-transparent px-1 py-1 text-center text-sm font-black text-slate-800 outline-none">
                       {[2, 4, 8, 16].map((value) => (
-                        <option key={value} value={value} className="bg-white text-slate-900">
-                          {value}
-                        </option>
+                        <option key={value} value={value} className="bg-white text-slate-900">{value}</option>
                       ))}
                     </select>
                   </div>
                 </div>
 
                 <div className="min-w-0 overflow-hidden rounded-[22px] border border-slate-200/80 bg-slate-50/95 px-3 py-3 shadow-sm sm:col-span-2 lg:col-span-1">
-                  <div className="mb-2 truncate text-[10px] font-black tracking-[0.24em] text-slate-500">解析度</div>
-                  <select
-                    value={charResolution}
-                    onChange={(event) => setCharResolution(Number(event.target.value))}
-                    className="block h-10 w-full min-w-0 truncate rounded-xl border border-slate-200 bg-white/80 px-3 text-xs font-black text-slate-800 outline-none"
-                  >
+                  <div className="mb-2 truncate text-[10px] font-black tracking-[0.24em] text-slate-500">節拍格線</div>
+                  <select value={charResolution} onChange={(event) => setCharResolution(Number(event.target.value))} className="block h-10 w-full min-w-0 truncate rounded-xl border border-slate-200 bg-white/80 px-3 text-xs font-black text-slate-800 outline-none">
                     {RESOLUTION_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value} className="bg-white text-slate-900">
-                        {option.label}
-                      </option>
+                      <option key={option.value} value={option.value} className="bg-white text-slate-900">{option.label}</option>
                     ))}
                   </select>
                 </div>
@@ -195,42 +165,26 @@ const ControlPanel = memo(({ embedded = false, compact = false }) => {
                 <Volume2 size={16} className="text-teal-700" />
               </div>
               <div className="min-w-0">
-                <div className="truncate text-[10px] font-black uppercase tracking-[0.35em] text-teal-700/70">聲音</div>
+                <div className="truncate text-[10px] font-black uppercase tracking-[0.35em] text-teal-700/70">音色</div>
                 <div className="truncate text-sm font-semibold text-slate-700">音量、殘響與調性設定</div>
               </div>
             </div>
 
             <div className="flex min-w-0 items-center gap-3 rounded-[22px] border border-slate-200/80 bg-slate-50/95 px-4 py-3 shadow-inner">
               <Volume2 size={15} className="shrink-0 text-teal-700" />
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                value={vol}
-                onChange={(event) => setVol(Number(event.target.value))}
-                className="min-w-0 flex-1 accent-teal-500"
-              />
+              <input type="range" min="0" max="1" step="0.01" value={vol} onChange={(event) => setVol(Number(event.target.value))} className="min-w-0 flex-1 accent-teal-500" />
               <span className="shrink-0 text-[9px] font-mono tracking-[0.24em] text-slate-500">音量</span>
             </div>
 
             <div className="grid min-w-0 gap-3 sm:grid-cols-[auto_minmax(0,1fr)]">
-              <button
-                type="button"
-                onClick={onToggleReverb}
-                className={`min-h-[3.5rem] min-w-0 rounded-[22px] border px-5 py-3 text-[10px] font-black tracking-[0.32em] transition-all ${reverb ? 'border-indigo-200 bg-indigo-50 text-indigo-800 shadow-[0_0_24px_rgba(79,70,229,0.10)]' : 'border-slate-200 bg-white/90 text-slate-500'}`}
-              >
+              <button type="button" onClick={onToggleReverb} className={`min-h-[3.5rem] min-w-0 rounded-[22px] border px-5 py-3 text-[10px] font-black tracking-[0.32em] transition-all ${reverb ? 'border-indigo-200 bg-indigo-50 text-indigo-800 shadow-[0_0_24px_rgba(79,70,229,0.10)]' : 'border-slate-200 bg-white/90 text-slate-500'}`}>
                 殘響 <span className="ml-1 opacity-55">{reverb ? '開' : '關'}</span>
               </button>
 
               <div className="grid min-w-0 gap-3 sm:grid-cols-2">
                 <div className="flex min-w-0 items-center gap-3 rounded-[22px] border border-slate-200/80 bg-slate-50/95 px-4 py-3 shadow-sm">
                   <Globe size={15} className="shrink-0 text-indigo-600" />
-                  <select
-                    value={globalKeyOffset}
-                    onChange={(event) => setGlobalKeyOffset(Number(event.target.value))}
-                    className="w-full min-w-0 bg-transparent text-[11px] font-black uppercase text-slate-800 outline-none"
-                  >
+                  <select value={globalKeyOffset} onChange={(event) => setGlobalKeyOffset(Number(event.target.value))} className="w-full min-w-0 bg-transparent text-[11px] font-black uppercase text-slate-800 outline-none">
                     {KEY_OPTIONS.map((option) => (
                       <option key={option.offset} value={option.offset} className="bg-white text-slate-900">
                         {option.name} 調
@@ -241,29 +195,18 @@ const ControlPanel = memo(({ embedded = false, compact = false }) => {
 
                 <div className="flex min-w-0 items-center gap-3 rounded-[22px] border border-slate-200/80 bg-slate-50/95 px-4 py-3 shadow-sm">
                   <Globe size={15} className="shrink-0 text-teal-700" />
-                  <select
-                    value={scaleMode}
-                    onChange={(event) => setScaleMode(event.target.value)}
-                    className="w-full min-w-0 bg-transparent text-[11px] font-black uppercase text-slate-800 outline-none"
-                  >
+                  <select value={scaleMode} onChange={(event) => setScaleMode(event.target.value)} className="w-full min-w-0 bg-transparent text-[11px] font-black uppercase text-slate-800 outline-none">
                     {SCALE_MODE_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value} className="bg-white text-slate-900">
-                        {option.label}
-                      </option>
+                      <option key={option.value} value={option.value} className="bg-white text-slate-900">{option.label}</option>
                     ))}
                   </select>
                 </div>
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={onApplySettingsToScore}
-              disabled={!onApplySettingsToScore}
-              className="mt-auto flex min-h-[3rem] w-full min-w-0 items-center justify-center gap-2 rounded-[22px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-[10px] font-black tracking-[0.26em] text-emerald-800 shadow-[0_0_24px_rgba(16,185,129,0.10)] transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
-            >
+            <button type="button" onClick={onApplySettingsToScore} disabled={!onApplySettingsToScore} className="mt-auto flex min-h-[3rem] w-full min-w-0 items-center justify-center gap-2 rounded-[22px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-[10px] font-black tracking-[0.26em] text-emerald-800 shadow-[0_0_24px_rgba(16,185,129,0.10)] transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400">
               <Save size={14} className="shrink-0" />
-              <span className="truncate">套用到譜面預設值</span>
+              <span className="truncate">寫入目前節奏與調性</span>
             </button>
           </div>
         </div>

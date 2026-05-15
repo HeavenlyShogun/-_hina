@@ -34,9 +34,20 @@ async function readImportedScore(file) {
   const isJsonFile = file.name.toLowerCase().endsWith('.json');
 
   if (isJsonFile) {
+    if (!raw.trim()) {
+      throw new Error(`${file.name} 是空的 JSON 檔案。`);
+    }
+
+    let content;
+    try {
+      content = JSON.parse(raw);
+    } catch {
+      throw new Error(`${file.name} 的 JSON 格式無法解析。`);
+    }
+
     return {
       title: getFileTitle(file.name),
-      content: JSON.parse(raw),
+      content,
       sourceType: SCORE_SOURCE_TYPES.JSON,
     };
   }
@@ -363,60 +374,60 @@ function AppContent({
     const snapshot = buildCurrentScoreSnapshot(title);
 
     updateScoreDocument(snapshot);
-    showToast('Applied current rhythm and key settings to score defaults', 'success');
+    showToast('已將目前節奏與調性寫入譜面', 'success');
   }, [buildCurrentScoreSnapshot, scoreDocument.title, scoreTitle, showToast, updateScoreDocument]);
 
   const handleConnectCloud = useCallback(async () => {
     const result = await ensureCloudConnection();
     if (!result) {
-      showToast(cloudError || 'Firebase ???憭望?', 'error');
+      showToast(cloudError || 'Firebase 連線失敗', 'error');
       return;
     }
-    showToast('撌脤? Firebase', 'success');
+    showToast('已連線到 Firebase', 'success');
   }, [cloudError, ensureCloudConnection, showToast]);
 
   const handleLoadScore = useCallback(async (savedScore) => {
     const fullScore = savedScore?.rawText ? savedScore : await loadCloudScore(savedScore.id);
 
     if (!fullScore) {
-      showToast('Cloud score load failed', 'error');
+      showToast('雲端譜面載入失敗', 'error');
       return;
     }
 
     applySavedScore(fullScore);
     stopAll();
-    showToast(`撌脰???${fullScore.title}`, 'success');
+    showToast(`已載入 ${fullScore.title}`, 'success');
   }, [applySavedScore, loadCloudScore, showToast, stopAll]);
 
   const handleSaveScore = useCallback(async () => {
     const title = scoreTitle.trim();
 
     if (!title) {
-      showToast('隢?頛詨霅?迂', 'error');
+      showToast('請先輸入譜面名稱', 'error');
       return;
     }
 
     const saved = await saveCloudScore(title, buildCurrentScoreSnapshot(title));
     if (!saved) {
-      showToast(cloudError || 'Firebase ?脣?憭望?', 'error');
+      showToast(cloudError || 'Firebase 存檔失敗', 'error');
       return;
     }
 
-    showToast('撌脣摮?脩垢?脣澈', 'success');
+    showToast('已存入雲端曲庫，節奏與調性也已寫入譜面', 'success');
   }, [buildCurrentScoreSnapshot, cloudError, saveCloudScore, scoreTitle, showToast]);
 
   const handleDeleteScore = useCallback(async (id) => {
     const deleted = await deleteCloudScore(id);
-    showToast(deleted ? 'Cloud score deleted' : 'Delete failed', deleted ? 'success' : 'error');
+    showToast(deleted ? '已刪除雲端譜面' : '刪除失敗', deleted ? 'success' : 'error');
   }, [deleteCloudScore, showToast]);
 
   const handleClearAllScores = useCallback(async () => {
-    if (!window.confirm('Delete all cloud scores?')) {
+    if (!window.confirm('確定要刪除所有雲端譜面嗎？')) {
       return;
     }
 
     const cleared = await clearAllCloudScores();
-    showToast(cleared ? 'Cloud library cleared' : 'Clear failed', cleared ? 'success' : 'error');
+    showToast(cleared ? '雲端曲庫已清空' : '清空失敗', cleared ? 'success' : 'error');
   }, [clearAllCloudScores, showToast]);
 
   const handleImportLocal = useCallback(async (event) => {
@@ -434,7 +445,7 @@ function AppContent({
             : source,
         );
         stopAll();
-        showToast(`撌脣??${source.title}`, 'success');
+        showToast(`已匯入 ${source.title}`, 'success');
       } else {
         const payloads = await Promise.all(
           files.map(async (file) => {
@@ -452,13 +463,13 @@ function AppContent({
 
         const uploaded = await uploadCloudScores(payloads);
         showToast(
-          uploaded ? `Uploaded ${payloads.length} scores` : 'Batch upload failed',
+          uploaded ? `已上傳 ${payloads.length} 份譜面` : '批次上傳失敗',
           uploaded ? 'success' : 'error',
         );
       }
     } catch (error) {
       console.error(error);
-      showToast('?臬憭望?', 'error');
+      showToast(error?.message || '匯入失敗', 'error');
     } finally {
       event.target.value = '';
     }
@@ -481,18 +492,18 @@ function AppContent({
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    showToast(`撌脣??${filename}`, 'success');
+    showToast(`已匯出 ${filename}`, 'success');
   }, [buildCurrentScoreSnapshot, scoreDocument, scoreTitle, showToast]);
 
   const handleResetScore = useCallback(() => {
     resetScoreState();
     stopAll();
-    showToast('Current score has been reset', 'success');
+    showToast('已重設目前譜面', 'success');
   }, [resetScoreState, showToast, stopAll]);
 
   const handleClearCurrentScore = useCallback(() => {
     loadScoreSource({
-      title: '蝛箇霅',
+      title: '未命名譜面',
       rawText: '',
       sourceType: SCORE_SOURCE_TYPES.TEXT,
     });
@@ -523,7 +534,7 @@ function AppContent({
 
     loadScoreSource(applyScoreRecommendation(source, { force: true }));
     stopAll();
-    showToast(`撌脰???${nextScore.displayTitle ?? nextScore.title}`, 'success');
+    showToast(`已載入 ${nextScore.displayTitle ?? nextScore.title}`, 'success');
   }, [loadScoreSource, showToast, stopAll]);
 
   const handleLoadLocalConvertedScore = useCallback((payload) => {
@@ -792,7 +803,7 @@ function AppContent({
         </section>
 
         <footer className="z-20 mt-16 text-[10px] uppercase tracking-[0.6em] text-slate-400">
-          {APP_NAME} 蝜?{APP_TAGLINE}
+          {APP_NAME} / {APP_TAGLINE}
         </footer>
 
         <style>{`
@@ -928,3 +939,4 @@ export default function App() {
     </AudioConfigProvider>
   );
 }
+

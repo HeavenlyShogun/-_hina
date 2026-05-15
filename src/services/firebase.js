@@ -15,7 +15,7 @@ async function createFirebaseContext() {
 
   const firebaseConfig = getFirebaseConfig();
   if (!firebaseConfig) {
-    throw new Error('找不到 Firebase 設定。請先在 `.env` 補上 Vite Firebase 相關參數。');
+    throw new Error('缺少 Firebase 設定，請確認 `.env` 已填入 Vite Firebase 環境變數。');
   }
 
   const [
@@ -140,6 +140,7 @@ function createScoreSummary(documentData = {}) {
     timeSigDen: documentData.timeSigDen,
     charResolution: documentData.charResolution,
     globalKeyOffset: documentData.globalKeyOffset,
+    accidentals: documentData.accidentals ?? {},
     scaleMode: documentData.scaleMode,
     tone: documentData.tone,
     reverb: documentData.reverb,
@@ -226,6 +227,7 @@ export function normalizeLoadedScoreSummary(record) {
     timeSigDen: record.timeSigDen,
     charResolution: record.charResolution,
     globalKeyOffset: record.globalKeyOffset,
+    accidentals: record.accidentals ?? {},
     scaleMode: record.scaleMode,
     tone: record.tone,
     reverb: record.reverb,

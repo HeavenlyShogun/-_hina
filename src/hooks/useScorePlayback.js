@@ -282,6 +282,7 @@ export function useScorePlayback({
       return;
     }
 
+    await audioEngine.resume();
     await audioEngine.prepareTone(playbackConfigRef.current.audioConfig?.tone);
     await playbackController.play(audioEngine.audioContext, buildSnapshot());
   }, [buildSnapshot, loadCurrentScore, showToast, stopAll]);
@@ -316,10 +317,10 @@ export function useScorePlayback({
         return;
       }
 
+      await audioEngine.resume();
       await audioEngine.prepareTone(
         source?.audioConfig?.tone ?? playbackConfigRef.current.audioConfig?.tone,
       );
-      await audioEngine.resume();
       audioEngine.setReverbEnabled(source?.audioConfig?.reverb);
       await playbackController.play(audioEngine.audioContext, buildSnapshot({
         audioConfig: source?.audioConfig,
