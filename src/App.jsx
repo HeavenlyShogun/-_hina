@@ -242,9 +242,9 @@ function AppContent({
     { id: 'main-screen', label: '\u4e3b\u756b\u9762', shortLabel: '\u4e3b\u756b\u9762', caption: '\u66f2\u5eab\u8207\u64ad\u653e\u5165\u53e3' },
     { id: 'lyre-keyboard', label: '\u9375\u76e4', shortLabel: '\u9375\u76e4', caption: '\u5373\u6642\u6f14\u594f\u9375\u76e4' },
     { id: 'rhythm-controls', label: '\u7bc0\u594f\u8207\u8abf\u6027\u8abf\u6574', shortLabel: '\u7bc0\u594f\u8abf\u6027', caption: 'BPM\u3001\u62cd\u865f\u3001\u97f3\u8272\u8207\u8abf\u6027' },
-    { id: 'converter', label: '\u8b5c\u9762\u8f49\u63db', shortLabel: '\u8b5c\u9762\u8f49\u63db', caption: 'MusicXML / MIDI Converter' },
     { id: 'playback-preview', label: '\u6f14\u594f\u9810\u89bd', shortLabel: '\u6f14\u594f\u9810\u89bd', caption: 'Live Preview' },
     { id: 'editor', label: '\u8b5c\u9762\u7de8\u8f2f', shortLabel: '\u8b5c\u9762\u7de8\u8f2f', caption: 'Score Editor' },
+    { id: 'converter', label: '\u8b5c\u9762\u8f49\u63db', shortLabel: '\u8b5c\u9762\u8f49\u63db', caption: 'MusicXML / MIDI Converter' },
     { id: 'cloud-library', label: '\u96f2\u7aef\u66f2\u5eab', shortLabel: '\u96f2\u7aef\u66f2\u5eab', caption: 'Firebase / Cloud' },
   ]), []);
 
@@ -725,34 +725,6 @@ function AppContent({
             </aside>
 
             <div className="space-y-8">
-              <div id="converter" className="scroll-mt-6 rounded-[36px] border border-white/10 bg-black/30 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-sm md:p-6">
-                <div className="mb-5 flex flex-col gap-2 px-1">
-                  <div className="text-[10px] font-black uppercase tracking-[0.34em] text-amber-200/55">
-                    Converter
-                  </div>
-                  <div className="mt-2 text-sm font-semibold text-amber-50/80">
-                    Convert MusicXML or MIDI into the current playable score.
-                  </div>
-                </div>
-
-                <ScoreConverter
-                  scoreTitle={scoreTitle}
-                  scoreDocument={scoreDocument}
-                  bpm={bpm}
-                  timeSigNum={timeSigNum}
-                  timeSigDen={timeSigDen}
-                  charResolution={charResolution}
-                  audioConfig={audioConfig}
-                  accidentals={accidentals}
-                  references={references}
-                  referenceNotes={referenceNotes}
-                  showToast={showToast}
-                  onLoadLocalScore={handleLoadLocalConvertedScore}
-                  onBatchUpload={uploadCloudScores}
-                  onClearCurrentScore={handleClearCurrentScore}
-                />
-              </div>
-
               <div id="playback-preview" className="scroll-mt-6 rounded-[36px] border border-white/10 bg-black/30 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-sm md:p-6">
                 <div className="mb-5 flex flex-col gap-2 px-1">
                   <div className="text-[10px] font-black uppercase tracking-[0.34em] text-emerald-200/55">
@@ -798,6 +770,34 @@ function AppContent({
                   cloudStatus={cloudStatus}
                   showGuidePanel={false}
                   showReferencePanel={false}
+                />
+              </div>
+
+              <div id="converter" className="scroll-mt-6 rounded-[36px] border border-white/10 bg-black/30 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-sm md:p-6">
+                <div className="mb-5 flex flex-col gap-2 px-1">
+                  <div className="text-[10px] font-black uppercase tracking-[0.34em] text-amber-200/55">
+                    Converter
+                  </div>
+                  <div className="mt-2 text-sm font-semibold text-amber-50/80">
+                    Convert MusicXML or MIDI into the current playable score.
+                  </div>
+                </div>
+
+                <ScoreConverter
+                  scoreTitle={scoreTitle}
+                  scoreDocument={scoreDocument}
+                  bpm={bpm}
+                  timeSigNum={timeSigNum}
+                  timeSigDen={timeSigDen}
+                  charResolution={charResolution}
+                  audioConfig={audioConfig}
+                  accidentals={accidentals}
+                  references={references}
+                  referenceNotes={referenceNotes}
+                  showToast={showToast}
+                  onLoadLocalScore={handleLoadLocalConvertedScore}
+                  onBatchUpload={uploadCloudScores}
+                  onClearCurrentScore={handleClearCurrentScore}
                 />
               </div>
 
