@@ -16,7 +16,7 @@ function normalizeToneList(tone) {
   return [...new Set(entries.filter(Boolean))];
 }
 
-const InstrumentSelector = memo(() => {
+const InstrumentSelector = memo(({ disabled = false }) => {
   const { tone, setTone } = useAudioConfig();
   const selectedTones = normalizeToneList(tone);
 
@@ -41,6 +41,7 @@ const InstrumentSelector = memo(() => {
           <button
             key={id}
             type="button"
+            disabled={disabled}
             className={`instrument-btn ${active ? 'active' : ''}`}
             onClick={() => toggleTone(id)}
             aria-pressed={active}
@@ -87,6 +88,11 @@ const InstrumentSelector = memo(() => {
             inset 0 1px 0 rgba(255,255,255,0.08),
             0 14px 34px rgba(0,0,0,0.22);
           backdrop-filter: blur(14px);
+        }
+        .instrument-btn:disabled {
+          cursor: wait;
+          opacity: 0.55;
+          transform: none;
         }
         .instrument-btn::before {
           content: '';

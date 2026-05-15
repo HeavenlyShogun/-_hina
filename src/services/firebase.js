@@ -170,6 +170,44 @@ function resolvePayloadStorageId(payload, fallbackTitle) {
   ).trim();
 }
 
+function buildUniqueUploadId(baseId, index = 0) {
+  const safeBase = String(baseId || 'score').trim() || 'score';
+  const suffix = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`;
+  return `${safeBase}-${suffix}`;
+}
+
+function createUploadPayload(file, index) {
+  const payload = file?.payload ?? {};
+  const uploadId = buildUniqueUploadId(resolvePayloadStorageId(payload, file?.title), index);
+
+  return {
+    ...file,
+    payload: {
+      ...payload,
+      id: uploadId,
+      meta: payload?.meta && typeof payload.meta === 'object'
+        ? {
+          ...payload.meta,
+          id: uploadId,
+        }
+        : payload?.meta,
+      content: payload?.content && typeof payload.content === 'object' && !Array.isArray(payload.content)
+        ? {
+          ...payload.content,
+          meta: payload.content.meta && typeof payload.content.meta === 'object'
+            ? {
+              ...payload.content.meta,
+              id: uploadId,
+            }
+            : payload.content.meta,
+        }
+        : payload?.content,
+    },
+  };
+}
+
 async function createScoreDocumentData(ctx, uid, title, payload) {
   const resolvedId = resolvePayloadStorageId(payload, title);
   const normalized = createScoreDocument({
@@ -294,6 +332,8 @@ export async function deleteScore(ctx, uid, id) {
 
 export function uploadScores(ctx, uid, files) {
   return Promise.all(
-    files.map((file) => saveScore(ctx, uid, file.title, file.payload)),
+    files
+      .map((file, index) => createUploadPayload(file, index))
+      .map((file) => saveScore(ctx, uid, file.title, file.payload)),
   );
 }

@@ -20,6 +20,8 @@ const PianoRoom = memo(({
   scoreTitle,
   onJumpToSection,
   workspaceSections,
+  isBusy,
+  busyMessage,
 }) => (
   <div id="main-screen" className="flex w-full scroll-mt-6 flex-col items-center">
     <AppHeader
@@ -31,6 +33,8 @@ const PianoRoom = memo(({
       scoreTitle={scoreTitle}
       onJumpToSection={onJumpToSection}
       workspaceSections={workspaceSections}
+      isBusy={isBusy}
+      busyMessage={busyMessage}
     />
     <PianoKeys
       activeKeys={activeKeys}
@@ -42,7 +46,7 @@ const PianoRoom = memo(({
       progressBarRef={progressBarRef}
     />
     <div id="rhythm-controls" className="relative z-20 mt-4 flex w-full max-w-6xl scroll-mt-6 flex-col gap-4 px-3 sm:mt-5 sm:px-4">
-      <InstrumentSelector />
+      <InstrumentSelector disabled={isBusy} />
       <ControlPanel embedded compact />
     </div>
   </div>

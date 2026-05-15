@@ -10,7 +10,9 @@ const BPM_MAX = 300;
 const RESOLUTION_OPTIONS = [
   { value: 4, label: '1/4 beat grid' },
   { value: 8, label: '1/8 beat grid' },
+  { value: 12, label: '1/12 beat grid (triplet)' },
   { value: 16, label: '1/16 beat grid' },
+  { value: 24, label: '1/24 beat grid (triplet)' },
   { value: 32, label: '1/32 beat grid' },
 ];
 
@@ -187,7 +189,7 @@ const ControlPanel = memo(({ embedded = false, compact = false }) => {
                   <select value={globalKeyOffset} onChange={(event) => setGlobalKeyOffset(Number(event.target.value))} className="w-full min-w-0 bg-transparent text-[11px] font-black uppercase text-slate-800 outline-none">
                     {KEY_OPTIONS.map((option) => (
                       <option key={option.offset} value={option.offset} className="bg-white text-slate-900">
-                        {option.name} 調
+                        {option.displayName ?? option.name} 調
                       </option>
                     ))}
                   </select>

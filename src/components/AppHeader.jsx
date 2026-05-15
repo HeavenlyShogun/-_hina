@@ -22,6 +22,8 @@ const AppHeader = memo(({
   scoreTitle,
   onJumpToSection,
   workspaceSections = [],
+  isBusy = false,
+  busyMessage = '',
 }) => {
   const { isPlaying, onTogglePlay } = usePlayback();
 
@@ -77,12 +79,19 @@ const AppHeader = memo(({
             <button
               type="button"
               onClick={onTogglePlay}
-              className={`flex h-12 items-center justify-center gap-3 rounded-full border px-5 text-xs font-black tracking-[0.18em] shadow-xl transition-all active:scale-[0.98] ${isPlaying ? 'border-rose-300/60 bg-rose-400/15 text-rose-100 shadow-[0_16px_40px_rgba(244,63,94,0.18)]' : 'border-emerald-300/50 bg-emerald-400/20 text-emerald-50 shadow-[0_18px_45px_rgba(16,185,129,0.24)] hover:bg-emerald-400/28'}`}
+              disabled={isBusy}
+              className={`flex h-12 items-center justify-center gap-3 rounded-full border px-5 text-xs font-black tracking-[0.18em] shadow-xl transition-all active:scale-[0.98] disabled:cursor-wait disabled:opacity-65 ${isPlaying ? 'border-rose-300/60 bg-rose-400/15 text-rose-100 shadow-[0_16px_40px_rgba(244,63,94,0.18)]' : 'border-emerald-300/50 bg-emerald-400/20 text-emerald-50 shadow-[0_18px_45px_rgba(16,185,129,0.24)] hover:bg-emerald-400/28'}`}
             >
               {isPlaying ? <Square size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
-              {isPlaying ? '停止' : '播放'}
+              {isBusy ? '載入中...' : (isPlaying ? '停止' : '播放')}
             </button>
           </div>
+
+          {isBusy ? (
+            <div className="mt-4 rounded-2xl border border-amber-300/25 bg-amber-300/10 px-4 py-3 text-xs font-semibold text-amber-50/95">
+              {busyMessage || '載入音色與譜面中...'}
+            </div>
+          ) : null}
 
           <nav className="mt-5 flex flex-wrap gap-2" aria-label="Workspace quick navigation">
             {workspaceSections.map((section) => (
@@ -106,7 +115,7 @@ const AppHeader = memo(({
                 Featured Scores
               </div>
               <div className="mt-1 text-sm font-semibold text-white/90">
-                從內建曲庫快速載入可演奏譜面。
+                快速切換內建曲目，檢查載入與播放流程。
               </div>
             </div>
             <div className="max-w-[12rem] truncate rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-slate-300">
@@ -128,11 +137,12 @@ const AppHeader = memo(({
                 <button
                   key={score.id}
                   type="button"
+                  disabled={isBusy}
                   onClick={() => onPlayFeaturedScore?.(score)}
-                  className={`absolute flex flex-col items-center justify-center rounded-full border text-center transition-all ${score.position.size} ${isActive ? 'border-amber-200 bg-amber-300/20 text-amber-50 shadow-[0_0_32px_rgba(251,191,36,0.35)]' : 'border-sky-200/30 bg-sky-300/10 text-sky-50 hover:bg-sky-300/18 hover:shadow-[0_0_26px_rgba(56,189,248,0.22)]'}`}
+                  className={`absolute flex flex-col items-center justify-center rounded-full border text-center transition-all disabled:cursor-wait disabled:opacity-55 ${score.position.size} ${isActive ? 'border-amber-200 bg-amber-300/20 text-amber-50 shadow-[0_0_32px_rgba(251,191,36,0.35)]' : 'border-sky-200/30 bg-sky-300/10 text-sky-50 hover:bg-sky-300/18 hover:shadow-[0_0_26px_rgba(56,189,248,0.22)]'}`}
                   style={{ left: score.position.left, top: score.position.top, transform: 'translate(-50%, -50%)' }}
                 >
-                  <span className="text-[15px] leading-none">星</span>
+                  <span className="text-[15px] leading-none">✦</span>
                   <span className="mt-1 max-w-[5rem] truncate px-2 text-[9px] font-black tracking-[0.14em]">
                     {score.displayTitle ?? score.title}
                   </span>
@@ -151,8 +161,9 @@ const AppHeader = memo(({
                   <button
                     key={score.id}
                     type="button"
+                    disabled={isBusy}
                     onClick={() => onPlayFeaturedScore?.(score)}
-                    className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] text-slate-100 transition-colors hover:bg-white/10"
+                    className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] text-slate-100 transition-colors hover:bg-white/10 disabled:cursor-wait disabled:opacity-55"
                   >
                     {score.displayTitle ?? score.title}
                   </button>

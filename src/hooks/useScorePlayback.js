@@ -61,11 +61,14 @@ export function useScorePlayback({
   onVisualReset,
 }) {
   const [playbackState, setPlaybackState] = useState(() => playbackController.getState());
+  const [busyState, setBusyState] = useState({ isBusy: false, message: '' });
   const progressBarRef = useRef(null);
   const isPlayingRef = useRef(false);
+  const busyRef = useRef(false);
   const activeLiveVoicesRef = useRef(new Map());
   const queuedSeekJobRef = useRef(null);
   const seekLoopPromiseRef = useRef(null);
+  const busyOperationIdRef = useRef(0);
   const playbackConfigRef = useRef({
     score,
     bpm,
@@ -95,6 +98,10 @@ export function useScorePlayback({
   useEffect(() => {
     isPlayingRef.current = playbackState.isPlaying;
   }, [playbackState.isPlaying]);
+
+  useEffect(() => {
+    busyRef.current = busyState.isBusy;
+  }, [busyState.isBusy]);
 
   useEffect(() => {
     const unregister = playbackController.setCallbacks({
@@ -143,6 +150,22 @@ export function useScorePlayback({
       globalKeyOffset: nextAudioConfig?.globalKeyOffset,
       accidentals: overrides.accidentals ?? current.accidentals,
     }));
+  }, []);
+
+  const runBusyTask = useCallback(async (message, task) => {
+    const operationId = busyOperationIdRef.current + 1;
+    busyOperationIdRef.current = operationId;
+    busyRef.current = true;
+    setBusyState({ isBusy: true, message });
+
+    try {
+      return await task();
+    } finally {
+      if (busyOperationIdRef.current === operationId) {
+        busyRef.current = false;
+        setBusyState({ isBusy: false, message: '' });
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -289,23 +312,33 @@ export function useScorePlayback({
 
   const playScoreAction = useCallback(async () => {
     try {
+      if (busyRef.current) {
+        return;
+      }
+
       if (playbackState.isPlaying) {
         stopAll();
         return;
       }
 
       if (playbackState.isPaused) {
-        await playbackController.resume(buildSnapshot());
+        await runBusyTask('重新接續播放中...', async () => {
+          await audioEngine.prepareTone(playbackConfigRef.current.audioConfig?.tone);
+          await audioEngine.resume();
+          await playbackController.resume(buildSnapshot());
+        });
         return;
       }
 
-      await playFromStart();
+      await runBusyTask('載入音色與譜面中...', async () => {
+        await playFromStart();
+      });
     } catch (error) {
       console.error(error);
       stopAll();
       showToast('播放失敗。', 'error');
     }
-  }, [buildSnapshot, playbackState.isPaused, playbackState.isPlaying, playFromStart, showToast, stopAll]);
+  }, [buildSnapshot, playbackState.isPaused, playbackState.isPlaying, playFromStart, runBusyTask, showToast, stopAll]);
 
   const playScoreSourceAction = useCallback(async (source) => {
     try {
@@ -340,14 +373,21 @@ export function useScorePlayback({
 
   const resumeScoreAction = useCallback(async () => {
     try {
-      await audioEngine.prepareTone(playbackConfigRef.current.audioConfig?.tone);
-      await playbackController.resume(buildSnapshot());
+      if (busyRef.current) {
+        return;
+      }
+
+      await runBusyTask('重新接續播放中...', async () => {
+        await audioEngine.prepareTone(playbackConfigRef.current.audioConfig?.tone);
+        await audioEngine.resume();
+        await playbackController.resume(buildSnapshot());
+      });
     } catch (error) {
       console.error(error);
       stopAll();
       showToast('恢復播放失敗。', 'error');
     }
-  }, [buildSnapshot, showToast, stopAll]);
+  }, [buildSnapshot, runBusyTask, showToast, stopAll]);
 
   const seekToTime = useCallback(async (seconds) => {
     try {
@@ -467,6 +507,8 @@ export function useScorePlayback({
   return {
     isPlaying: playbackState.isPlaying,
     isPaused: playbackState.isPaused,
+    isBusy: busyState.isBusy,
+    busyMessage: busyState.message,
     playbackState,
     progressBarRef,
     isPlayingRef,

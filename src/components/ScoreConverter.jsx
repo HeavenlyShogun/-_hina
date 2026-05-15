@@ -575,6 +575,7 @@ const ScoreConverter = memo(({
       }));
       const success = await onBatchUpload(payloads);
       if (success) {
+        setConvertedResults([]);
         showToast?.(`成功上傳 ${payloads.length} 份譜面至雲端`, 'success');
       }
     } catch (error) {
@@ -594,7 +595,214 @@ const ScoreConverter = memo(({
   return (
     <section className="rounded-[32px] border border-amber-300/15 bg-amber-500/[0.04] p-6 shadow-[0_12px_40px_rgba(0,0,0,0.22)]">
       <div className="flex flex-col gap-5">
-        {/* ... rest of return ... */}
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.28em] text-amber-200/60">
+              <Music2 size={15} />
+              Batch Converter
+            </div>
+            <p className="max-w-2xl text-sm text-amber-50/80">
+              可一次選擇多個 MIDI 或 MusicXML 檔案，逐份轉換後加入待上傳清單。每次批次上傳都會產生新的雲端 id，不會覆蓋既有譜面。
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => midiInputRef.current?.click()}
+              disabled={isImportingMidi || isImportingMusicXml}
+              className="inline-flex items-center gap-2 rounded-2xl border border-amber-300/25 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-50 transition hover:bg-amber-500/20 disabled:opacity-50"
+            >
+              <FileUp size={15} />
+              選擇多個 MIDI
+            </button>
+            <button
+              type="button"
+              onClick={() => musicXmlInputRef.current?.click()}
+              disabled={isImportingMidi || isImportingMusicXml}
+              className="inline-flex items-center gap-2 rounded-2xl border border-amber-300/25 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-50 transition hover:bg-amber-500/20 disabled:opacity-50"
+            >
+              <Music2 size={15} />
+              選擇多個 MusicXML
+            </button>
+            <button
+              type="button"
+              onClick={handleBatchUpload}
+              disabled={!convertedResults.length || isBatchUploading}
+              className="inline-flex items-center gap-2 rounded-2xl border border-emerald-300/25 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-50 transition hover:bg-emerald-500/20 disabled:opacity-50"
+            >
+              <ArrowDownUp size={15} />
+              {isBatchUploading ? '批次上傳中...' : `上傳本批 ${convertedResults.length} 份譜面`}
+            </button>
+            <button
+              type="button"
+              onClick={handleClearCurrentScore}
+              className="inline-flex items-center gap-2 rounded-2xl border border-rose-300/25 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-50 transition hover:bg-rose-500/20"
+            >
+              <Trash2 size={15} />
+              清除本批
+            </button>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <StatusBadge label="MIDI" value={midiImportStatus} />
+          <StatusBadge label="MusicXML" value={musicXmlImportStatus} />
+          <StatusBadge label="Grid" value={`1/${charResolution}`} />
+          <StatusBadge label="Type" value={manualInputTypeLabel} />
+        </div>
+
+        <div
+          className={`rounded-[24px] border border-dashed px-4 py-5 text-sm transition ${
+            isDraggingMusicXml
+              ? 'border-amber-200 bg-amber-400/10 text-amber-50'
+              : 'border-white/15 bg-black/15 text-amber-50/75'
+          }`}
+          onDragOver={(event) => {
+            event.preventDefault();
+            setIsDraggingMusicXml(true);
+          }}
+          onDragLeave={(event) => {
+            event.preventDefault();
+            setIsDraggingMusicXml(false);
+          }}
+          onDrop={handleMusicXmlDrop}
+        >
+          可直接把多個 `.musicxml` / `.xml` 檔拖曳到這裡。若要分批上傳，上一批成功後待上傳清單會自動清空。
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+          <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-200/55">Current Payload</div>
+                <div className="mt-1 text-xs text-amber-50/55">{settingsHint}</div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={handleSyncCurrent} className="rounded-xl border border-white/10 bg-white/5 p-2 text-amber-50/80 hover:bg-white/10" title="同步目前編輯器內容">
+                  <RefreshCcw size={14} />
+                </button>
+                <button type="button" onClick={handleLoadToEditor} className="rounded-xl border border-white/10 bg-white/5 p-2 text-amber-50/80 hover:bg-white/10" title="載入到目前譜面">
+                  <Wand2 size={14} />
+                </button>
+                <button type="button" onClick={handleDownloadJson} className="rounded-xl border border-white/10 bg-white/5 p-2 text-amber-50/80 hover:bg-white/10" title="下載 JSON">
+                  <Download size={14} />
+                </button>
+                <button type="button" onClick={handleDownloadMidi} className="rounded-xl border border-white/10 bg-white/5 p-2 text-amber-50/80 hover:bg-white/10" title="下載 MIDI">
+                  <Music2 size={14} />
+                </button>
+              </div>
+            </div>
+
+            <textarea
+              value={inputValue}
+              onChange={(event) => setInputValue(event.target.value)}
+              spellCheck={false}
+              className="custom-scrollbar min-h-[240px] w-full rounded-[20px] border border-white/10 bg-black/30 p-4 font-mono text-xs leading-relaxed text-amber-50/80 outline-none"
+              placeholder="可貼上簡譜、JSON 或檢查目前轉換結果。"
+            />
+          </div>
+
+          <div className="rounded-[24px] border border-white/10 bg-black/20 p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-200/55">Pending Uploads</div>
+                <div className="mt-1 text-xs text-amber-50/55">本批待上傳清單。每次成功上傳後會自動清空。</div>
+              </div>
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-amber-50/70">
+                {convertedResults.length} items
+              </span>
+            </div>
+
+            <div className="custom-scrollbar max-h-[220px] space-y-2 overflow-y-auto pr-1">
+              {convertedResults.length === 0 ? (
+                <div className="rounded-[18px] border border-dashed border-white/10 px-4 py-6 text-center text-sm text-amber-50/45">
+                  尚未加入待上傳的轉換結果。
+                </div>
+              ) : convertedResults.map((result, index) => (
+                <div key={`${result.file.name}-${index}`} className="flex items-start justify-between gap-3 rounded-[18px] border border-white/10 bg-white/5 px-4 py-3">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold text-amber-50">
+                      {result.payload?.meta?.title || result.file.name}
+                    </div>
+                    <div className="mt-1 truncate text-xs text-amber-50/55">
+                      {result.file.name} · {formatBytes(result.file.size)}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveResult(index)}
+                    className="rounded-xl border border-rose-300/20 bg-rose-500/10 p-2 text-rose-100 hover:bg-rose-500/20"
+                    title="移除此項"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsAdvancedOpen((open) => !open)}
+              className="mt-4 inline-flex items-center gap-2 text-xs font-semibold text-amber-100/75"
+            >
+              <ChevronDown size={14} className={`transition ${isAdvancedOpen ? 'rotate-180' : ''}`} />
+              AI 輔助轉換
+            </button>
+
+            {isAdvancedOpen ? (
+              <div className="mt-3 space-y-3 rounded-[18px] border border-white/10 bg-black/25 p-3">
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    [EXTERNAL_INPUT_TYPES.JIANPU, '簡譜'],
+                    [EXTERNAL_INPUT_TYPES.STAFF, '五線譜'],
+                    [EXTERNAL_INPUT_TYPES.MIXED, '混合'],
+                  ].map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setExternalInputType(value)}
+                      className={`rounded-full px-3 py-1 text-xs ${externalInputType === value ? 'bg-amber-400/20 text-amber-50' : 'bg-white/5 text-amber-50/60'}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                  {[
+                    [OUTPUT_FORMATS.JSON_V2, 'JSON V2'],
+                    [OUTPUT_FORMATS.NUMBERED_GRID, 'Numbered Grid'],
+                  ].map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setAiOutputFormat(value)}
+                      className={`rounded-full px-3 py-1 text-xs ${aiOutputFormat === value ? 'bg-emerald-400/20 text-emerald-50' : 'bg-white/5 text-amber-50/60'}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => refreshAssistantPrompt()} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-amber-50/80 hover:bg-white/10">
+                    <Wand2 size={14} />
+                    產生提示詞
+                  </button>
+                  <button type="button" onClick={handleCopyPrompt} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-amber-50/80 hover:bg-white/10">
+                    <Copy size={14} />
+                    複製
+                  </button>
+                </div>
+                <textarea
+                  value={assistantPrompt}
+                  readOnly
+                  spellCheck={false}
+                  className="custom-scrollbar min-h-[140px] w-full rounded-[18px] border border-white/10 bg-black/30 p-3 font-mono text-xs leading-relaxed text-amber-50/75 outline-none"
+                  placeholder={`按下「產生提示詞」後，這裡會出現給 ${APP_NAME} 使用的轉譜提示詞。`}
+                />
+              </div>
+            ) : null}
+          </div>
+        </div>
+
         <input
           ref={midiInputRef}
           type="file"

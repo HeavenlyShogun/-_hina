@@ -10,7 +10,7 @@ const DEFAULT_CHORD_STRUM_MS = 12;
 const DEFAULT_JIANPU_OCTAVE = 4;
 const DEFAULT_NUMBERED_ARTICULATION_RATIO = 0.85;
 const TIMED_TOKEN_PPQ = 480;
-const GRID_UNIT_PATTERN = /^@(?:grid|unit)\s*[:=]?\s*(?:1\/)?(?<unit>16|32)\s*$/iu;
+const GRID_UNIT_PATTERN = /^@(?:grid|unit)\s*[:=]?\s*(?:1\/)?(?<unit>4|8|12|16|24|32)\s*$/iu;
 const GRID_HOLD_TOKENS = new Set(['-', '_', '~']);
 const GRID_NOTE_WITH_HOLD_PATTERN = /^(?<body>(?:\[(?:[^\]]+)\]|[#bn]?[+-]*[1-7]['',]*))(?<holds>[-_~]+)$/u;
 const MAJOR_SCALE_INTERVALS = [0, 2, 4, 5, 7, 9, 11];
@@ -578,7 +578,7 @@ function looksLikeTimedTokenText(text) {
 }
 
 function readGridUnitFromText(text, fallback = 16) {
-  const safeFallback = Number(fallback) === 32 ? 32 : 16;
+  const safeFallback = [4, 8, 12, 16, 24, 32].includes(Number(fallback)) ? Number(fallback) : 16;
   const header = String(text ?? '')
     .split(/\r?\n/u)
     .map((line) => stripScoreComments(line).trim())

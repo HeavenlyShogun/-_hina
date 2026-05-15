@@ -4,7 +4,7 @@ import { KEY_OPTIONS } from '../constants/music';
 
 function formatKeyLabel(offset, scaleMode) {
   const matched = KEY_OPTIONS.find((option) => option.offset === Number(offset));
-  const tonic = matched?.name ?? 'C';
+  const tonic = matched?.displayName ?? matched?.name ?? 'C';
   const modeLabel = scaleMode === 'minor' ? 'Minor' : scaleMode === 'custom' ? 'Custom' : 'Major';
   return `${tonic} ${modeLabel}`;
 }

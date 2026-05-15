@@ -1,10 +1,12 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const CONFIG_FILE = fileURLToPath(import.meta.url);
 const ROOT_DIR = dirname(CONFIG_FILE);
+const PACKAGE_VERSION = JSON.parse(readFileSync(resolve(ROOT_DIR, 'package.json'), 'utf8')).version ?? '0.0.0';
 const DEFAULT_REPO = '-_hina';
 const DEPLOY_TARGETS = {
   FIREBASE: 'firebase',
@@ -102,6 +104,9 @@ export default defineConfig(({ command, mode }) => {
     root: ROOT_DIR,
     base: command === 'build' ? buildBase : '/',
     plugins: [react()],
+    define: {
+      __APP_VERSION__: JSON.stringify(PACKAGE_VERSION),
+    },
     resolve: {
       alias: {
         '@': resolve(ROOT_DIR, 'src'),

@@ -484,7 +484,7 @@ const SheetDisplay = memo(({
               <div className="space-y-3 border-l-2 border-emerald-500 pl-4 leading-relaxed text-emerald-100/80 md:col-span-2">
                 <p><b className="text-emerald-300">Legacy Text</b> 可直接貼上鍵盤譜，例如 `Q~U / A~J / Z~M`，括號代表同時按下的和弦。</p>
                 <p><b className="text-emerald-300">JSON Score</b> 適合大型譜面與 MIDI/MusicXML 轉換結果，會保存 `transport`、`playback`、`tracks` 和事件資料。</p>
-                <p><b className="text-emerald-300">Numbered Grid</b> 可使用 `@grid 1/16` 或 `@grid 1/32` 指定節拍格線，方便保留節奏骨架。</p>
+                <p><b className="text-emerald-300">Numbered Grid</b> 可使用 `@grid 1/8`、`@grid 1/12`、`@grid 1/16`、`@grid 1/24` 或 `@grid 1/32` 指定節拍格線；其中 `1/12`、`1/24` 適合三連音與 Swing。</p>
               </div>
               <div>
                 <h4 className="mb-3 border-b border-white/10 pb-1 font-bold text-emerald-300">輸入方式</h4>

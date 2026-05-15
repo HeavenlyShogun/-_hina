@@ -43,18 +43,18 @@ export const NOTES_MAP = [
 const SOLFEGE_MAP = { C: 'Do', D: 'Re', E: 'Mi', F: 'Fa', G: 'Sol', A: 'La', B: 'Si' };
 
 export const KEY_OPTIONS = [
-  { name: 'C', offset: 0 },
-  { name: 'C#', offset: 1 },
-  { name: 'D', offset: 2 },
-  { name: 'D#', offset: 3 },
-  { name: 'E', offset: 4 },
-  { name: 'F', offset: 5 },
-  { name: 'F#', offset: 6 },
-  { name: 'G', offset: 7 },
-  { name: 'G#', offset: 8 },
-  { name: 'A', offset: 9 },
-  { name: 'A#', offset: 10 },
-  { name: 'B', offset: 11 },
+  { name: 'C', displayName: 'C', offset: 0 },
+  { name: 'Db', displayName: 'Db / C#', offset: 1 },
+  { name: 'D', displayName: 'D', offset: 2 },
+  { name: 'Eb', displayName: 'Eb / D#', offset: 3 },
+  { name: 'E', displayName: 'E', offset: 4 },
+  { name: 'F', displayName: 'F', offset: 5 },
+  { name: 'F#', displayName: 'F# / Gb', offset: 6 },
+  { name: 'G', displayName: 'G', offset: 7 },
+  { name: 'Ab', displayName: 'Ab / G#', offset: 8 },
+  { name: 'A', displayName: 'A', offset: 9 },
+  { name: 'Bb', displayName: 'Bb / A#', offset: 10 },
+  { name: 'B', displayName: 'B', offset: 11 },
 ];
 
 export const SCALE_MODE_OPTIONS = [

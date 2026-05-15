@@ -183,9 +183,10 @@ export function buildAiConversionPrompt({
     : safeOutputFormat === 'numbered-grid'
       ? [
         'Output plain numbered-grid score only. No markdown fences, no explanation.',
-        'The first line must be either `@grid 1/16` or `@grid 1/32`. Prefer 1/16; use 1/32 only when the rhythm needs finer subdivision.',
+        'The first line must be `@grid 1/x`, where x is one of 4, 8, 12, 16, 24, or 32.',
+        'Prefer 1/16 for regular pop rhythms, 1/12 or 1/24 for triplets/swing, and 1/32 only when the rhythm needs finer subdivision.',
         'Use one independent line per hand or part, for example `Right:` and `Left:`.',
-        'Separate measures with `|`. In 4/4, each 1/16 measure must contain exactly 16 cells; each 1/32 measure must contain exactly 32 cells.',
+        'Separate measures with `|`. Each measure must contain the exact number of cells implied by the current time signature and grid.',
         'Each cell is one fixed rhythmic unit. Use `1-7` for scale degrees, `0` or `R` for rests, `-` to sustain the previous note/rest, and `[135]` for chords.',
         'Use # or b before a scale degree only when the source requires an accidental, for example `#4` or `b7`.',
       ]

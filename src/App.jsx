@@ -13,7 +13,7 @@ import { useCloudScores } from './hooks/useCloudScores';
 import useKeyboardMatcher from './hooks/useKeyboardMatcher';
 import { useScorePlayback } from './hooks/useScorePlayback';
 import { useScoreState } from './hooks/useScoreState';
-import { APP_NAME, APP_TAGLINE } from './config/branding';
+import { APP_NAME, APP_TAGLINE, APP_VERSION } from './config/branding';
 import {
   applyScoreSettingsToJsonContent,
   createScoreDocument,
@@ -101,11 +101,13 @@ function AppContent({
   const [activeKeys, setActiveKeys] = useState(() => new Set());
   const [keyPulseTokens, setKeyPulseTokens] = useState({});
   const [noteTrail, setNoteTrail] = useState([]);
+  const [featuredLoadState, setFeaturedLoadState] = useState({ isLoading: false, message: '' });
   const pageRef = useRef(null);
   const toastTimerRef = useRef(null);
   const pulseThrottleRef = useRef({});
   const visualEventQueueRef = useRef([]);
   const visualFlushFrameRef = useRef(0);
+  const featuredRequestIdRef = useRef(0);
 
   const showToast = useCallback((message, type = 'info') => {
     if (toastTimerRef.current) {
@@ -265,6 +267,8 @@ function AppContent({
   const {
     isPlaying,
     isPaused,
+    isBusy: isPlaybackBusy,
+    busyMessage: playbackBusyMessage,
     playbackState,
     progressBarRef,
     playScoreAction,
@@ -293,6 +297,11 @@ function AppContent({
     onKeyVisualRelease,
     onVisualReset,
   });
+
+  const isUiBusy = isPlaybackBusy || featuredLoadState.isLoading;
+  const uiBusyMessage = featuredLoadState.isLoading
+    ? featuredLoadState.message
+    : playbackBusyMessage;
 
   useKeyboardMatcher({
     scoreDocument,
@@ -512,7 +521,18 @@ function AppContent({
   }, [loadScoreSource, stopAll]);
 
   const handlePlayFeaturedScore = useCallback(async (featuredScore) => {
+    const requestId = featuredRequestIdRef.current + 1;
+    featuredRequestIdRef.current = requestId;
+    setFeaturedLoadState({
+      isLoading: true,
+      message: `載入曲目 ${featuredScore.displayTitle ?? featuredScore.title} 中...`,
+    });
+
+    try {
     const nextScore = await featuredScore.load();
+    if (featuredRequestIdRef.current !== requestId) {
+      return;
+    }
     const source = {
       title: nextScore.title,
       rawText: nextScore.rawText,
@@ -536,6 +556,16 @@ function AppContent({
     loadScoreSource(applyScoreRecommendation(source, { force: true }));
     stopAll();
     showToast(`已載入 ${nextScore.displayTitle ?? nextScore.title}`, 'success');
+    } catch (error) {
+      console.error(error);
+      if (featuredRequestIdRef.current === requestId) {
+        showToast('載入曲目失敗', 'error');
+      }
+    } finally {
+      if (featuredRequestIdRef.current === requestId) {
+        setFeaturedLoadState({ isLoading: false, message: '' });
+      }
+    }
   }, [loadScoreSource, showToast, stopAll]);
 
   const handleLoadLocalConvertedScore = useCallback((payload) => {
@@ -634,6 +664,12 @@ function AppContent({
           </div>
         ) : null}
 
+        {isUiBusy ? (
+          <div className="fixed left-1/2 top-6 z-40 -translate-x-1/2 rounded-full border border-amber-300/40 bg-slate-950/85 px-5 py-2.5 text-xs font-bold tracking-[0.18em] text-amber-100 shadow-[0_18px_45px_rgba(0,0,0,0.35)] backdrop-blur-xl">
+            {uiBusyMessage || '載入中...'}
+          </div>
+        ) : null}
+
         <PianoRoom
           playHotkey={playHotkey}
           setPlayHotkey={setPlayHotkey}
@@ -652,6 +688,8 @@ function AppContent({
           scoreTitle={scoreTitle}
           onJumpToSection={scrollToSection}
           workspaceSections={workspaceSections}
+          isBusy={isUiBusy}
+          busyMessage={uiBusyMessage}
         />
 
         <section className="z-20 w-full max-w-6xl px-4">
@@ -809,6 +847,10 @@ function AppContent({
         <footer className="z-20 mt-16 text-[10px] uppercase tracking-[0.6em] text-slate-400">
           {APP_NAME} / {APP_TAGLINE}
         </footer>
+
+        <div className="fixed bottom-4 right-4 z-30 rounded-full border border-white/10 bg-slate-950/80 px-3 py-1.5 text-[10px] font-black tracking-[0.22em] text-slate-200 shadow-[0_14px_30px_rgba(0,0,0,0.32)] backdrop-blur-md">
+          v{APP_VERSION}
+        </div>
 
         <style>{`
           input[type=range] { -webkit-appearance: none; background: rgba(255,255,255,0.05); height: 2px; border-radius: 1px; }
