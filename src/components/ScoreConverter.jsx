@@ -5,6 +5,7 @@ import {
   ChevronDown,
   Copy,
   FileUp,
+  LoaderCircle,
   Music2,
   Trash2,
   Wand2,
@@ -14,8 +15,10 @@ import { parseMidiToV2 } from '../utils/midiToV2';
 import { convertMusicXmlToSlim } from '../utils/musicXmlToSlim';
 import { APP_NAME, DEFAULT_SCORE_NAME } from '../config/branding';
 import { applyScoreSettingsToJsonContent, SCORE_SOURCE_TYPES } from '../utils/scoreDocument';
+import { callMinimax, getMinimaxProxyUrl } from '../utils/minimax';
 import {
   buildAiConversionPrompt,
+  normalizeExternalNotationDraft,
   tryParseJsonScoreText,
 } from '../utils/scoreConversionAssist';
 
@@ -51,6 +54,17 @@ function formatBytes(bytes) {
   }
 
   return `${Math.ceil(bytes / 1024)} KB`;
+}
+
+function stripModelThinking(text) {
+  return String(text ?? '')
+    .replace(/<think>[\s\S]*?<\/think>/giu, '')
+    .trim();
+}
+
+function extractMinimaxText(response) {
+  const content = response?.choices?.[0]?.message?.content;
+  return stripModelThinking(content);
 }
 
 function createJsonScoreSchema({
@@ -195,6 +209,9 @@ const ScoreConverter = memo(({
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [convertedResults, setConvertedResults] = useState([]);
   const [isBatchUploading, setIsBatchUploading] = useState(false);
+  const [isGeneratingWithMinimax, setIsGeneratingWithMinimax] = useState(false);
+  const [minimaxResult, setMinimaxResult] = useState('');
+  const [minimaxAdjustmentTask, setMinimaxAdjustmentTask] = useState('');
 
   useEffect(() => {
     if (scoreDocument.sourceType === SCORE_SOURCE_TYPES.TEXT) {
@@ -256,8 +273,8 @@ const ScoreConverter = memo(({
     }
   }, [isAdvancedOpen, refreshAssistantPrompt]);
 
-  const buildPayload = useCallback(() => {
-    const maybeJsonScore = tryParseJsonScoreText(inputValue);
+  const buildPayload = useCallback((sourceText = inputValue) => {
+    const maybeJsonScore = tryParseJsonScoreText(sourceText);
     const title = scoreTitle.trim() || DEFAULT_SCORE_NAME;
 
     if (maybeJsonScore) {
@@ -267,7 +284,7 @@ const ScoreConverter = memo(({
           playbackConfig,
           references,
           referenceNotes,
-          rawText: inputValue,
+          rawText: sourceText,
         }),
         {
           ...playbackConfig,
@@ -276,11 +293,11 @@ const ScoreConverter = memo(({
       );
     }
 
-    const normalized = normalizeScoreSource(inputValue, playbackConfig);
+    const normalized = normalizeScoreSource(sourceText, playbackConfig);
     return applyScoreSettingsToJsonContent(
       createJsonScoreSchema({
         title,
-        rawText: inputValue,
+        rawText: sourceText,
         sourceType: SCORE_SOURCE_TYPES.TEXT,
         playbackConfig,
         normalized,
@@ -315,9 +332,130 @@ const ScoreConverter = memo(({
     }
   }, [refreshAssistantPrompt, showToast]);
 
+  const handleGenerateWithMinimax = useCallback(async () => {
+    const prompt = refreshAssistantPrompt();
+    if (!prompt.trim()) {
+      showToast?.('沒有可送出的 AI 提示詞。', 'error');
+      return;
+    }
+
+    setIsGeneratingWithMinimax(true);
+    try {
+      const response = await callMinimax({
+        messages: [
+          {
+            role: 'system',
+            name: 'MiniMax AI',
+            content: 'You convert music notation drafts into clean, directly usable score output. Follow the requested format exactly.',
+          },
+          {
+            role: 'user',
+            name: 'User',
+            content: prompt,
+          },
+        ],
+      });
+
+      const nextResult = extractMinimaxText(response);
+      if (!nextResult) {
+        throw new Error('MiniMax returned an empty response.');
+      }
+
+      setMinimaxResult(nextResult);
+      showToast?.('MiniMax 已產生轉換結果。', 'success');
+    } catch (error) {
+      console.error(error);
+      showToast?.(error?.message || 'MiniMax 產生失敗。', 'error');
+    } finally {
+      setIsGeneratingWithMinimax(false);
+    }
+  }, [refreshAssistantPrompt, showToast]);
+
+  const handleAdjustWithMinimax = useCallback(async () => {
+    const task = minimaxAdjustmentTask.trim();
+    if (!task) {
+      showToast?.('請先輸入要 MiniMax 調整的作業內容。', 'error');
+      return;
+    }
+
+    let sourceSnapshot = inputValue.trim();
+    try {
+      sourceSnapshot = JSON.stringify(buildPayload(inputValue), null, 2);
+    } catch (error) {
+      console.warn('MiniMax adjustment will use raw source text.', error);
+    }
+
+    const prompt = [
+      'You are responsible for adjusting the score conversion workspace output.',
+      'Return valid JSON only. Do not include markdown fences or explanations.',
+      'Use the current project score schema: version 2.0 with meta, transport, playback, source, and tracks.',
+      'Preserve all playable content unless the adjustment task explicitly asks to change it.',
+      'Keep integer startTick and durationTicks values. Do not emit rest events; use silent gaps.',
+      'Keep the result directly loadable by the current editor.',
+      '',
+      'Current editor settings:',
+      `- title: ${scoreTitle.trim() || DEFAULT_SCORE_NAME}`,
+      `- bpm: ${playbackConfig.bpm}`,
+      `- time signature: ${playbackConfig.timeSigNum}/${playbackConfig.timeSigDen}`,
+      `- resolution: 480 unless the source JSON already has a different explicit resolution`,
+      `- tone: ${playbackConfig.tone ?? 'default'}`,
+      `- globalKeyOffset: ${playbackConfig.globalKeyOffset ?? 0}`,
+      '',
+      'Adjustment task:',
+      task,
+      '',
+      'Current score content:',
+      sourceSnapshot || '(empty)',
+    ].join('\n');
+
+    setAssistantPrompt(prompt);
+    setAiOutputFormat(OUTPUT_FORMATS.JSON_V2);
+    setIsGeneratingWithMinimax(true);
+    try {
+      const response = await callMinimax({
+        messages: [
+          {
+            role: 'system',
+            name: 'MiniMax AI',
+            content: 'You adjust score JSON for a browser-based score editor. Output valid JSON only.',
+          },
+          {
+            role: 'user',
+            name: 'User',
+            content: prompt,
+          },
+        ],
+      });
+
+      const nextResult = extractMinimaxText(response);
+      if (!nextResult) {
+        throw new Error('MiniMax returned an empty response.');
+      }
+
+      setMinimaxResult(nextResult);
+      showToast?.('MiniMax 已完成譜面調整作業。', 'success');
+    } catch (error) {
+      console.error(error);
+      showToast?.(error?.message || 'MiniMax 調整作業失敗。', 'error');
+    } finally {
+      setIsGeneratingWithMinimax(false);
+    }
+  }, [
+    buildPayload,
+    inputValue,
+    minimaxAdjustmentTask,
+    playbackConfig.bpm,
+    playbackConfig.globalKeyOffset,
+    playbackConfig.timeSigDen,
+    playbackConfig.timeSigNum,
+    playbackConfig.tone,
+    scoreTitle,
+    showToast,
+  ]);
+
   const handleLoadToEditor = useCallback((payloadOverride = null, options = {}) => {
     try {
-      const payload = payloadOverride ?? buildPayload();
+      const payload = payloadOverride ?? buildPayload(options.sourceText);
       onLoadLocalScore?.(payload, options);
       setInputValue(JSON.stringify(payload, null, 2));
       showToast?.(
@@ -332,10 +470,54 @@ const ScoreConverter = memo(({
     }
   }, [buildPayload, onLoadLocalScore, scoreTitle, showToast]);
 
+  const handleCopyMinimaxResult = useCallback(async () => {
+    if (!minimaxResult.trim()) {
+      showToast?.('目前沒有 MiniMax 結果可複製。', 'error');
+      return;
+    }
+
+    try {
+      await window.navigator.clipboard.writeText(minimaxResult);
+      showToast?.('已複製 MiniMax 結果。', 'success');
+    } catch (error) {
+      console.error(error);
+      showToast?.('複製 MiniMax 結果失敗。', 'error');
+    }
+  }, [minimaxResult, showToast]);
+
+  const handleUseMinimaxResult = useCallback((mode = 'replace') => {
+    if (!minimaxResult.trim()) {
+      showToast?.('目前沒有 MiniMax 結果可套用。', 'error');
+      return;
+    }
+
+    try {
+      const normalizedText = aiOutputFormat === OUTPUT_FORMATS.JSON_V2
+        ? minimaxResult.trim()
+        : normalizeExternalNotationDraft(minimaxResult);
+      const parsedJson = aiOutputFormat === OUTPUT_FORMATS.JSON_V2
+        ? tryParseJsonScoreText(normalizedText)
+        : null;
+
+      if (parsedJson) {
+        handleLoadToEditor(parsedJson, { mode });
+        setInputValue(JSON.stringify(parsedJson, null, 2));
+      } else {
+        setInputValue(normalizedText);
+        handleLoadToEditor(null, { mode, sourceText: normalizedText });
+      }
+    } catch (error) {
+      console.error(error);
+      showToast?.('MiniMax 結果格式不正確，無法套用。', 'error');
+    }
+  }, [aiOutputFormat, handleLoadToEditor, minimaxResult, showToast]);
+
   const handleClearCurrentScore = useCallback(() => {
     setInputValue('');
     setAssistantPrompt('');
-    setMusicXmlImportStatus('已清除目前譜面');
+    setMinimaxResult('');
+    setMinimaxAdjustmentTask('');
+    setMusicXmlImportStatus('尚未匯入 MusicXML');
     setMidiImportStatus('尚未匯入 MIDI');
     setConvertedResults([]);
     onClearCurrentScore?.();
@@ -536,16 +718,16 @@ const ScoreConverter = memo(({
   }, [handleMusicXmlImport, showToast]);
 
   const handleRemoveResult = useCallback((index) => {
-    setConvertedResults(prev => prev.filter((_, i) => i !== index));
+    setConvertedResults((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
   const handleBatchUpload = useCallback(async () => {
     if (!convertedResults.length || !onBatchUpload) return;
     setIsBatchUploading(true);
     try {
-      const payloads = convertedResults.map(res => ({
+      const payloads = convertedResults.map((res) => ({
         title: res.payload.meta?.title || res.file.name,
-        payload: res.payload
+        payload: res.payload,
       }));
       const success = await onBatchUpload(payloads);
       if (success) {
@@ -622,6 +804,7 @@ const ScoreConverter = memo(({
         <div className="flex flex-wrap gap-2">
           <StatusBadge label="MIDI" value={midiImportStatus} />
           <StatusBadge label="MusicXML" value={musicXmlImportStatus} />
+          <StatusBadge label="MiniMax" value={getMinimaxProxyUrl()} />
           <StatusBadge label="Grid" value={`1/${charResolution}`} />
           <StatusBadge label="Type" value={manualInputTypeLabel} />
         </div>
@@ -789,6 +972,77 @@ const ScoreConverter = memo(({
                   spellCheck={false}
                   className="custom-scrollbar min-h-[140px] w-full rounded-[18px] border border-white/10 bg-black/30 p-3 font-mono text-xs leading-relaxed text-amber-50/75 outline-none"
                   placeholder={`按下「產生提示詞」後，這裡會出現給 ${APP_NAME} 使用的轉譜提示詞。`}
+                />
+                <div>
+                  <div className="mb-2 text-[10px] font-black uppercase tracking-[0.22em] text-sky-200/55">MiniMax Result</div>
+                  <div className="mb-3 rounded-[18px] border border-sky-300/10 bg-sky-950/20 p-3">
+                    <label className="block text-[10px] font-black uppercase tracking-[0.22em] text-sky-200/55" htmlFor="minimax-adjustment-task">
+                      MiniMax Adjustment Task
+                    </label>
+                    <textarea
+                      id="minimax-adjustment-task"
+                      value={minimaxAdjustmentTask}
+                      onChange={(event) => setMinimaxAdjustmentTask(event.target.value)}
+                      spellCheck={false}
+                      className="mt-2 min-h-[88px] w-full rounded-[16px] border border-white/10 bg-black/30 p-3 text-xs leading-relaxed text-sky-50/80 outline-none focus:border-sky-300/35"
+                      placeholder="描述要 MiniMax 代管的調整作業，例如：修正節奏對齊、把主旋律移到右手、補齊缺少的 durationTicks、依目前 BPM/拍號整理成 JSON V2。"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAdjustWithMinimax}
+                      disabled={isGeneratingWithMinimax || !minimaxAdjustmentTask.trim()}
+                      className="mt-2 inline-flex items-center gap-2 rounded-xl border border-sky-300/20 bg-sky-500/10 px-3 py-2 text-xs font-semibold text-sky-50/90 hover:bg-sky-500/20 disabled:opacity-50"
+                    >
+                      {isGeneratingWithMinimax ? <LoaderCircle size={14} className="animate-spin" /> : <Wand2 size={14} />}
+                      交給 MiniMax 調整
+                    </button>
+                  </div>
+                  <div className="mb-3 text-xs text-sky-50/55">生成後可直接套用到目前譜面編輯器，支援 JSON V2 或 Numbered Grid。</div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={handleGenerateWithMinimax}
+                      disabled={isGeneratingWithMinimax}
+                      className="inline-flex items-center gap-2 rounded-xl border border-sky-300/20 bg-sky-500/10 px-3 py-2 text-xs font-semibold text-sky-50/90 hover:bg-sky-500/20 disabled:opacity-50"
+                    >
+                      {isGeneratingWithMinimax ? <LoaderCircle size={14} className="animate-spin" /> : <Wand2 size={14} />}
+                      {isGeneratingWithMinimax ? 'MiniMax 生成中...' : '用 MiniMax 生成'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleUseMinimaxResult('replace')}
+                      disabled={!minimaxResult.trim()}
+                      className="inline-flex items-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-50/90 hover:bg-emerald-500/20 disabled:opacity-50"
+                    >
+                      <Wand2 size={14} />
+                      套用結果
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleUseMinimaxResult('append')}
+                      disabled={!minimaxResult.trim()}
+                      className="inline-flex items-center gap-2 rounded-xl border border-sky-300/20 bg-sky-500/10 px-3 py-2 text-xs font-semibold text-sky-50/90 hover:bg-sky-500/20 disabled:opacity-50"
+                    >
+                      <ArrowDownUp size={14} />
+                      追加結果
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCopyMinimaxResult}
+                      disabled={!minimaxResult.trim()}
+                      className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-sky-50/80 hover:bg-white/10 disabled:opacity-50"
+                    >
+                      <Copy size={14} />
+                      複製結果
+                    </button>
+                  </div>
+                </div>
+                <textarea
+                  value={minimaxResult}
+                  onChange={(event) => setMinimaxResult(event.target.value)}
+                  spellCheck={false}
+                  className="custom-scrollbar min-h-[180px] w-full rounded-[18px] border border-sky-300/15 bg-slate-950/50 p-3 font-mono text-xs leading-relaxed text-sky-50/80 outline-none"
+                  placeholder="MiniMax 生成結果會顯示在這裡。"
                 />
               </div>
             ) : null}
