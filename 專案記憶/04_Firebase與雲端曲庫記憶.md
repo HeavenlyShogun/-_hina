@@ -1,6 +1,6 @@
 # Firebase 與雲端曲庫記憶
 
-最後更新：2026-05-15
+最後更新：2026-05-18
 
 ## 雲端定位
 
@@ -8,8 +8,10 @@
   - 使用者登入
   - Firestore 曲庫同步
   - 摘要列表管理
-  - 本機或轉換後譜面的上傳入口
+  - 編輯器存檔入口
+  - 轉換器 `Pending Uploads` 的批次上傳入口
 - Firebase 曲庫目前不是大型譜面 CDN。
+- 獨立 Cloud Library 工作區目前已從主畫面移除；Firestore 操作仍由 hook / service 保留。
 
 ## 主要程式位置
 
@@ -20,9 +22,9 @@
 - `src/hooks/useCloudScores.js`
   - 前端雲端曲庫 hook
 - `src/components/ScoreLibrary.jsx`
-  - Cloud Library UI
+  - Cloud Library UI 元件仍保留，但目前不在主工作區渲染
 - `src/App.jsx`
-  - 連線、存檔、批次上傳、載入入口
+  - 連線、存檔、轉換器批次上傳入口
 
 ## 目前設定與資訊
 
@@ -51,12 +53,11 @@
 ## 批次上傳邏輯
 
 - 使用者可從：
-  - 本機多檔匯入
   - 轉換器 `Pending Uploads`
-  - 其他 JSON 載入來源
   將多份譜面上傳到 Firestore。
 
-- 轉換器中的 `uploadCloudScores` 是目前正式批次上傳入口之一。
+- 轉換器中的 `uploadCloudScores` 是目前正式批次上傳入口。
+- `ScoreConverter.jsx` 的「上傳本批」會把待上傳清單寫入 Firestore，成功後清空本批清單。
 
 ## Firestore 限制與策略
 
