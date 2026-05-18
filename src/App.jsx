@@ -24,7 +24,7 @@ import { applyScoreRecommendation } from './utils/scoreRecommendations';
 import { buildScoreTextWithMeta } from './utils/scoreTextMeta';
 import { normalizeScoreSource } from './utils/score';
 import { scoreJsonToMidiBytes } from './utils/scoreToMidi';
-import StarrySky from './components/StarrySky';
+import GalaxyBackground from './components/GalaxyBackground';
 
 function getFileTitle(filename) {
   return filename.replace(/\.[^/.]+$/, '');
@@ -264,6 +264,32 @@ function AppContent({
     if (visualFlushFrameRef.current) {
       window.cancelAnimationFrame(visualFlushFrameRef.current);
     }
+  }, []);
+
+  useEffect(() => {
+    const blockDefault = (event) => {
+      event.preventDefault();
+    };
+    const handleKeyDown = (event) => {
+      const key = event.key?.toLowerCase();
+      const blocked =
+        event.key === 'F12'
+        || (event.ctrlKey && key === 'u')
+        || (event.ctrlKey && event.shiftKey && ['i', 'j', 'c'].includes(key));
+
+      if (blocked) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+
+    document.addEventListener('contextmenu', blockDefault);
+    document.addEventListener('keydown', handleKeyDown, true);
+
+    return () => {
+      document.removeEventListener('contextmenu', blockDefault);
+      document.removeEventListener('keydown', handleKeyDown, true);
+    };
   }, []);
 
   const flushVisualEvents = useCallback(() => {
@@ -859,7 +885,7 @@ function AppContent({
         onContextMenu={(event) => event.preventDefault()}
       >
         <div className="app-background pointer-events-none fixed inset-0 bg-cover bg-center" />
-        <StarrySky />
+        <GalaxyBackground />
         <WindParticles />
 
         {toast ? (

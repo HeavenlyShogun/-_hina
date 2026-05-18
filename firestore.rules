@@ -52,6 +52,14 @@ service cloud.firestore {
         || request.resource.data[fieldName] is map;
     }
 
+    function optionalList(fieldName, maxSize) {
+      return !request.resource.data.keys().hasAny([fieldName])
+        || (
+          request.resource.data[fieldName] is list
+          && request.resource.data[fieldName].size() <= maxSize
+        );
+    }
+
     function hasValidScorePayload() {
       return hasRequiredFields()
         && hasValidTitle()
@@ -67,9 +75,36 @@ service cloud.firestore {
         && optionalMap('accidentals');
     }
 
+    function hasValidScoreSummaryPayload() {
+      return request.resource.data.keys().hasAll(['title', 'updatedAt', 'contentLength'])
+        && hasValidTitle()
+        && request.resource.data.updatedAt is timestamp
+        && request.resource.data.contentLength is number
+        && request.resource.data.contentLength >= 0
+        && request.resource.data.contentLength <= 850 * 1024
+        && optionalNumber('bpm', 20, 300)
+        && optionalNumber('timeSigNum', 1, 16)
+        && optionalNumber('timeSigDen', 1, 32)
+        && optionalNumber('charResolution', 1, 64)
+        && optionalNumber('globalKeyOffset', -24, 24)
+        && optionalString('sourceType', 16)
+        && optionalString('scaleMode', 32)
+        && optionalString('tone', 32)
+        && optionalString('referenceNotes', 4000)
+        && optionalString('compilerVersion', 80)
+        && optionalBool('reverb')
+        && optionalMap('accidentals')
+        && optionalList('references', 8);
+    }
+
     match /artifacts/{appId}/users/{userId}/scores/{scoreId} {
       allow read, delete: if isOwner(userId);
       allow create, update: if isOwner(userId) && hasValidScorePayload();
+    }
+
+    match /artifacts/{appId}/users/{userId}/scoreSummaries/{summaryId} {
+      allow read, delete: if isOwner(userId);
+      allow create, update: if isOwner(userId) && hasValidScoreSummaryPayload();
     }
 
     match /{document=**} {
