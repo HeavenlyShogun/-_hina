@@ -116,6 +116,12 @@ export default defineConfig(({ command, mode }) => {
       host: env.VITE_DEV_HOST?.trim() || '0.0.0.0',
       port,
       strictPort: true,
+      proxy: {
+        '/api/minimax': {
+          target: env.VITE_MINIMAX_PROXY_TARGET?.trim() || 'http://127.0.0.1:3000',
+          changeOrigin: true,
+        },
+      },
       fs: {
         allow: [ROOT_DIR],
       },

@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle, CheckCircle } from 'lucide-react';
 import ScoreConverter from './components/ScoreConverter';
 import ScoreEditor from './components/ScoreEditor';
-import ScoreLibrary from './components/ScoreLibrary';
 import WindParticles from './components/WindParticles';
 import PerformanceWorkspace from './components/PerformanceWorkspace';
 import PianoRoom from './pages/PianoRoom';
@@ -25,7 +24,7 @@ import { applyScoreRecommendation } from './utils/scoreRecommendations';
 import { buildScoreTextWithMeta } from './utils/scoreTextMeta';
 import { normalizeScoreSource } from './utils/score';
 import { scoreJsonToMidiBytes } from './utils/scoreToMidi';
-import StarrySky from './components/StarrySky';
+import GalaxyBackground from './components/GalaxyBackground';
 
 function getFileTitle(filename) {
   return filename.replace(/\.[^/.]+$/, '');
@@ -267,6 +266,32 @@ function AppContent({
     }
   }, []);
 
+  useEffect(() => {
+    const blockDefault = (event) => {
+      event.preventDefault();
+    };
+    const handleKeyDown = (event) => {
+      const key = event.key?.toLowerCase();
+      const blocked =
+        event.key === 'F12'
+        || (event.ctrlKey && key === 'u')
+        || (event.ctrlKey && event.shiftKey && ['i', 'j', 'c'].includes(key));
+
+      if (blocked) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+
+    document.addEventListener('contextmenu', blockDefault);
+    document.addEventListener('keydown', handleKeyDown, true);
+
+    return () => {
+      document.removeEventListener('contextmenu', blockDefault);
+      document.removeEventListener('keydown', handleKeyDown, true);
+    };
+  }, []);
+
   const flushVisualEvents = useCallback(() => {
     visualFlushFrameRef.current = 0;
     const queuedEvents = visualEventQueueRef.current;
@@ -383,7 +408,6 @@ function AppContent({
     { id: 'playback-preview', label: '\u6f14\u594f\u9810\u89bd', shortLabel: '\u6f14\u594f\u9810\u89bd', caption: 'Live Preview' },
     { id: 'editor', label: '\u8b5c\u9762\u7de8\u8f2f', shortLabel: '\u8b5c\u9762\u7de8\u8f2f', caption: 'Score Editor' },
     { id: 'converter', label: '\u8b5c\u9762\u8f49\u63db', shortLabel: '\u8b5c\u9762\u8f49\u63db', caption: 'MusicXML / MIDI Converter' },
-    { id: 'cloud-library', label: '\u96f2\u7aef\u66f2\u5eab', shortLabel: '\u96f2\u7aef\u66f2\u5eab', caption: 'Firebase / Cloud' },
   ]), []);
 
   const playbackScore = useMemo(() => {
@@ -861,7 +885,7 @@ function AppContent({
         onContextMenu={(event) => event.preventDefault()}
       >
         <div className="app-background pointer-events-none fixed inset-0 bg-cover bg-center" />
-        <StarrySky />
+        <GalaxyBackground />
         <WindParticles />
 
         {toast ? (
@@ -1005,46 +1029,6 @@ function AppContent({
                   onLoadLocalScore={handleLoadLocalConvertedScore}
                   onBatchUpload={uploadCloudScores}
                   onClearCurrentScore={handleClearCurrentScore}
-                />
-              </div>
-
-              <div id="cloud-library" className="scroll-mt-6 rounded-[36px] border border-white/10 bg-black/30 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-sm md:p-6">
-                <div className="mb-5 flex flex-col gap-2 px-1">
-                  <div className="text-[10px] font-black uppercase tracking-[0.34em] text-sky-200/55">
-                    Cloud Library
-                  </div>
-                  <div className="mt-2 text-sm font-semibold text-sky-50/80">
-                    Save and reload scores from the cloud library.
-                  </div>
-                </div>
-
-                <div className="mb-5 flex flex-col gap-3 rounded-[28px] border border-white/8 bg-white/[0.03] p-4 md:flex-row md:items-center">
-                  <input
-                    type="text"
-                    value={scoreTitle}
-                    onChange={(event) => setScoreTitle(event.target.value)}
-                    className="w-full rounded-2xl border border-sky-300/20 bg-slate-900/55 px-4 py-3 text-sm text-white outline-none"
-                    placeholder="Score title"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleSaveScore}
-                    disabled={isSaving}
-                    className="rounded-2xl bg-sky-500 px-5 py-3 text-sm font-bold text-white disabled:bg-sky-800/70"
-                  >
-                    {isSaving ? 'Saving...' : 'Save'}
-                  </button>
-                </div>
-
-                <ScoreLibrary
-                  user={user}
-                  savedScores={savedScores}
-                  onLoadScore={handleLoadScore}
-                  onClearAll={handleClearAllScores}
-                  onDeleteScore={handleDeleteScore}
-                  onConnectCloud={handleConnectCloud}
-                  cloudStatus={cloudStatus}
-                  cloudError={cloudError}
                 />
               </div>
             </div>

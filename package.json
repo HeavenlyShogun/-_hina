@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "dev:host": "vite --host 0.0.0.0 --strictPort",
+    "dev:api": "node --env-file=.env.local server/minimax-proxy.js",
     "build": "node scripts/build-firebase-hosting.mjs",
     "build:vite": "node scripts/run-vite-build.mjs",
     "build:pages": "node scripts/build-github-pages.mjs",
@@ -14,14 +15,17 @@
     "scores:stress": "node scripts/stress-score-formats.mjs",
     "scores:slim:midi": "node scripts/slim-midi-score.mjs",
     "scores:migrate:numbered": "node scripts/rewrite-importable-scores-to-numbered.mjs",
+    "test:minimax": "node --env-file=.env.local scripts/test-minimax.mjs",
     "preview": "vite preview",
     "preview:pages": "npm run build:pages && node scripts/preview-github-pages.mjs",
     "preview:firebase": "npm run build:firebase && vite preview --outDir dist-fb"
   },
   "dependencies": {
     "@tonejs/midi": "^2.0.28",
+    "express": "^5.2.1",
     "firebase": "^12.13.0",
     "lucide-react": "^0.542.0",
+    "node-fetch": "^2.7.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-router-dom": "^7.14.2",
