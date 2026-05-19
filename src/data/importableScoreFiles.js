@@ -8,6 +8,19 @@ const scoreModules = import.meta.glob('../../風物之琴譜/縮小版可匯入�
 });
 
 const SLIM_STORAGE_FORMAT = 'hina-slim-score@3.2';
+const IMPORTABLE_SCORE_ORDER = [
+  'surges-slim.json',
+  'neo-aspect-slim.json',
+  'bansanka-slim.json',
+  'I Really Want to Stay at Your House-slim.json',
+  'unravel-slim.json',
+  'combined_22_mxl-slim.json',
+];
+
+function scoreOrder(filename) {
+  const order = IMPORTABLE_SCORE_ORDER.indexOf(filename);
+  return order === -1 ? Number.POSITIVE_INFINITY : order;
+}
 
 function filenameFromPath(filePath) {
   return String(filePath ?? '').split('/').pop() ?? 'score.json';
@@ -76,7 +89,8 @@ export const IMPORTABLE_SCORE_FILES = Object.entries(scoreModules)
     };
   })
   .sort((left, right) => (
-    left.displayTitle.localeCompare(right.displayTitle, 'zh-Hant')
+    scoreOrder(left.filename) - scoreOrder(right.filename)
+    || left.displayTitle.localeCompare(right.displayTitle, 'zh-Hant')
     || left.filename.localeCompare(right.filename, 'zh-Hant')
   ));
 
