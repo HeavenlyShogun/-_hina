@@ -8,6 +8,9 @@ const scoreModules = import.meta.glob('../../風物之琴譜/縮小版可匯入�
 });
 
 const SLIM_STORAGE_FORMAT = 'hina-slim-score@3.2';
+const IMPORTABLE_SCORE_TITLE_OVERRIDES = {
+  'combined_22_mxl-slim.json': 'unravel',
+};
 const IMPORTABLE_SCORE_ORDER = [
   'surges-slim.json',
   'neo-aspect-slim.json',
@@ -40,7 +43,7 @@ function createSlimMetadata(score = {}, filename) {
   const meta = score?.meta ?? {};
   const transport = score?.transport ?? {};
   const playback = score?.playback ?? {};
-  const fallbackTitle = titleFromFilename(filename);
+  const fallbackTitle = IMPORTABLE_SCORE_TITLE_OVERRIDES[filename] ?? titleFromFilename(filename);
 
   return {
     id: meta.id ?? idFromFilename(filename),

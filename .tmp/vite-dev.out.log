@@ -6,3 +6,18 @@
   [32m[1mVITE[22m v7.3.2[39m  [2mready in [0m[1m343[22m[2m[0m ms[22m
 
   [32m➜[39m  [1mLocal[22m:   [36mhttp://127.0.0.1:[1m5173[22m/[39m
+[2m上午2:04:09[22m [36m[1m[vite][22m[39m [32m.env changed, restarting server...[39m
+[2m上午2:04:09[22m [36m[1m[vite][22m[39m [32m.env changed, restarting server...[39m
+[2m上午2:04:09[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/index.css[22m
+[2m上午2:04:09[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/App.jsx[22m
+[2m上午2:04:09[22m [36m[1m[vite][22m[39m [32mvite.config.js changed, restarting server...[39m
+[2m上午2:04:09[22m [36m[1m[vite][22m[39m [32m.env changed, restarting server...[39m
+[2m上午2:04:09[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/StarrySky.jsx, /src/index.css[22m
+[2m上午2:04:09[22m [36m[1m[vite][22m[39m [32m.env changed, restarting server...[39m
+[2m上午2:04:09[22m [36m[1m[vite][22m[39m [32m.env.local changed, restarting server...[39m
+[2m上午2:04:09[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/ScoreConverter.jsx, /src/index.css[22m
+[2m上午2:04:09[22m [36m[1m[vite][22m[39m server restarted.
+[2m上午2:04:40[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdist-gh/404.html[22m
+[2m上午2:04:40[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdist-gh/index.html[22m
+[2m上午2:04:41[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdist-gh/index.html[22m
+[2m上午2:04:41[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdist-gh/404.html[22m
