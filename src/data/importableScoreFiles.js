@@ -10,14 +10,17 @@ const scoreModules = import.meta.glob('../../風物之琴譜/縮小版可匯入�
 const SLIM_STORAGE_FORMAT = 'hina-slim-score@3.2';
 const IMPORTABLE_SCORE_TITLE_OVERRIDES = {
   'combined_22_mxl-slim.json': 'unravel',
+  'my-dearest-slim.json': 'my dearest',
 };
 const IMPORTABLE_SCORE_ORDER = [
   'surges-slim.json',
   'neo-aspect-slim.json',
   'bansanka-slim.json',
+  'crossing-field-slim.json',
   'I Really Want to Stay at Your House-slim.json',
   'unravel-slim.json',
   'combined_22_mxl-slim.json',
+  'my-dearest-slim.json',
 ];
 
 function scoreOrder(filename) {

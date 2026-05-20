@@ -69,7 +69,7 @@ async function main() {
   const output = getArg('output');
 
   if (!input || !output) {
-    throw new Error('Usage: node scripts/slim-midi-score.mjs --input=<file.mid> --output=<score-slim.json> [--id=<id>] [--title=<title>] [--display-title=<title>] [--delete-input]');
+    throw new Error('Usage: node scripts/slim-midi-score.mjs --input=<file.mid> --output=<score-slim.json> [--id=<id>] [--title=<title>] [--display-title=<title>] [--bpm=<number>] [--delete-input]');
   }
 
   const fileBuffer = await readFile(input);
@@ -83,7 +83,9 @@ async function main() {
   const id = getArg('id', slugify(title));
   const displayTitle = getArg('display-title', title);
   const resolution = Math.max(1, Math.round(Number(midi.header.ppq) || 480));
-  const bpm = Number(midi.header.tempos?.[0]?.bpm) || 120;
+  const requestedBpm = Number(getArg('bpm'));
+  const bpm = requestedBpm || Number(midi.header.tempos?.[0]?.bpm) || 120;
+  const tempos = requestedBpm ? [{ ticks: 0, bpm: requestedBpm }] : midi.header.tempos;
   const firstTimeSignature = midi.header.timeSignatures?.[0]?.timeSignature ?? [];
   const timeSigNum = Number(firstTimeSignature[0]) || 4;
   const timeSigDen = Number(firstTimeSignature[1]) || 4;
@@ -140,7 +142,7 @@ async function main() {
       scaleMode: 'major',
       reverb: true,
       accidentals: {},
-      tempoMap: buildTempoMap(midi.header.tempos, bpm),
+      tempoMap: buildTempoMap(tempos, bpm),
     },
     source: {
       midi: [
