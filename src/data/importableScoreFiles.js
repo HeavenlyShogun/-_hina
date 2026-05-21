@@ -17,7 +17,6 @@ const IMPORTABLE_SCORE_ORDER = [
   'neo-aspect-slim.json',
   'bansanka-slim.json',
   'crossing-field-slim.json',
-  'I Really Want to Stay at Your House-slim.json',
   'unravel-slim.json',
   'combined_22_mxl-slim.json',
   'my-dearest-slim.json',

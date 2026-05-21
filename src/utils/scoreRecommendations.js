@@ -1,7 +1,6 @@
 const RECOMMENDED_SCORES = [
   {
     matchers: [
-      'i really want to stay at your house',
       '我永遠想待在你的房子裡',
       '我永遠想待在你房子裡',
     ],

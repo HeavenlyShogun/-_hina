@@ -884,7 +884,7 @@ function AppContent({
         onPointerMove={handlePagePointerMove}
         onContextMenu={(event) => event.preventDefault()}
       >
-        <div className="app-background pointer-events-none fixed inset-0 bg-cover bg-center" />
+        <div className="app-background pointer-events-none fixed inset-0 z-0 bg-cover bg-center" />
         <GalaxyBackground />
         <WindParticles />
 
