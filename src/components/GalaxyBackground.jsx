@@ -1,11 +1,11 @@
 import React, { useEffect, useRef } from 'react';
 
-const STAR_COUNT = 10000;
-const ARM_COUNT = 4;
+const STAR_COUNT = 16000;
+const ARM_COUNT = 5;
 const RESIZE_DEBOUNCE_MS = 200;
 const TWO_PI = Math.PI * 2;
-const STAR_SPIRAL_TWIST = Math.PI * 5.6;
-const DUST_SPIRAL_TWIST = Math.PI * 5.8;
+const STAR_SPIRAL_TWIST = Math.PI * 6.2;
+const DUST_SPIRAL_TWIST = Math.PI * 6.4;
 const DPR_LIMIT = 2;
 const DUST_SPRITE_SIZE = 96;
 
@@ -55,9 +55,9 @@ function drawGalaxy(canvas) {
   ctx.clearRect(0, 0, width, height);
 
   const cx = width * 0.5;
-  const cy = height * 0.52;
-  const radius = Math.min(width, height) * 0.68;
-  const coreRadius = Math.max(90, radius * 0.18);
+  const cy = height * 0.5;
+  const radius = Math.max(width, height) * 0.85;
+  const coreRadius = Math.max(120, radius * 0.16);
 
   const background = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(width, height) * 0.75);
   background.addColorStop(0, 'rgba(24, 18, 38, 0.95)');
@@ -68,32 +68,32 @@ function drawGalaxy(canvas) {
 
   ctx.save();
   ctx.translate(cx, cy);
-  ctx.rotate(-0.18);
-  ctx.scale(1, 0.42);
+  ctx.rotate(-0.15);
+  ctx.scale(1, 0.48);
 
   ctx.globalCompositeOperation = 'lighter';
 
-  const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, radius * 0.72);
-  halo.addColorStop(0, 'rgba(255, 246, 225, 0.28)');
-  halo.addColorStop(0.28, 'rgba(255, 176, 216, 0.11)');
-  halo.addColorStop(0.62, 'rgba(66, 180, 255, 0.045)');
+  const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, radius * 0.75);
+  halo.addColorStop(0, 'rgba(255, 246, 225, 0.32)');
+  halo.addColorStop(0.28, 'rgba(255, 176, 216, 0.15)');
+  halo.addColorStop(0.62, 'rgba(66, 180, 255, 0.06)');
   halo.addColorStop(1, 'rgba(0, 0, 0, 0)');
   ctx.fillStyle = halo;
   ctx.beginPath();
-  ctx.ellipse(0, 0, radius * 0.95, radius * 0.45, 0, 0, TWO_PI);
+  ctx.ellipse(0, 0, radius * 0.98, radius * 0.5, 0, 0, TWO_PI);
   ctx.fill();
 
   /*
    * Spiral math:
-   * Each star starts on one of four arms. Radius grows from the core outward,
+   * Each star starts on one of several arms. Radius grows from the core outward,
    * then angle follows an Archimedean spiral: theta = armOffset + r * twist.
    * Scatter increases with radius so the arms bloom into cloudy bands.
-   * The whole galaxy is rotated and ctx.scale(1, 0.42) compresses Y, turning
+   * The whole galaxy is rotated and ctx.scale(1, 0.48) compresses Y, turning
    * the circular spiral field into a tilted elliptical disk.
    */
   for (let i = 0; i < STAR_COUNT; i += 1) {
     const arm = i % ARM_COUNT;
-    const distance = Math.pow(Math.random(), 1.85);
+    const distance = Math.pow(Math.random(), 1.45);
     const r = distance * radius;
     const armOffset = (arm / ARM_COUNT) * TWO_PI;
     const theta = armOffset + distance * STAR_SPIRAL_TWIST + randomBetween(-0.16, 0.16);
