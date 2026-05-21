@@ -1,11 +1,11 @@
 import React, { useEffect, useRef } from 'react';
 
-const STAR_COUNT = 16000;
+const STAR_COUNT = 22000;
 const ARM_COUNT = 5;
 const RESIZE_DEBOUNCE_MS = 200;
 const TWO_PI = Math.PI * 2;
-const STAR_SPIRAL_TWIST = Math.PI * 6.2;
-const DUST_SPIRAL_TWIST = Math.PI * 6.4;
+const STAR_SPIRAL_TWIST = Math.PI * 7.2;
+const DUST_SPIRAL_TWIST = Math.PI * 7.6;
 const DPR_LIMIT = 2;
 const DUST_SPRITE_SIZE = 96;
 
@@ -13,6 +13,87 @@ let cachedDustSprite = null;
 
 function randomBetween(min, max) {
   return min + Math.random() * (max - min);
+}
+
+function drawSoftEllipse(ctx, x, y, radiusX, radiusY, rotation, stops, sceneWidth, sceneHeight, alpha = 1) {
+  const gradientRadius = Math.max(radiusX, radiusY);
+  const gradient = ctx.createRadialGradient(x, y, 0, x, y, gradientRadius);
+
+  stops.forEach(([offset, color]) => {
+    gradient.addColorStop(offset, color);
+  });
+
+  ctx.save();
+  ctx.globalAlpha *= alpha;
+  ctx.translate(x, y);
+  ctx.rotate(rotation);
+  ctx.scale(radiusX / gradientRadius, radiusY / gradientRadius);
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(0, 0, gradientRadius, 0, TWO_PI);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.globalCompositeOperation = 'screen';
+  for (let i = 0; i < 650; i += 1) {
+    const starX = randomBetween(0, sceneWidth);
+    const starY = randomBetween(0, sceneHeight);
+    const size = randomBetween(0.35, 1.9);
+    const alpha = randomBetween(0.12, 0.72);
+    const cool = Math.random() > 0.72;
+    const warm = Math.random() > 0.88;
+    const color = warm
+      ? 'rgba(253, 224, 171, 1)'
+      : cool
+        ? 'rgba(191, 219, 254, 1)'
+        : 'rgba(255, 255, 255, 1)';
+
+    drawStar(ctx, starX, starY, size, color, alpha, i % 53 === 0);
+  }
+
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+function drawDistantGalaxy(ctx, x, y, size, rotation, hueShift = 0) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rotation);
+  ctx.scale(1, 0.38);
+  ctx.globalCompositeOperation = 'screen';
+
+  const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, size);
+  halo.addColorStop(0, `hsla(${210 + hueShift}, 100%, 92%, 0.58)`);
+  halo.addColorStop(0.2, `hsla(${280 + hueShift}, 96%, 74%, 0.18)`);
+  halo.addColorStop(0.62, `hsla(${205 + hueShift}, 96%, 66%, 0.07)`);
+  halo.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = halo;
+  ctx.beginPath();
+  ctx.arc(0, 0, size, 0, TWO_PI);
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(219, 234, 254, 0.2)';
+  ctx.lineWidth = Math.max(0.6, size * 0.018);
+  ctx.beginPath();
+  ctx.arc(0, 0, size * 0.42, 0.2, Math.PI * 1.3);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawStar(ctx, x, y, size, color, alpha, glow = false) {
+  if (glow) {
+    const glowGradient = ctx.createRadialGradient(x, y, 0, x, y, size * 7);
+    glowGradient.addColorStop(0, color.replace(/[\d.]+\)$/, `${alpha * 0.42})`));
+    glowGradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = glowGradient;
+    ctx.beginPath();
+    ctx.arc(x, y, size * 7, 0, TWO_PI);
+    ctx.fill();
+  }
+
+  ctx.fillStyle = color.replace(/[\d.]+\)$/, `${alpha})`);
+  ctx.beginPath();
+  ctx.arc(x, y, size, 0, TWO_PI);
+  ctx.fill();
 }
 
 function createDustSprite() {
@@ -42,8 +123,12 @@ function createDustSprite() {
 function drawGalaxy(canvas) {
   const ctx = canvas.getContext('2d');
   const dpr = Math.min(window.devicePixelRatio || 1, DPR_LIMIT);
-  const width = window.innerWidth;
-  const height = window.innerHeight;
+  const viewport = window.visualViewport;
+  const width = Math.ceil(viewport?.width || window.innerWidth || document.documentElement.clientWidth || 1);
+  const height = Math.ceil(viewport?.height || window.innerHeight || document.documentElement.clientHeight || 1);
+  const diagonal = Math.hypot(width, height);
+  const aspectRatio = width / Math.max(height, 1);
+  const wideScreenBoost = aspectRatio > 1.55 ? 1.12 : 1;
   const dustSprite = createDustSprite();
 
   canvas.width = Math.floor(width * dpr);
@@ -56,27 +141,56 @@ function drawGalaxy(canvas) {
 
   const cx = width * 0.5;
   const cy = height * 0.5;
-  const radius = Math.max(width, height) * 0.85;
+  const radius = Math.max(Math.max(width, height) * 1.08, diagonal * 0.98) * wideScreenBoost;
   const coreRadius = Math.max(120, radius * 0.16);
 
-  const background = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(width, height) * 0.75);
-  background.addColorStop(0, 'rgba(24, 18, 38, 0.95)');
-  background.addColorStop(0.42, 'rgba(5, 10, 26, 0.98)');
+  const background = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(diagonal * 0.55, Math.max(width, height) * 0.75));
+  background.addColorStop(0, 'rgba(24, 18, 42, 0.98)');
+  background.addColorStop(0.36, 'rgba(6, 12, 32, 0.99)');
   background.addColorStop(1, 'rgba(1, 4, 12, 1)');
   ctx.fillStyle = background;
   ctx.fillRect(0, 0, width, height);
 
+  ctx.globalCompositeOperation = 'screen';
+  drawSoftEllipse(ctx, width * 0.18, height * 0.2, diagonal * 0.22, diagonal * 0.12, -0.35, [
+    [0, 'rgba(244, 114, 182, 0.24)'],
+    [0.36, 'rgba(168, 85, 247, 0.12)'],
+    [1, 'rgba(0, 0, 0, 0)'],
+  ], width, height);
+  drawSoftEllipse(ctx, width * 0.74, height * 0.36, diagonal * 0.28, diagonal * 0.14, 0.24, [
+    [0, 'rgba(56, 189, 248, 0.24)'],
+    [0.42, 'rgba(129, 140, 248, 0.13)'],
+    [1, 'rgba(0, 0, 0, 0)'],
+  ], width, height);
+  drawSoftEllipse(ctx, width * 0.5, height * 0.72, diagonal * 0.34, diagonal * 0.16, -0.08, [
+    [0, 'rgba(192, 132, 252, 0.18)'],
+    [0.4, 'rgba(244, 114, 182, 0.1)'],
+    [1, 'rgba(0, 0, 0, 0)'],
+  ], width, height);
+
+  for (let i = 0; i < 18; i += 1) {
+    drawDistantGalaxy(
+      ctx,
+      randomBetween(-width * 0.05, width * 1.05),
+      randomBetween(height * 0.06, height * 0.94),
+      randomBetween(8, 34) * (width > 1200 ? 1.25 : 0.9),
+      randomBetween(-0.8, 0.8),
+      randomBetween(-24, 36),
+    );
+  }
+
   ctx.save();
   ctx.translate(cx, cy);
-  ctx.rotate(-0.15);
-  ctx.scale(1, 0.48);
+  ctx.rotate(-0.13);
+  ctx.scale(1.08, 0.46);
 
   ctx.globalCompositeOperation = 'lighter';
 
   const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, radius * 0.75);
-  halo.addColorStop(0, 'rgba(255, 246, 225, 0.32)');
-  halo.addColorStop(0.28, 'rgba(255, 176, 216, 0.15)');
-  halo.addColorStop(0.62, 'rgba(66, 180, 255, 0.06)');
+  halo.addColorStop(0, 'rgba(255, 246, 225, 0.42)');
+  halo.addColorStop(0.24, 'rgba(255, 176, 216, 0.22)');
+  halo.addColorStop(0.48, 'rgba(85, 195, 255, 0.1)');
+  halo.addColorStop(0.7, 'rgba(148, 163, 255, 0.05)');
   halo.addColorStop(1, 'rgba(0, 0, 0, 0)');
   ctx.fillStyle = halo;
   ctx.beginPath();
@@ -97,25 +211,22 @@ function drawGalaxy(canvas) {
     const r = distance * radius;
     const armOffset = (arm / ARM_COUNT) * TWO_PI;
     const theta = armOffset + distance * STAR_SPIRAL_TWIST + randomBetween(-0.16, 0.16);
-    const scatter = (12 + distance * 82) * Math.pow(Math.random(), 1.8);
+    const scatter = (10 + distance * 96) * Math.pow(Math.random(), 1.7);
     const scatterAngle = randomBetween(0, TWO_PI);
     const x = Math.cos(theta) * r + Math.cos(scatterAngle) * scatter;
     const y = Math.sin(theta) * r + Math.sin(scatterAngle) * scatter;
     const warmth = Math.max(0, 1 - distance * 1.18);
-    const alpha = randomBetween(0.05, 0.55) * (1 - distance * 0.42);
-    const size = randomBetween(0.35, 1.45) * (1.25 - distance * 0.45);
+    const alpha = randomBetween(0.06, 0.66) * (1 - distance * 0.38);
+    const size = randomBetween(0.32, 1.65) * (1.3 - distance * 0.44);
 
     const red = Math.round(135 + warmth * 120);
     const green = Math.round(185 + warmth * 62);
     const blue = Math.round(255 - warmth * 58);
 
-    ctx.fillStyle = `rgba(${red}, ${green}, ${blue}, ${alpha})`;
-    ctx.beginPath();
-    ctx.arc(x, y, size, 0, TWO_PI);
-    ctx.fill();
+    drawStar(ctx, x, y, size, `rgba(${red}, ${green}, ${blue}, 1)`, alpha, i % 137 === 0);
   }
 
-  for (let i = 0; i < 850; i += 1) {
+  for (let i = 0; i < 1400; i += 1) {
     const distance = Math.pow(Math.random(), 1.25);
     const r = distance * radius * randomBetween(0.18, 1);
     const theta = distance * DUST_SPIRAL_TWIST + randomBetween(0, TWO_PI);
@@ -129,11 +240,36 @@ function drawGalaxy(canvas) {
   }
   ctx.globalAlpha = 1;
 
+  ctx.globalCompositeOperation = 'multiply';
+  ctx.lineCap = 'round';
+  for (let armIndex = 0; armIndex < ARM_COUNT; armIndex += 1) {
+    for (let band = 0; band < 3; band += 1) {
+      ctx.beginPath();
+      for (let step = 0; step <= 150; step += 1) {
+        const distance = step / 150;
+        const r = radius * (0.1 + distance * 0.9);
+        const theta = (armIndex / ARM_COUNT) * TWO_PI + distance * DUST_SPIRAL_TWIST + band * 0.055;
+        const x = Math.cos(theta) * r;
+        const y = Math.sin(theta) * r + Math.sin(distance * Math.PI * 8 + band) * 10;
+
+        if (step === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+      }
+      ctx.strokeStyle = `rgba(0, 0, 0, ${0.08 + band * 0.025})`;
+      ctx.lineWidth = radius * (0.012 + band * 0.004);
+      ctx.stroke();
+    }
+  }
+
+  ctx.globalCompositeOperation = 'lighter';
   const core = ctx.createRadialGradient(0, 0, 0, 0, 0, coreRadius);
   core.addColorStop(0, 'rgba(255, 255, 255, 0.96)');
-  core.addColorStop(0.16, 'rgba(255, 248, 220, 0.82)');
-  core.addColorStop(0.42, 'rgba(255, 190, 215, 0.38)');
-  core.addColorStop(0.76, 'rgba(95, 165, 255, 0.11)');
+  core.addColorStop(0.13, 'rgba(255, 248, 220, 0.9)');
+  core.addColorStop(0.34, 'rgba(255, 190, 215, 0.5)');
+  core.addColorStop(0.64, 'rgba(95, 165, 255, 0.16)');
   core.addColorStop(1, 'rgba(0, 0, 0, 0)');
   ctx.fillStyle = core;
   ctx.beginPath();
@@ -161,10 +297,14 @@ export default function GalaxyBackground() {
     };
 
     window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+    window.visualViewport?.addEventListener('resize', handleResize);
 
     return () => {
       window.clearTimeout(resizeTimer);
       window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+      window.visualViewport?.removeEventListener('resize', handleResize);
     };
   }, []);
 

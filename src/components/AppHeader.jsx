@@ -39,7 +39,7 @@ const AppHeader = memo(({
 
   return (
     <header className="relative z-30 mt-6 flex w-full max-w-6xl scroll-mt-6 flex-col gap-5 overflow-hidden rounded-[32px] border border-sky-200/30 bg-slate-950/75 px-4 py-5 text-slate-50 shadow-[0_30px_90px_rgba(2,6,23,0.5)] backdrop-blur-xl sm:mt-8 sm:px-6 sm:py-6">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.18),transparent_28%),radial-gradient(circle_at_80%_18%,rgba(250,204,21,0.16),transparent_20%),radial-gradient(circle_at_50%_120%,rgba(59,130,246,0.24),transparent_42%),linear-gradient(180deg,rgba(2,6,23,0.82),rgba(15,23,42,0.92))]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.1),transparent_28%),radial-gradient(circle_at_80%_18%,rgba(250,204,21,0.08),transparent_20%),radial-gradient(circle_at_50%_120%,rgba(59,130,246,0.12),transparent_42%),linear-gradient(180deg,rgba(2,6,23,0.28),rgba(15,23,42,0.36))]" />
       <div className="pointer-events-none absolute inset-0 starfield-grid opacity-70" />
 
       <div className="relative grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
