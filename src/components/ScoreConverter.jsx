@@ -391,8 +391,19 @@ const ScoreConverter = memo(({
             Batch Converter
           </div>
           <p className="max-w-2xl text-sm text-amber-50/80">
-            將 MIDI 或 MusicXML 批次轉成可上傳譜面。檔案會先集中在待上傳清單，按下「上傳本批」才會寫入 Firestore 曲庫。
+            將 MIDI 或 MusicXML 轉成可播放譜面。單檔轉換會直接放進目前譜面；多檔轉換會先放在下方清單，確認後再載入或上傳。
           </p>
+          <div className="grid gap-2 pt-2 text-xs text-amber-50/70 md:grid-cols-3">
+            <div className="rounded-2xl border border-amber-300/15 bg-black/15 px-3 py-2">
+              <span className="font-bold text-amber-100">1. 匯入</span> 拖放檔案，或用下方按鈕選擇 MIDI / MusicXML / MXL。
+            </div>
+            <div className="rounded-2xl border border-amber-300/15 bg-black/15 px-3 py-2">
+              <span className="font-bold text-amber-100">2. 檢查</span> 待上傳清單會顯示來源、大小與轉換出的事件數。
+            </div>
+            <div className="rounded-2xl border border-amber-300/15 bg-black/15 px-3 py-2">
+              <span className="font-bold text-amber-100">3. 套用</span> 魔杖取代目前譜面，雙箭頭接到目前譜面後方。
+            </div>
+          </div>
         </div>
 
         <div
@@ -416,8 +427,8 @@ const ScoreConverter = memo(({
               <FileUp size={24} />
             </div>
             <div>
-              <div className="text-base font-bold text-amber-50">拖放 MIDI / MusicXML / MXL 到這裡</div>
-              <div className="mt-1 text-sm text-amber-50/55">支援 .mid、.midi、.musicxml、.xml、.mxl，可一次選擇多個檔案。</div>
+              <div className="text-base font-bold text-amber-50">拖放 MIDI / MusicXML / MXL 檔案到這裡</div>
+              <div className="mt-1 text-sm text-amber-50/55">支援 .mid、.midi、.musicxml、.xml、.mxl；多個 MusicXML/MXL 可自動合併成一首。</div>
             </div>
             <label className="inline-flex max-w-full items-center gap-2 rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs font-semibold text-amber-50/70">
               <input
@@ -436,7 +447,7 @@ const ScoreConverter = memo(({
                 className="inline-flex items-center gap-2 rounded-2xl border border-amber-300/25 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-50 transition hover:bg-amber-500/20 disabled:opacity-50"
               >
                 <FileUp size={15} />
-                選擇多個 MIDI
+                選擇 MIDI
               </button>
               <button
                 type="button"
@@ -445,7 +456,7 @@ const ScoreConverter = memo(({
                 className="inline-flex items-center gap-2 rounded-2xl border border-amber-300/25 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-50 transition hover:bg-amber-500/20 disabled:opacity-50"
               >
                 <Music2 size={15} />
-                選擇多個 MusicXML/MXL
+                選擇 MusicXML/MXL
               </button>
             </div>
           </div>
@@ -455,7 +466,7 @@ const ScoreConverter = memo(({
           <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <div className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-200/55">Pending Uploads</div>
-              <div className="mt-1 text-xs text-amber-50/55">本批待上傳至 Firestore 曲庫的譜面。每一項會顯示來源格式與轉換狀態。</div>
+              <div className="mt-1 text-xs text-amber-50/55">這裡是已轉換但尚未上傳的譜面。右側按鈕依序為載入取代、接到目前譜面後方、移除此項。</div>
             </div>
             <div className="flex flex-wrap gap-2">
               <button
@@ -482,7 +493,7 @@ const ScoreConverter = memo(({
           <div className="custom-scrollbar max-h-[320px] space-y-2 overflow-y-auto pr-1">
             {convertedResults.length === 0 ? (
               <div className="rounded-[18px] border border-dashed border-white/10 px-4 py-8 text-center text-sm text-amber-50/45">
-                尚未加入待上傳的轉換結果。拖放或選擇檔案後會先集中列在這裡。
+                尚未有轉換結果。選擇單一檔案會直接載入目前譜面；選擇多個檔案後，結果會集中列在這裡。
               </div>
             ) : convertedResults.map((result, index) => (
               <div key={`${result.file.name}-${index}`} className="flex flex-col gap-3 rounded-[18px] border border-white/10 bg-white/5 px-4 py-3 md:flex-row md:items-start md:justify-between">

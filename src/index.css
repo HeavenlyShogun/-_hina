@@ -13,6 +13,12 @@ body,
   min-height: 100%;
 }
 
+html,
+body {
+  width: 100%;
+  overflow-x: hidden;
+}
+
 body {
   margin: 0;
   background-color: #000;
@@ -22,9 +28,25 @@ body {
   --ui-panel-bg: rgba(15, 23, 42, 0.3);
   --ui-panel-border: rgba(148, 163, 184, 0.18);
   --ui-panel-shadow: 0 24px 80px rgba(0, 0, 0, 0.22);
+  min-height: 100vh;
+  min-height: 100svh;
+  background-attachment: fixed;
+  background-color: #020617;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
+}
+
+@supports (height: 100dvh) {
+  .app-shell {
+    min-height: 100dvh;
+  }
+}
+
+@media (max-width: 768px), (pointer: coarse) {
+  .app-shell {
+    background-attachment: scroll;
+  }
 }
 
 .app-shell[data-ui-mode='clear'] {

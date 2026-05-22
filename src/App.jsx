@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle, CheckCircle } from 'lucide-react';
 import ScoreConverter from './components/ScoreConverter';
 import ScoreEditor from './components/ScoreEditor';
-import PerformanceWorkspace from './components/PerformanceWorkspace';
 import PianoRoom from './pages/PianoRoom';
 import galaxyBackgroundUrl from './assets/galaxy.jpg';
 import { AudioConfigProvider, useAudioConfig } from './contexts/AudioConfigContext';
@@ -382,7 +381,6 @@ function AppContent({
     { id: 'main-screen', label: '\u4e3b\u756b\u9762', shortLabel: '\u4e3b\u756b\u9762', caption: '\u66f2\u5eab\u8207\u64ad\u653e\u5165\u53e3' },
     { id: 'lyre-keyboard', label: '\u9375\u76e4', shortLabel: '\u9375\u76e4', caption: '\u5373\u6642\u6f14\u594f\u9375\u76e4' },
     { id: 'rhythm-controls', label: '\u7bc0\u594f\u8207\u8abf\u6027\u8abf\u6574', shortLabel: '\u7bc0\u594f\u8abf\u6027', caption: 'BPM\u3001\u62cd\u865f\u3001\u97f3\u8272\u8207\u8abf\u6027' },
-    { id: 'playback-preview', label: '\u6f14\u594f\u9810\u89bd', shortLabel: '\u6f14\u594f\u9810\u89bd', caption: 'Live Preview' },
     { id: 'editor', label: '\u8b5c\u9762\u7de8\u8f2f', shortLabel: '\u8b5c\u9762\u7de8\u8f2f', caption: 'Score Editor' },
     { id: 'converter', label: '\u8b5c\u9762\u8f49\u63db', shortLabel: '\u8b5c\u9762\u8f49\u63db', caption: 'MusicXML / MIDI Converter' },
   ]), []);
@@ -930,23 +928,6 @@ function AppContent({
             </aside>
 
             <div className="space-y-8">
-              <div id="playback-preview" data-ui-panel="true" data-panel-mode={getPanelMode('playback-preview')} onPointerDown={handlePanelPointerDown} className="ui-panel scroll-mt-6 rounded-[36px] border border-white/10 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] transition-colors duration-300 md:p-6">
-                <div role="button" tabIndex={0} onClick={() => togglePanelMode('playback-preview')} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') togglePanelMode('playback-preview'); }} className="mb-5 flex flex-col gap-2 px-1">
-                  <div className="text-[10px] font-black uppercase tracking-[0.34em] text-emerald-100">
-                    Playback Preview
-                  </div>
-                  <div className="mt-2 text-sm font-semibold text-emerald-50">
-                    Live timeline and section preview for the current score.
-                  </div>
-                </div>
-
-                <PerformanceWorkspace
-                  embedded
-                  score={editorScore}
-                  scoreTitle={scoreTitle}
-                />
-              </div>
-
               <div id="editor" data-ui-panel="true" data-panel-mode={getPanelMode('editor')} onPointerDown={handlePanelPointerDown} className="ui-panel scroll-mt-6 rounded-[36px] border border-white/10 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] transition-colors duration-300 md:p-6">
                 <div role="button" tabIndex={0} onClick={() => togglePanelMode('editor')} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') togglePanelMode('editor'); }} className="mb-5 flex flex-col gap-2 px-1">
                   <div className="text-[10px] font-black uppercase tracking-[0.34em] text-violet-100">
@@ -984,7 +965,12 @@ function AppContent({
                     Converter
                   </div>
                   <div className="mt-2 text-sm font-semibold text-amber-50">
-                    Convert MusicXML or MIDI into the current playable score.
+                    拖放或選擇 MIDI、MusicXML、MXL，轉換後可先載入目前譜面測試，也可整批上傳曲庫。
+                  </div>
+                  <div className="flex flex-wrap gap-2 pt-2 text-[11px] font-semibold text-amber-50/75">
+                    <span className="rounded-full border border-amber-300/20 bg-amber-500/10 px-3 py-1">單檔會直接載入</span>
+                    <span className="rounded-full border border-amber-300/20 bg-amber-500/10 px-3 py-1">多檔會進待上傳清單</span>
+                    <span className="rounded-full border border-amber-300/20 bg-amber-500/10 px-3 py-1">清單按鈕可取代或接到現有譜面</span>
                   </div>
                 </div>
 

@@ -1,4 +1,5 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Pause, Play } from 'lucide-react';
 import { NOTES_MAP, getSolfege } from '../constants/music';
 import { useAudioConfig } from '../contexts/AudioConfigContext';
 import { usePlayback } from '../contexts/PlaybackContext';
@@ -116,7 +117,14 @@ const PianoKeys = memo(({
   onPanelPointerDown,
 }) => {
   const { globalKeyOffset } = useAudioConfig();
-  const { onSeekToTime, onScrubToTime } = usePlayback();
+  const {
+    isPlaying,
+    isPaused,
+    onSeekToTime,
+    onScrubToTime,
+    onPause,
+    onResume,
+  } = usePlayback();
   const playbackState = useLivePlaybackFrame();
   const timelineTrackRef = useRef(null);
   const dragPointerIdRef = useRef(null);
@@ -218,14 +226,44 @@ const PianoKeys = memo(({
     finishScrub();
   }, [finishScrub]);
 
+  const handlePauseToggle = useCallback((event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (isPaused) {
+      void onResume?.();
+      return;
+    }
+
+    if (isPlaying) {
+      onPause?.();
+    }
+  }, [isPaused, isPlaying, onPause, onResume]);
+
   return (
     <main id="lyre-keyboard" className="relative z-20 mt-6 w-full max-w-6xl scroll-mt-6 px-1 sm:mt-10 sm:px-4">
       <div data-ui-panel="true" data-panel-mode={uiMode} onPointerDown={onPanelPointerDown} className="ui-panel group relative overflow-hidden rounded-[24px] border border-sky-200/25 p-2 text-slate-100 shadow-[0_35px_120px_rgba(2,6,23,0.42)] transition-colors duration-300 sm:rounded-[36px] sm:p-6 md:rounded-[60px] md:p-14">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.08),transparent_30%),radial-gradient(circle_at_80%_22%,rgba(250,204,21,0.05),transparent_24%),linear-gradient(180deg,rgba(2,6,23,0.24),rgba(15,23,42,0.32))]" />
         <div className="absolute inset-x-0 top-0 px-4 pt-4 sm:px-6 md:px-8">
-          <div className="mb-2 flex items-center justify-between gap-3 text-[10px] font-black uppercase tracking-[0.22em] text-slate-100">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-slate-100">
             <span>{isScrubbing ? 'Scrubbing' : 'Playback Timeline'}</span>
-            <span>{formatTimeLabel(displayTime)} / {formatTimeLabel(maxTime)}</span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handlePauseToggle}
+                disabled={!isPlaying && !isPaused}
+                className={`inline-flex h-7 items-center gap-1.5 rounded-full border px-3 text-[10px] font-black tracking-[0.16em] transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
+                  isPaused
+                    ? 'border-emerald-300/40 bg-emerald-400/15 text-emerald-50 hover:bg-emerald-400/25'
+                    : 'border-amber-300/35 bg-amber-400/12 text-amber-50 hover:bg-amber-400/20'
+                }`}
+                title={isPaused ? '從目前時間繼續播放' : '在目前時間暫停'}
+              >
+                {isPaused ? <Play size={12} fill="currentColor" /> : <Pause size={12} fill="currentColor" />}
+                {isPaused ? '繼續' : '暫停'}
+              </button>
+              <span>{formatTimeLabel(displayTime)} / {formatTimeLabel(maxTime)}</span>
+            </div>
           </div>
           <div
             ref={timelineTrackRef}
