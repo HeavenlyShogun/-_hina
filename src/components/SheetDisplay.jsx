@@ -739,6 +739,34 @@ const SheetDisplay = memo(({
             </div>
           ) : null}
 
+          <div className="rounded-[24px] border border-emerald-400/12 bg-emerald-500/[0.045] p-4">
+            <div className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.24em] text-emerald-200/60">
+              <BookOpen size={14} />
+              新手編輯演示
+            </div>
+            <div className="grid gap-3 text-xs text-emerald-50/72 md:grid-cols-[1fr_1.1fr_1fr]">
+              <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                <div className="mb-2 flex items-center gap-2 font-bold text-emerald-100">
+                  <Edit3 size={14} />
+                  1. 寫入音符
+                </div>
+                <p className="leading-relaxed">文字譜可直接輸入鍵位；一行代表一段，括號表示同時按下的和弦。</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-black/20 p-3 font-mono text-[11px] leading-6 text-emerald-50/80">
+                <div>@grid 1/8</div>
+                <div>Q W E R | T Y U -</div>
+                <div>(Q E T) - W - | R T Y U</div>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                <div className="mb-2 flex items-center gap-2 font-bold text-emerald-100">
+                  <Music2 size={14} />
+                  2. 播放檢查
+                </div>
+                <p className="leading-relaxed">輸入後用上方播放控制試聽；若是 JSON 譜面，先用轉換器載入再從摘要檢查拍速與軌道。</p>
+              </div>
+            </div>
+          </div>
+
           <textarea value={scoreEditorValue} onChange={(event) => setScore(event.target.value)} readOnly={isJsonScore} spellCheck={false} className="custom-scrollbar flex-1 min-h-[320px] rounded-3xl border border-white/5 bg-black/55 p-5 font-mono text-[13px] leading-7 text-emerald-50/78 shadow-inner outline-none focus:border-emerald-500/20 md:min-h-[380px] md:p-6" />
         </div>
       ) : null}

@@ -16,7 +16,7 @@ const TONE_PRESETS = {
   piano: {
     tone: 'piano',
     engine: 'sampler',
-    sampleSet: 'acoustic-grand-piano',
+    sampleSet: 'piano',
     layerGain: 1.08,
     dur: 5.2,
     atk: 0.003,
@@ -49,18 +49,19 @@ const TONE_PRESETS = {
     tone: 'violin',
     engine: 'sampler',
     sampleSet: 'violin',
-    layerGain: 0.56,
+    layerGain: 0.74,
     type: 'sawtooth',
     dur: 3.8,
-    atk: 0.075,
-    dec: 0.42,
-    sus: 0.78,
-    pk: 0.28,
+    atk: 0.045,
+    dec: 0.36,
+    sus: 0.88,
+    pk: 0.52,
     flt: true,
-    fltStartMult: 7.5,
-    fltEndMult: 2.8,
-    fltDec: 0.32,
-    detune: -3,
+    samplerFilterType: 'lowpass',
+    samplerFilterFrequency: 5200,
+    samplerFilterQ: 0.55,
+    samplerDetune: -4,
+    sampleStartOffset: 0.018,
     vibratoDelay: 0.18,
     vibratoRate: 5.8,
     vibratoDepth: 16,
@@ -71,10 +72,10 @@ const TONE_PRESETS = {
       { ratio: 4, gain: 0.018, type: 'sine', detune: -4 },
     ],
     nBufKey: 'noise',
-    nDur: 0.24,
-    nVol: 0.026,
-    release: 0.34,
-    velocity: 0.78,
+    nDur: 0.18,
+    nVol: 0.012,
+    release: 0.58,
+    velocity: 0.84,
   },
   'lyre-long': {
     tone: 'lyre-long',
@@ -101,21 +102,22 @@ const TONE_PRESETS = {
     tone: 'lyre-short',
     engine: 'sampler',
     sampleSet: 'orchestral-harp',
-    layerGain: 0.9,
+    layerGain: 1.02,
     type: 'sawtooth',
-    atk: 0.015,
-    dec: 0.1,
-    sus: 0.001,
-    pk: 0.4,
+    atk: 0.002,
+    dec: 0.16,
+    sus: 0.012,
+    pk: 0.78,
     flt: true,
-    fltStartMult: 6,
-    fltEndMult: 1.2,
-    fltDec: 0.3,
+    samplerFilterType: 'lowpass',
+    samplerFilterFrequency: 7200,
+    samplerFilterQ: 0.35,
+    sampleStartOffset: 0.006,
     nBufKey: 'noise',
-    nDur: 0.06,
-    nVol: 0.1,
-    release: 0.1,
-    velocity: 0.85,
+    nDur: 0.018,
+    nVol: 0.035,
+    release: 0.055,
+    velocity: 0.92,
   },
   'tongue-drum': {
     tone: 'tongue-drum',
@@ -178,7 +180,7 @@ const TONE_PRESETS = {
 
 const DYNAMIC_TONE_OVERRIDES = {
   'lyre-short': (baseDuration) => ({
-    dur: Math.max(baseDuration * 2, 0.8),
+    dur: Math.min(Math.max(baseDuration * 0.62, 0.11), 0.42),
   }),
   classic: (baseDuration) => ({
     dur: Math.max(baseDuration * 1.5, 0.6),
@@ -187,10 +189,9 @@ const DYNAMIC_TONE_OVERRIDES = {
 
 const VALID_OSCILLATOR_TYPES = new Set(['sine', 'square', 'sawtooth', 'triangle']);
 const SAMPLE_LIBRARY_CONFIG = {
-  'acoustic-grand-piano': {
-    source: 'midi-js',
-    instrument: 'acoustic_grand_piano',
-    samples: ['A2', 'C3', 'D#3', 'F#3', 'A3', 'C4', 'D#4', 'F#4', 'A4', 'C5', 'D#5', 'F#5', 'A5'],
+  piano: {
+    baseUrl: 'https://tonejs.github.io/audio/salamander',
+    samples: ['A2', 'C3', 'Ds3', 'Fs3', 'A3', 'C4', 'Ds4', 'Fs4', 'A4', 'C5', 'Ds5', 'Fs5', 'A5'],
   },
   violin: {
     source: 'midi-js',
@@ -731,13 +732,20 @@ class AudioEngine {
     const peak = Math.max(0.0001, (config.velocity ?? 0.85) * (config.pk ?? 1) * outputGain);
     const sustainUntil = Math.max(startTime + noteDuration, startTime + 0.04);
     const releaseDuration = Math.max(config.release ?? 0.28, 0.05);
-    const naturalDuration = sample.buffer.duration / playbackRate;
+    const sampleStartOffset = Math.min(
+      Math.max(Number(config.sampleStartOffset) || 0, 0),
+      Math.max(sample.buffer.duration - 0.02, 0),
+    );
+    const naturalDuration = Math.max(0.02, (sample.buffer.duration - sampleStartOffset) / playbackRate);
     const stopTime = Math.min(sustainUntil + releaseDuration, startTime + naturalDuration);
     const endTime = voiceMeta.endTime ?? stopTime;
 
     const source = context.createBufferSource();
     source.buffer = sample.buffer;
     source.playbackRate.setValueAtTime(playbackRate, startTime);
+    if (source.detune && Number.isFinite(Number(config.samplerDetune ?? config.detune))) {
+      source.detune.setValueAtTime(Number(config.samplerDetune ?? config.detune), startTime);
+    }
 
     const envelopeGain = context.createGain();
     envelopeGain.gain.setValueAtTime(0.0001, startTime);
@@ -754,7 +762,40 @@ class AudioEngine {
     const wetGain = context.createGain();
     wetGain.gain.value = reverbAmount;
 
-    source.connect(envelopeGain);
+    let samplerFilter = null;
+    if (config.samplerFilterFrequency || (config.flt && config.fltEndMult)) {
+      samplerFilter = context.createBiquadFilter();
+      samplerFilter.type = config.samplerFilterType || 'lowpass';
+      samplerFilter.frequency.setValueAtTime(
+        Math.max(
+          Number(config.samplerFilterFrequency) || safeFrequency * Math.max(Number(config.fltEndMult) || 1, 1),
+          80,
+        ),
+        startTime,
+      );
+      samplerFilter.Q.value = Math.max(Number(config.samplerFilterQ) || 0.3, 0.0001);
+    }
+
+    let noiseSource = null;
+    let noiseGain = null;
+    if (config.nBuf && Number(config.nVol) > 0) {
+      noiseSource = context.createBufferSource();
+      noiseSource.buffer = config.nBuf;
+      noiseGain = context.createGain();
+      noiseGain.gain.setValueAtTime(0.0001, startTime);
+      noiseGain.gain.linearRampToValueAtTime(
+        Math.max(0.0001, Number(config.nVol) * (config.velocity ?? 0.85) * outputGain),
+        startTime + 0.002,
+      );
+      noiseGain.gain.exponentialRampToValueAtTime(0.0001, startTime + Math.max(Number(config.nDur) || 0.03, 0.006));
+    }
+
+    source.connect(samplerFilter || envelopeGain);
+    if (samplerFilter) samplerFilter.connect(envelopeGain);
+    if (noiseSource && noiseGain) {
+      noiseSource.connect(noiseGain);
+      noiseGain.connect(envelopeGain);
+    }
     envelopeGain.connect(dryGain);
     envelopeGain.connect(wetGain);
     dryGain.connect(this.compressor);
@@ -775,13 +816,20 @@ class AudioEngine {
       envelopeGain,
       dryGain,
       wetGain,
+      filter: samplerFilter,
+      noiseSource,
+      noiseGain,
       sourceNodes: [source],
     };
 
     this.activeVoices.add(voice);
     source.onended = () => this.cleanupVoice(voice);
-    source.start(startTime);
+    source.start(startTime, sampleStartOffset);
     source.stop(stopTime);
+    if (noiseSource) {
+      noiseSource.start(startTime);
+      noiseSource.stop(Math.min(stopTime, startTime + Math.max(Number(config.nDur) || 0.03, 0.006) + 0.02));
+    }
 
     return voice;
   }

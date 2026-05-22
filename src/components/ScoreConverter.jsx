@@ -390,6 +390,35 @@ const ScoreConverter = memo(({
             <Music2 size={15} />
             Batch Converter
           </div>
+          <div className="rounded-[24px] border border-amber-300/15 bg-black/20 p-4">
+            <div className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.24em] text-amber-100/65">
+              <Wand2 size={14} />
+              新手轉檔演示
+            </div>
+            <div className="grid gap-3 text-xs text-amber-50/72 md:grid-cols-3">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+                <div className="mb-2 flex items-center gap-2 font-bold text-amber-100">
+                  <FileUp size={14} />
+                  1. 放入檔案
+                </div>
+                <p className="leading-relaxed">拖曳 .mid、.musicxml 或 .mxl 到下方框線區，也可以用按鈕選檔。</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+                <div className="mb-2 flex items-center gap-2 font-bold text-amber-100">
+                  <Music2 size={14} />
+                  2. 檢查結果
+                </div>
+                <p className="leading-relaxed">轉換完成後會出現在待處理清單，可確認曲名、音符數與來源格式。</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+                <div className="mb-2 flex items-center gap-2 font-bold text-amber-100">
+                  <ArrowDownUp size={14} />
+                  3. 寫入譜面
+                </div>
+                <p className="leading-relaxed">按魔杖覆蓋目前譜面，或按合併圖示追加到現有譜面後再播放檢查。</p>
+              </div>
+            </div>
+          </div>
           <p className="max-w-2xl text-sm text-amber-50/80">
             將 MIDI 或 MusicXML 轉成可播放譜面。單檔轉換會直接放進目前譜面；多檔轉換會先放在下方清單，確認後再載入或上傳。
           </p>

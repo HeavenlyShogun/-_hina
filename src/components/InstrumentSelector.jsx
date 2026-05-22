@@ -3,13 +3,13 @@ import { AudioLines, Drum, Music2, Piano, Wind } from 'lucide-react';
 import { useAudioConfig } from '../contexts/AudioConfigContext';
 
 const INSTRUMENTS = [
-  { id: 'piano', label: '鋼琴', Icon: Piano, sub: 'FluidR3 鋼琴取樣' },
-  { id: 'violin', label: '小提琴', Icon: Music2, sub: 'FluidR3 小提琴取樣' },
-  { id: 'lyre-long', label: '豎琴長音', Icon: Music2, sub: 'FluidR3 豎琴取樣，延音較長' },
-  { id: 'lyre-short', label: '豎琴短音', Icon: AudioLines, sub: 'FluidR3 豎琴取樣，收音較短' },
-  { id: 'flute', label: '長笛', Icon: Wind, sub: 'FluidR3 長笛取樣' },
-  { id: 'tongue-drum', label: '空靈鼓', Icon: Drum, sub: 'FluidR3 steel drums 取樣' },
-  { id: 'tongue-drum-electronic', label: '電子空靈鼓', Icon: AudioLines, sub: '合成器空靈鼓音色' },
+  { id: 'piano', label: '真鋼琴', Icon: Piano, sub: 'Salamander grand piano samples' },
+  { id: 'violin', label: '小提琴', Icon: Music2, sub: 'FluidR3 violin samples' },
+  { id: 'lyre-long', label: '里拉長音', Icon: Music2, sub: 'FluidR3 orchestral harp samples, longer sustain' },
+  { id: 'lyre-short', label: '里拉短音', Icon: AudioLines, sub: 'FluidR3 orchestral harp samples, shorter pluck' },
+  { id: 'flute', label: '長笛', Icon: Wind, sub: 'FluidR3 flute samples' },
+  { id: 'tongue-drum', label: '空靈鼓', Icon: Drum, sub: 'FluidR3 steel drums samples' },
+  { id: 'tongue-drum-electronic', label: '電子空靈鼓', Icon: AudioLines, sub: 'Synthesized tongue drum layer' },
 ];
 
 function normalizeToneList(tone) {
