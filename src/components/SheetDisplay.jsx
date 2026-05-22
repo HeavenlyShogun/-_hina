@@ -207,18 +207,18 @@ const SheetDisplay = memo(({
       }
 
       if (shouldSummarizeJsonEditor) {
-        const title = score?.meta?.displayTitle ?? score?.meta?.title ?? 'JSON Score';
+        const title = score?.meta?.displayTitle ?? score?.meta?.title ?? 'JSON 譜面';
         const tracks = Array.isArray(score?.tracks) ? score.tracks.length : 0;
-        const scoreBpm = score?.transport?.bpm ?? 'unknown';
+        const scoreBpm = score?.transport?.bpm ?? '未設定';
         return [
           `${title}`,
           '',
-          'Large JSON score loaded for playback.',
-          `Tracks: ${tracks}`,
-          `Events: ${jsonScoreEventCount}`,
+          '已載入大型 JSON 譜面，可直接播放與匯出。',
+          `軌道數：${tracks}`,
+          `事件數：${jsonScoreEventCount}`,
           `BPM: ${scoreBpm}`,
           '',
-          'Use JSON or MIDI export from the editor toolbar.',
+          '可使用上方工具列匯出 JSON 或 MIDI。',
         ].join('\n');
       }
 
@@ -462,7 +462,7 @@ const SheetDisplay = memo(({
             </button>
             {onLoadJsonDemo ? (
               <button onClick={onLoadJsonDemo} className="flex items-center justify-center rounded-2xl border border-sky-400/20 bg-sky-500/10 px-4 py-3 text-[11px] font-black tracking-widest text-sky-300 transition-all hover:bg-sky-500/20" title="載入 JSON demo">
-                JSON Demo
+                JSON 範例
               </button>
             ) : null}
             <button onClick={() => onExport?.('json')} className="flex items-center justify-center rounded-2xl border border-white/5 bg-white/5 p-3 text-emerald-400 transition-all hover:bg-white/10" title="下載 JSON">
@@ -497,9 +497,9 @@ const SheetDisplay = memo(({
           {showGuide && (
             <div className="grid grid-cols-1 gap-6 border-t border-white/5 bg-black/20 p-6 text-[11px] text-white/60 animate-in fade-in slide-in-from-top-2 md:grid-cols-2">
               <div className="space-y-3 border-l-2 border-emerald-500 pl-4 leading-relaxed text-emerald-100/80 md:col-span-2">
-                <p><b className="text-emerald-300">Legacy Text</b> 可直接貼上鍵盤譜，例如 `Q~U / A~J / Z~M`，括號代表同時按下的和弦。</p>
-                <p><b className="text-emerald-300">JSON Score</b> 適合大型譜面與 MIDI/MusicXML 轉換結果，會保存 `transport`、`playback`、`tracks` 和事件資料。</p>
-                <p><b className="text-emerald-300">Numbered Grid</b> 可使用 `@grid 1/8`、`@grid 1/12`、`@grid 1/16`、`@grid 1/24` 或 `@grid 1/32` 指定節拍格線；其中 `1/12`、`1/24` 適合三連音與 Swing。</p>
+                <p><b className="text-emerald-300">鍵盤文字譜</b> 可直接貼上鍵盤譜，例如 `Q~U / A~J / Z~M`，括號代表同時按下的和弦。</p>
+                <p><b className="text-emerald-300">JSON 譜面</b> 適合大型譜面與 MIDI/MusicXML 轉換結果，會保存 `transport`、`playback`、`tracks` 和事件資料。</p>
+                <p><b className="text-emerald-300">數字節拍格線</b> 可使用 `@grid 1/8`、`@grid 1/12`、`@grid 1/16`、`@grid 1/24` 或 `@grid 1/32` 指定節拍格線；其中 `1/12`、`1/24` 適合三連音與 Swing。</p>
               </div>
               <div>
                 <h4 className="mb-3 border-b border-white/10 pb-1 font-bold text-emerald-300">輸入方式</h4>
@@ -570,7 +570,7 @@ const SheetDisplay = memo(({
             <div ref={playheadRef} className="pointer-events-none absolute inset-y-0 z-20 w-1.5 -translate-x-1/2 rounded-full bg-amber-300 shadow-[0_0_14px_rgba(252,211,77,0.85)] transition-none will-change-[left]" style={{ left: '0%' }} />
           </div>
           <div className="mt-3 flex items-center justify-between gap-3 text-[11px] text-white/55">
-            <span className="uppercase tracking-[0.24em] text-emerald-100/35">Tick Preview</span>
+            <span className="uppercase tracking-[0.24em] text-emerald-100/35">Tick 預覽</span>
             <span className="text-right text-white/35">點擊段落或時間軸可跳到指定位置。</span>
           </div>
         </div>
@@ -702,36 +702,36 @@ const SheetDisplay = memo(({
           {isJsonScore ? (
             <div className="grid gap-3 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
               <div className="rounded-[24px] border border-emerald-400/12 bg-emerald-500/[0.05] p-4">
-                <div className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-200/55">Score Summary</div>
+                <div className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-200/55">譜面摘要</div>
                 <div className="mt-3 grid grid-cols-2 gap-3 text-sm text-emerald-50/85">
                   <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
-                    <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/40">Title</div>
-                    <div className="mt-1 break-words font-semibold">{score?.meta?.displayTitle ?? score?.meta?.title ?? 'JSON Score'}</div>
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/40">標題</div>
+                    <div className="mt-1 break-words font-semibold">{score?.meta?.displayTitle ?? score?.meta?.title ?? 'JSON 譜面'}</div>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
-                    <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/40">Format</div>
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/40">格式</div>
                     <div className="mt-1 font-semibold">{score?.version ?? 'json'} / {score?.meta?.originalFormat ?? score?.meta?.sourceType ?? 'score'}</div>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
-                    <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/40">Tempo</div>
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/40">速度</div>
                     <div className="mt-1 font-semibold">{score?.transport?.bpm ?? bpm} BPM</div>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
-                    <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/40">Time</div>
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/40">拍號</div>
                     <div className="mt-1 font-semibold">{score?.transport?.timeSigNum ?? timeSigNum}/{score?.transport?.timeSigDen ?? timeSigDen}</div>
                   </div>
                 </div>
               </div>
               <div className="rounded-[24px] border border-white/10 bg-black/25 p-4">
                 <div className="mb-3 flex items-center justify-between gap-3">
-                  <div className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-200/55">Tracks</div>
-                  <div className="text-xs text-emerald-100/45">{jsonScoreEventCount} events</div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-200/55">軌道</div>
+                  <div className="text-xs text-emerald-100/45">{jsonScoreEventCount} 個事件</div>
                 </div>
                 <div className="custom-scrollbar max-h-[160px] space-y-2 overflow-y-auto pr-1">
                   {jsonTrackSummaries.map((track) => (
                     <div key={track.id} className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-emerald-50/80">
                       <span className="truncate font-semibold">{track.name}</span>
-                      <span className="shrink-0 text-xs text-emerald-100/45">{track.events} notes</span>
+                      <span className="shrink-0 text-xs text-emerald-100/45">{track.events} 個音符</span>
                     </div>
                   ))}
                 </div>

@@ -1,6 +1,6 @@
 # GitHub 與部署記憶
 
-最後更新：2026-05-15
+最後更新：2026-05-22
 
 ## Git 倉庫資訊
 
@@ -32,6 +32,9 @@
   - `/`
 - Hosting 輸出目錄：
   - `dist-fb`
+- 2026-05-22 狀態：
+  - `npm run build:firebase` 可成功產生 `dist-fb`。
+  - 本機 Firebase CLI 帳號顯示為 `u308008@gmail.com`，但 credentials 已過期；正式 deploy 需先在互動式終端執行 `firebase login --reauth` 或提供 CI token。
 
 ## 部署時的重要規則
 

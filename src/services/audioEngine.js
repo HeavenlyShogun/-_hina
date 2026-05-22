@@ -5,7 +5,8 @@ const DEFAULT_RENDER_CONFIG = {
   reverbAmount: 0.45,
 };
 const LIVE_NOTE_RELEASE_SEC = 0.16;
-const SAMPLE_LOAD_TIMEOUT_MS = 1800;
+const SAMPLE_LOAD_TIMEOUT_MS = 8000;
+const MIDI_JS_SOUNDFONT_BASE_URL = 'https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM';
 
 const TONE_ALIASES = {
   lyre: 'lyre-long',
@@ -15,7 +16,7 @@ const TONE_PRESETS = {
   piano: {
     tone: 'piano',
     engine: 'sampler',
-    sampleSet: 'piano',
+    sampleSet: 'acoustic-grand-piano',
     layerGain: 1.08,
     dur: 5.2,
     atk: 0.003,
@@ -28,6 +29,8 @@ const TONE_PRESETS = {
   },
   flute: {
     tone: 'flute',
+    engine: 'sampler',
+    sampleSet: 'flute',
     layerGain: 0.82,
     type: 'sine',
     dur: 2.5,
@@ -44,6 +47,8 @@ const TONE_PRESETS = {
   },
   violin: {
     tone: 'violin',
+    engine: 'sampler',
+    sampleSet: 'violin',
     layerGain: 0.56,
     type: 'sawtooth',
     dur: 3.8,
@@ -73,6 +78,8 @@ const TONE_PRESETS = {
   },
   'lyre-long': {
     tone: 'lyre-long',
+    engine: 'sampler',
+    sampleSet: 'orchestral-harp',
     layerGain: 0.86,
     type: 'sawtooth',
     dur: 4,
@@ -92,6 +99,8 @@ const TONE_PRESETS = {
   },
   'lyre-short': {
     tone: 'lyre-short',
+    engine: 'sampler',
+    sampleSet: 'orchestral-harp',
     layerGain: 0.9,
     type: 'sawtooth',
     atk: 0.015,
@@ -110,6 +119,8 @@ const TONE_PRESETS = {
   },
   'tongue-drum': {
     tone: 'tongue-drum',
+    engine: 'sampler',
+    sampleSet: 'steel-drums',
     layerGain: 0.78,
     type: 'triangle',
     dur: 3,
@@ -126,6 +137,27 @@ const TONE_PRESETS = {
     nVol: 0.05,
     release: 0.14,
     velocity: 0.85,
+  },
+  'tongue-drum-electronic': {
+    tone: 'tongue-drum-electronic',
+    layerGain: 0.78,
+    type: 'sine',
+    dur: 4.2,
+    atk: 0.008,
+    dec: 0.72,
+    sus: 0.08,
+    pk: 0.62,
+    flt: true,
+    fltStartMult: 5.8,
+    fltEndMult: 1.1,
+    fltDec: 0.72,
+    harmonics: [
+      { ratio: 2, gain: 0.16, type: 'sine', detune: 6 },
+      { ratio: 3, gain: 0.07, type: 'triangle', detune: -4 },
+      { ratio: 4.2, gain: 0.035, type: 'sine', detune: 2 },
+    ],
+    release: 0.42,
+    velocity: 0.82,
   },
   classic: {
     tone: 'classic',
@@ -155,9 +187,30 @@ const DYNAMIC_TONE_OVERRIDES = {
 
 const VALID_OSCILLATOR_TYPES = new Set(['sine', 'square', 'sawtooth', 'triangle']);
 const SAMPLE_LIBRARY_CONFIG = {
-  piano: {
-    baseUrl: 'https://tonejs.github.io/audio/salamander',
-    samples: ['A2', 'C3', 'Ds3', 'Fs3', 'A3', 'C4', 'Ds4', 'Fs4', 'A4', 'C5', 'Ds5', 'Fs5', 'A5'],
+  'acoustic-grand-piano': {
+    source: 'midi-js',
+    instrument: 'acoustic_grand_piano',
+    samples: ['A2', 'C3', 'D#3', 'F#3', 'A3', 'C4', 'D#4', 'F#4', 'A4', 'C5', 'D#5', 'F#5', 'A5'],
+  },
+  violin: {
+    source: 'midi-js',
+    instrument: 'violin',
+    samples: ['G3', 'C4', 'E4', 'G4', 'B4', 'D5', 'F#5', 'A5', 'C6'],
+  },
+  flute: {
+    source: 'midi-js',
+    instrument: 'flute',
+    samples: ['C4', 'D4', 'F4', 'A4', 'C5', 'D5', 'F5', 'A5', 'C6'],
+  },
+  'orchestral-harp': {
+    source: 'midi-js',
+    instrument: 'orchestral_harp',
+    samples: ['C3', 'E3', 'G3', 'B3', 'D4', 'F4', 'A4', 'C5', 'E5', 'G5', 'B5'],
+  },
+  'steel-drums': {
+    source: 'midi-js',
+    instrument: 'steel_drums',
+    samples: ['C4', 'E4', 'G4', 'B4', 'D5', 'F5', 'A5', 'C6'],
   },
 };
 
@@ -229,6 +282,24 @@ function midiToFrequency(midi) {
 
 function frequencyToMidi(frequency) {
   return 69 + (12 * Math.log2(frequency / 440));
+}
+
+function normalizeMidiJsNoteName(noteName) {
+  return String(noteName || '').replace('s', '#');
+}
+
+function parseMidiJsSoundfont(text) {
+  const match = /=\s*(\{[\s\S]*\})\s*;?\s*$/u.exec(String(text || '').trim());
+  if (!match) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(match[1]);
+  } catch (error) {
+    console.warn('Failed to parse MIDI.js soundfont.', error);
+    return {};
+  }
 }
 
 class AudioEngine {
@@ -900,13 +971,27 @@ class AudioEngine {
     }
 
     const context = this.init();
-    const loadPromise = Promise.all(sampleConfig.samples.map(async (noteName) => {
-      const midi = noteNameToMidi(noteName);
+    const soundfontEntriesPromise = sampleConfig.source === 'midi-js'
+      ? this.loadMidiJsSoundfont(sampleConfig.instrument)
+      : Promise.resolve(null);
+
+    const loadPromise = soundfontEntriesPromise.then((soundfontEntries) => (
+      Promise.all(sampleConfig.samples.map(async (sampleEntry) => {
+      const noteName = typeof sampleEntry === 'string' ? sampleEntry : sampleEntry?.noteName;
+      const midi = Number(sampleEntry?.midi) || noteNameToMidi(noteName);
       if (!Number.isFinite(midi)) {
         return null;
       }
 
-      const url = `${sampleConfig.baseUrl}/${noteName}.mp3`;
+      const normalizedNoteName = normalizeMidiJsNoteName(noteName);
+      const url = sampleConfig.source === 'midi-js'
+        ? soundfontEntries?.[normalizedNoteName] ?? soundfontEntries?.[noteName]
+        : sampleEntry?.url ?? `${sampleConfig.baseUrl}/${noteName}.mp3`;
+
+      if (!url) {
+        return null;
+      }
+
       const controller = typeof AbortController === 'function' ? new AbortController() : null;
       const timeoutId = controller
         ? window.setTimeout(() => controller.abort(), SAMPLE_LOAD_TIMEOUT_MS)
@@ -932,12 +1017,13 @@ class AudioEngine {
       const buffer = await context.decodeAudioData(arrayBuffer.slice(0));
 
       return {
-        id: noteName,
+        id: normalizedNoteName,
         midi,
         frequency: midiToFrequency(midi),
         buffer,
       };
-    }))
+    })))
+    )
       .then((samples) => {
         const loadedSet = samples.filter(Boolean).sort((left, right) => left.midi - right.midi);
         this.sampleSets.set(sampleSetId, loadedSet);
@@ -951,6 +1037,44 @@ class AudioEngine {
       });
 
     this.sampleSetLoads.set(sampleSetId, loadPromise);
+    return loadPromise;
+  }
+
+  async loadMidiJsSoundfont(instrument) {
+    if (!instrument) {
+      return {};
+    }
+
+    const cacheKey = `midi-js:${instrument}`;
+    if (this.sampleSets.has(cacheKey)) {
+      return this.sampleSets.get(cacheKey);
+    }
+
+    if (this.sampleSetLoads.has(cacheKey)) {
+      return this.sampleSetLoads.get(cacheKey);
+    }
+
+    const url = `${MIDI_JS_SOUNDFONT_BASE_URL}/${instrument}-mp3.js`;
+    const loadPromise = fetch(url, { mode: 'cors' })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Failed to load soundfont: ${url}`);
+        }
+        return response.text();
+      })
+      .then((text) => {
+        const parsed = parseMidiJsSoundfont(text);
+        this.sampleSets.set(cacheKey, parsed);
+        this.sampleSetLoads.delete(cacheKey);
+        return parsed;
+      })
+      .catch((error) => {
+        this.sampleSetLoads.delete(cacheKey);
+        console.warn(`MIDI.js soundfont load failed for "${instrument}".`, error);
+        throw error;
+      });
+
+    this.sampleSetLoads.set(cacheKey, loadPromise);
     return loadPromise;
   }
 
