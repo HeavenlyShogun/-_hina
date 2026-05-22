@@ -2,9 +2,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle, CheckCircle } from 'lucide-react';
 import ScoreConverter from './components/ScoreConverter';
 import ScoreEditor from './components/ScoreEditor';
-import WindParticles from './components/WindParticles';
 import PerformanceWorkspace from './components/PerformanceWorkspace';
 import PianoRoom from './pages/PianoRoom';
+import galaxyBackgroundUrl from './assets/galaxy.jpg';
 import { AudioConfigProvider, useAudioConfig } from './contexts/AudioConfigContext';
 import { PlaybackProvider } from './contexts/PlaybackContext';
 import { IMPORTABLE_SCORE_FILES, IMPORTABLE_SCORE_GROUPS } from './data/importableScoreFiles';
@@ -24,7 +24,6 @@ import { applyScoreRecommendation } from './utils/scoreRecommendations';
 import { buildScoreTextWithMeta } from './utils/scoreTextMeta';
 import { normalizeScoreSource } from './utils/score';
 import { scoreJsonToMidiBytes } from './utils/scoreToMidi';
-import GalaxyBackground from './components/GalaxyBackground';
 
 function getFileTitle(filename) {
   return filename.replace(/\.[^/.]+$/, '');
@@ -236,12 +235,10 @@ function AppContent({
   const [playHotkey, setPlayHotkey] = useState('Space');
   const [toast, setToast] = useState(null);
   const [activeKeys, setActiveKeys] = useState(() => new Set());
-  const [keyPulseTokens, setKeyPulseTokens] = useState({});
-  const [noteTrail, setNoteTrail] = useState([]);
   const [featuredLoadState, setFeaturedLoadState] = useState({ isLoading: false, message: '' });
-  const pageRef = useRef(null);
+  const [uiMode, setUiMode] = useState('normal');
+  const [panelModes, setPanelModes] = useState({});
   const toastTimerRef = useRef(null);
-  const pulseThrottleRef = useRef({});
   const visualEventQueueRef = useRef([]);
   const visualFlushFrameRef = useRef(0);
   const featuredRequestIdRef = useRef(0);
@@ -301,11 +298,8 @@ function AppContent({
       return;
     }
 
-    const now = performance.now();
     const nextActiveKeys = new Set();
     const releasedKeys = new Set();
-    const pulseIncrements = {};
-    const trailEntries = [];
 
     queuedEvents.forEach((entry) => {
       if (entry.type === 'release') {
@@ -316,21 +310,6 @@ function AppContent({
 
       releasedKeys.delete(entry.key);
       nextActiveKeys.add(entry.key);
-
-      if (!entry.eventMeta?.resumed) {
-        const lastPulseAt = pulseThrottleRef.current[entry.key] ?? 0;
-        if (now - lastPulseAt > 96) {
-          pulseThrottleRef.current[entry.key] = now;
-          pulseIncrements[entry.key] = (pulseIncrements[entry.key] ?? 0) + 1;
-        }
-      }
-
-      trailEntries.push({
-        id: `${entry.key}-${Math.round(now)}-${trailEntries.length}`,
-        key: entry.key,
-        time: now,
-        source: entry.eventMeta?.source ?? 'playback',
-      });
     });
 
     if (nextActiveKeys.size || releasedKeys.size) {
@@ -342,19 +321,6 @@ function AppContent({
       });
     }
 
-    if (Object.keys(pulseIncrements).length) {
-      setKeyPulseTokens((prev) => {
-        const next = { ...prev };
-        Object.entries(pulseIncrements).forEach(([key, increment]) => {
-          next[key] = (next[key] ?? 0) + increment;
-        });
-        return next;
-      });
-    }
-
-    if (trailEntries.length) {
-      setNoteTrail((prev) => [...prev, ...trailEntries].slice(-48));
-    }
   }, []);
 
   const queueVisualEvent = useCallback((entry) => {
@@ -381,15 +347,26 @@ function AppContent({
     setActiveKeys(new Set());
   }, []);
 
-  const handlePagePointerMove = useCallback((event) => {
-    const page = pageRef.current;
-    if (!page || event.pointerType === 'touch') {
+  const handleBackgroundPointerDown = useCallback((event) => {
+    if (event.target.closest('[data-ui-panel="true"], button, a, input, textarea, select, [role="slider"]')) {
       return;
     }
 
-    page.style.setProperty('--cursor-x', `${event.clientX}px`);
-    page.style.setProperty('--cursor-y', `${event.clientY}px`);
+    setUiMode('clear');
   }, []);
+
+  const handlePanelPointerDown = useCallback((event) => {
+    event.stopPropagation();
+  }, []);
+
+  const togglePanelMode = useCallback((panelId) => {
+    setPanelModes((prev) => ({
+      ...prev,
+      [panelId]: (prev[panelId] ?? uiMode) === 'clear' ? 'normal' : 'clear',
+    }));
+  }, [uiMode]);
+
+  const getPanelMode = useCallback((panelId) => panelModes[panelId] ?? uiMode, [panelModes, uiMode]);
 
   const scrollToSection = useCallback((sectionId) => {
     document.getElementById(sectionId)?.scrollIntoView({
@@ -879,15 +856,12 @@ function AppContent({
   return (
     <PlaybackProvider value={playbackValue}>
       <div
-        ref={pageRef}
-        className="app-shell relative flex min-h-screen select-none flex-col items-center pb-20 font-serif text-slate-900 touch-pan-y"
-        onPointerMove={handlePagePointerMove}
+        data-ui-mode={uiMode}
+        className="app-shell relative flex min-h-screen select-none flex-col items-center pb-20 font-serif text-slate-50 touch-pan-y"
+        onPointerDown={handleBackgroundPointerDown}
         onContextMenu={(event) => event.preventDefault()}
+        style={{ backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.48)), url(${galaxyBackgroundUrl})` }}
       >
-        <div className="app-background pointer-events-none fixed inset-0 z-0 bg-cover bg-center" />
-        <GalaxyBackground />
-        <WindParticles />
-
         {toast ? (
           <div className={`fixed right-6 top-6 z-50 flex items-center gap-3 rounded-2xl border px-6 py-3.5 shadow-[0_10px_40px_rgba(0,0,0,0.5)] backdrop-blur-md animate-in slide-in-from-top-5 fade-in duration-300 ${toast.type === 'error' ? 'border-rose-500/50 bg-rose-500/20 text-rose-100' : 'border-emerald-500/50 bg-emerald-500/20 text-emerald-100'}`}>
             {toast.type === 'error' ? <AlertCircle size={18} /> : <CheckCircle size={18} />}
@@ -909,8 +883,6 @@ function AppContent({
           onPlayFeaturedScore={handlePlayFeaturedScore}
           activeKeys={activeKeys}
           accidentals={accidentals}
-          keyPulseTokens={keyPulseTokens}
-          noteTrail={noteTrail}
           onKeyActivate={handleKeyActivate}
           onKeyDeactivate={handleKeyDeactivate}
           onToggleSharp={handleToggleSharp}
@@ -921,17 +893,19 @@ function AppContent({
           workspaceSections={workspaceSections}
           isBusy={isUiBusy}
           busyMessage={uiBusyMessage}
+          uiMode={uiMode}
+          onPanelPointerDown={handlePanelPointerDown}
         />
 
         <section className="z-20 w-full max-w-6xl px-4">
           <div className="grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)]">
             <aside className="xl:sticky xl:top-6 xl:self-start">
-              <div className="rounded-[32px] border border-white/10 bg-black/25 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-sm">
-                <div className="mb-4 px-2">
-                  <div className="text-[10px] font-black uppercase tracking-[0.34em] text-sky-200/55">
+              <div data-ui-panel="true" data-panel-mode={getPanelMode('workspace')} onPointerDown={handlePanelPointerDown} className="ui-panel rounded-[32px] border border-white/10 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.22)] transition-colors duration-300">
+                <div role="button" tabIndex={0} onClick={() => togglePanelMode('workspace')} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') togglePanelMode('workspace'); }} className="mb-4 px-2">
+                  <div className="text-[10px] font-black uppercase tracking-[0.34em] text-sky-100">
                     Workspace
                   </div>
-                  <div className="mt-2 text-sm font-semibold text-sky-50/80">
+                  <div className="mt-2 text-sm font-semibold text-sky-50">
                     快速跳到演奏、設定、編輯、轉換與雲端區塊。
                   </div>
                 </div>
@@ -946,9 +920,9 @@ function AppContent({
                     >
                       <span className="min-w-0">
                         <span className="block text-xs font-bold text-sky-50">{section.label}</span>
-                        <span className="block text-[10px] uppercase tracking-[0.24em] text-sky-200/40">{section.caption}</span>
+                        <span className="block text-[10px] uppercase tracking-[0.24em] text-sky-100/80">{section.caption}</span>
                       </span>
-                      <span className="ml-3 text-[10px] font-black text-sky-300/60">{String(index + 1).padStart(2, '0')}</span>
+                      <span className="ml-3 text-[10px] font-black text-sky-200">{String(index + 1).padStart(2, '0')}</span>
                     </button>
                   ))}
                 </div>
@@ -956,12 +930,12 @@ function AppContent({
             </aside>
 
             <div className="space-y-8">
-              <div id="playback-preview" className="scroll-mt-6 rounded-[36px] border border-white/10 bg-black/30 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-sm md:p-6">
-                <div className="mb-5 flex flex-col gap-2 px-1">
-                  <div className="text-[10px] font-black uppercase tracking-[0.34em] text-emerald-200/55">
+              <div id="playback-preview" data-ui-panel="true" data-panel-mode={getPanelMode('playback-preview')} onPointerDown={handlePanelPointerDown} className="ui-panel scroll-mt-6 rounded-[36px] border border-white/10 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] transition-colors duration-300 md:p-6">
+                <div role="button" tabIndex={0} onClick={() => togglePanelMode('playback-preview')} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') togglePanelMode('playback-preview'); }} className="mb-5 flex flex-col gap-2 px-1">
+                  <div className="text-[10px] font-black uppercase tracking-[0.34em] text-emerald-100">
                     Playback Preview
                   </div>
-                  <div className="mt-2 text-sm font-semibold text-emerald-50/80">
+                  <div className="mt-2 text-sm font-semibold text-emerald-50">
                     Live timeline and section preview for the current score.
                   </div>
                 </div>
@@ -973,12 +947,12 @@ function AppContent({
                 />
               </div>
 
-              <div id="editor" className="scroll-mt-6 rounded-[36px] border border-white/10 bg-black/30 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-sm md:p-6">
-                <div className="mb-5 flex flex-col gap-2 px-1">
-                  <div className="text-[10px] font-black uppercase tracking-[0.34em] text-violet-200/55">
+              <div id="editor" data-ui-panel="true" data-panel-mode={getPanelMode('editor')} onPointerDown={handlePanelPointerDown} className="ui-panel scroll-mt-6 rounded-[36px] border border-white/10 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] transition-colors duration-300 md:p-6">
+                <div role="button" tabIndex={0} onClick={() => togglePanelMode('editor')} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') togglePanelMode('editor'); }} className="mb-5 flex flex-col gap-2 px-1">
+                  <div className="text-[10px] font-black uppercase tracking-[0.34em] text-violet-100">
                     Score Editor
                   </div>
-                  <div className="mt-2 text-sm font-semibold text-violet-50/80">
+                  <div className="mt-2 text-sm font-semibold text-violet-50">
                     Edit, import, export, and save the current score.
                   </div>
                 </div>
@@ -1004,12 +978,12 @@ function AppContent({
                 />
               </div>
 
-              <div id="converter" className="scroll-mt-6 rounded-[36px] border border-white/10 bg-black/30 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] backdrop-blur-sm md:p-6">
-                <div className="mb-5 flex flex-col gap-2 px-1">
-                  <div className="text-[10px] font-black uppercase tracking-[0.34em] text-amber-200/55">
+              <div id="converter" data-ui-panel="true" data-panel-mode={getPanelMode('converter')} onPointerDown={handlePanelPointerDown} className="ui-panel scroll-mt-6 rounded-[36px] border border-white/10 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] transition-colors duration-300 md:p-6">
+                <div role="button" tabIndex={0} onClick={() => togglePanelMode('converter')} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') togglePanelMode('converter'); }} className="mb-5 flex flex-col gap-2 px-1">
+                  <div className="text-[10px] font-black uppercase tracking-[0.34em] text-amber-100">
                     Converter
                   </div>
-                  <div className="mt-2 text-sm font-semibold text-amber-50/80">
+                  <div className="mt-2 text-sm font-semibold text-amber-50">
                     Convert MusicXML or MIDI into the current playable score.
                   </div>
                 </div>
@@ -1035,9 +1009,11 @@ function AppContent({
           </div>
         </section>
 
-        <footer className="z-20 mt-16 text-[10px] uppercase tracking-[0.6em] text-slate-400">
+        <footer className="z-20 mt-16 text-[10px] uppercase tracking-[0.6em] text-slate-200">
           {APP_NAME} / {APP_TAGLINE}
         </footer>
+
+        <div className="h-[65vh] w-full pointer-events-none" aria-hidden="true" />
 
         <div className="fixed bottom-4 right-4 z-30 rounded-full border border-white/10 bg-slate-950/80 px-3 py-1.5 text-[10px] font-black tracking-[0.22em] text-slate-200 shadow-[0_14px_30px_rgba(0,0,0,0.32)] backdrop-blur-md">
           v{APP_VERSION}

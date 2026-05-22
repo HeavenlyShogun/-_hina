@@ -8,6 +8,8 @@ const STAR_SPIRAL_TWIST = Math.PI * 7.2;
 const DUST_SPIRAL_TWIST = Math.PI * 7.6;
 const DPR_LIMIT = 2;
 const DUST_SPRITE_SIZE = 96;
+const MAX_WAVES = 18;
+const MAX_COMETS = 42;
 
 let cachedDustSprite = null;
 
@@ -279,29 +281,200 @@ function drawGalaxy(canvas) {
   ctx.restore();
 }
 
+function hashKeyToUnit(key) {
+  const input = String(key ?? '');
+  let hash = 0;
+
+  for (let index = 0; index < input.length; index += 1) {
+    hash = (hash * 31 + input.charCodeAt(index)) % 9973;
+  }
+
+  return hash / 9973;
+}
+
+function drawInteractions(ctx, waves, comets, width, height, now) {
+  const coreX = width * 0.5;
+  const coreY = height * 0.5;
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+
+  for (let index = waves.length - 1; index >= 0; index -= 1) {
+    const wave = waves[index];
+    const age = now - wave.createdAt;
+    const life = 900;
+    const progress = age / life;
+
+    if (progress >= 1) {
+      waves.splice(index, 1);
+      continue;
+    }
+
+    const radius = 18 + progress * Math.max(width, height) * 0.38 * wave.force;
+    const alpha = (1 - progress) * 0.42;
+    const stretch = 1 + Math.sin(progress * Math.PI) * 0.42;
+    const gradient = ctx.createRadialGradient(wave.x, wave.y, radius * 0.15, wave.x, wave.y, radius);
+    gradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
+    gradient.addColorStop(0.58, `rgba(125, 211, 252, ${alpha * 0.2})`);
+    gradient.addColorStop(0.78, `rgba(255, 255, 255, ${alpha})`);
+    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+    ctx.save();
+    ctx.translate(wave.x, wave.y);
+    ctx.rotate(wave.rotation);
+    ctx.scale(stretch, 1 / stretch);
+    ctx.strokeStyle = gradient;
+    ctx.lineWidth = 1.5 + wave.force * 1.6;
+    ctx.beginPath();
+    ctx.arc(0, 0, radius, 0, TWO_PI);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  for (let index = comets.length - 1; index >= 0; index -= 1) {
+    const comet = comets[index];
+    comet.vx += (coreX - comet.x) * 0.000018;
+    comet.vy += (coreY - comet.y) * 0.000018;
+    comet.vx *= 0.992;
+    comet.vy *= 0.992;
+    comet.x += comet.vx;
+    comet.y += comet.vy;
+    comet.life -= 1;
+
+    if (comet.life <= 0 || comet.x < -80 || comet.x > width + 80 || comet.y < -80 || comet.y > height + 80) {
+      comets.splice(index, 1);
+      continue;
+    }
+
+    const alpha = Math.min(1, comet.life / 90) * 0.78;
+    const tailX = comet.x - comet.vx * 7;
+    const tailY = comet.y - comet.vy * 7;
+    const tail = ctx.createLinearGradient(comet.x, comet.y, tailX, tailY);
+    tail.addColorStop(0, `rgba(255, 255, 255, ${alpha})`);
+    tail.addColorStop(0.28, `rgba(125, 211, 252, ${alpha * 0.55})`);
+    tail.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+    ctx.strokeStyle = tail;
+    ctx.lineWidth = comet.size;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(comet.x, comet.y);
+    ctx.lineTo(tailX, tailY);
+    ctx.stroke();
+
+    drawStar(ctx, comet.x, comet.y, comet.size * 0.72, 'rgba(255, 255, 255, 1)', alpha, true);
+  }
+
+  ctx.restore();
+}
+
 export default function GalaxyBackground() {
   const canvasRef = useRef(null);
+  const sceneRef = useRef(null);
+  const wavesRef = useRef([]);
+  const cometsRef = useRef([]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return undefined;
 
+    const sceneCanvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    let animationFrame = 0;
     let resizeTimer = null;
-    drawGalaxy(canvas);
+
+    sceneRef.current = sceneCanvas;
+
+    const syncCanvasSize = () => {
+      const dpr = Math.min(window.devicePixelRatio || 1, DPR_LIMIT);
+      const viewport = window.visualViewport;
+      const width = Math.ceil(viewport?.width || window.innerWidth || document.documentElement.clientWidth || 1);
+      const height = Math.ceil(viewport?.height || window.innerHeight || document.documentElement.clientHeight || 1);
+
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      return { width, height };
+    };
+
+    const rebuildScene = () => {
+      drawGalaxy(sceneCanvas);
+      syncCanvasSize();
+    };
+
+    const animate = () => {
+      const viewport = window.visualViewport;
+      const width = Math.ceil(viewport?.width || window.innerWidth || document.documentElement.clientWidth || 1);
+      const height = Math.ceil(viewport?.height || window.innerHeight || document.documentElement.clientHeight || 1);
+
+      ctx.clearRect(0, 0, width, height);
+      ctx.drawImage(sceneCanvas, 0, 0, width, height);
+      drawInteractions(ctx, wavesRef.current, cometsRef.current, width, height, performance.now());
+      animationFrame = window.requestAnimationFrame(animate);
+    };
+
+    const handleKeyAttack = (event) => {
+      const viewport = window.visualViewport;
+      const width = Math.ceil(viewport?.width || window.innerWidth || document.documentElement.clientWidth || 1);
+      const height = Math.ceil(viewport?.height || window.innerHeight || document.documentElement.clientHeight || 1);
+      const unit = hashKeyToUnit(event.detail?.key);
+      const angle = unit * TWO_PI;
+      const orbit = Math.min(width, height) * (0.18 + unit * 0.24);
+      const x = width * 0.5 + Math.cos(angle) * orbit;
+      const y = height * 0.5 + Math.sin(angle) * orbit * 0.42;
+      const force = Math.max(0.55, Math.min(Number(event.detail?.velocity) || 0.88, 1.2));
+
+      wavesRef.current.push({
+        x,
+        y,
+        force,
+        rotation: angle,
+        createdAt: performance.now(),
+      });
+
+      while (wavesRef.current.length > MAX_WAVES) {
+        wavesRef.current.shift();
+      }
+
+      for (let index = 0; index < 3; index += 1) {
+        const scatter = randomBetween(-0.8, 0.8);
+        cometsRef.current.push({
+          x: x + randomBetween(-18, 18),
+          y: y + randomBetween(-18, 18),
+          vx: Math.cos(angle + Math.PI + scatter) * randomBetween(1.4, 3.2),
+          vy: Math.sin(angle + Math.PI + scatter) * randomBetween(0.8, 2.4),
+          size: randomBetween(1.2, 2.6),
+          life: randomBetween(70, 130),
+        });
+      }
+
+      while (cometsRef.current.length > MAX_COMETS) {
+        cometsRef.current.shift();
+      }
+    };
+
+    rebuildScene();
+    animationFrame = window.requestAnimationFrame(animate);
 
     const handleResize = () => {
       window.clearTimeout(resizeTimer);
       resizeTimer = window.setTimeout(() => {
-        drawGalaxy(canvas);
+        rebuildScene();
       }, RESIZE_DEBOUNCE_MS);
     };
 
+    window.addEventListener('piano-key-attack', handleKeyAttack);
     window.addEventListener('resize', handleResize);
     window.addEventListener('orientationchange', handleResize);
     window.visualViewport?.addEventListener('resize', handleResize);
 
     return () => {
+      window.cancelAnimationFrame(animationFrame);
       window.clearTimeout(resizeTimer);
+      window.removeEventListener('piano-key-attack', handleKeyAttack);
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('orientationchange', handleResize);
       window.visualViewport?.removeEventListener('resize', handleResize);

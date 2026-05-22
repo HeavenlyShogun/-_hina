@@ -2,12 +2,14 @@ import React, { memo, useCallback, useRef, useState } from 'react';
 import {
   ArrowDownUp,
   FileUp,
+  Files,
   Music2,
   Trash2,
   Wand2,
 } from 'lucide-react';
 import { parseMidiToV2 } from '../utils/midiToV2';
-import { convertMusicXmlToSlim } from '../utils/musicXmlToSlim';
+import { convertMusicXmlToSlim, mergeSlimScores } from '../utils/musicXmlToSlim';
+import { naturalCompareByName, readMusicXmlFile } from '../utils/musicXmlArchive';
 
 const LARGE_FILE_WARNING_BYTES = 5 * 1024 * 1024;
 
@@ -30,7 +32,7 @@ function isMidiFile(file) {
 
 function isMusicXmlFile(file) {
   const name = file?.name?.toLowerCase() || '';
-  return name.endsWith('.musicxml') || name.endsWith('.xml');
+  return name.endsWith('.musicxml') || name.endsWith('.xml') || name.endsWith('.mxl');
 }
 
 function getPayloadSummary(payload) {
@@ -67,6 +69,7 @@ const ScoreConverter = memo(({
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [convertedResults, setConvertedResults] = useState([]);
   const [isBatchUploading, setIsBatchUploading] = useState(false);
+  const [shouldMergeMusicXmlBatch, setShouldMergeMusicXmlBatch] = useState(true);
 
   const isImporting = isImportingMidi || isImportingMusicXml;
 
@@ -137,18 +140,17 @@ const ScoreConverter = memo(({
       return null;
     }
 
-    if (file.name.toLowerCase().endsWith('.mxl')) {
-      showToast?.('目前支援未壓縮的 .musicxml / .xml，請先解壓縮 .mxl 後再匯入。', 'error');
-      return null;
-    }
-
-    const { shouldLoadToEditor = true, shouldSyncInput = true } = options;
+    const {
+      shouldLoadToEditor = true,
+      shouldSyncInput = true,
+      articulationRatio,
+    } = options;
     setIsImportingMusicXml(true);
 
     try {
-      const xmlText = await file.text();
+      const { xmlText, extractedFileName, sourceType } = await readMusicXmlFile(file);
       const payload = convertMusicXmlToSlim(xmlText, {
-        fileName: file.name,
+        fileName: extractedFileName || file.name,
         title: scoreTitle.trim() || undefined,
         bpm,
         timeSigNum,
@@ -158,22 +160,93 @@ const ScoreConverter = memo(({
         reverb: audioConfig?.reverb,
         scaleMode: audioConfig?.scaleMode,
         accidentals,
+        articulationRatio,
       });
 
       if (shouldLoadToEditor) {
         onLoadLocalScore?.(payload);
       }
 
-      showToast?.(`MusicXML 已轉換：${payload.meta?.title || file.name}`, 'success');
+      showToast?.(`${sourceType} 已轉換：${payload.meta?.title || file.name}`, 'success');
       return {
         file,
         payload,
-        sourceType: 'MusicXML',
+        sourceType,
         status: shouldSyncInput ? '已轉換並載入編輯器，等待上傳至 Firestore 曲庫' : '已轉換，等待上傳至 Firestore 曲庫',
       };
     } catch (error) {
       console.error(error);
       showToast?.(error?.message || 'MusicXML 轉換失敗', 'error');
+      return null;
+    } finally {
+      setIsImportingMusicXml(false);
+    }
+  }, [
+    accidentals,
+    audioConfig?.globalKeyOffset,
+    audioConfig?.reverb,
+    audioConfig?.scaleMode,
+    audioConfig?.tone,
+    bpm,
+    confirmLargeFile,
+    onLoadLocalScore,
+    scoreTitle,
+    showToast,
+    timeSigDen,
+    timeSigNum,
+  ]);
+
+  const handleMergedMusicXmlImport = useCallback(async (files) => {
+    const orderedFiles = [...files].sort(naturalCompareByName);
+    if (!orderedFiles.every(confirmLargeFile)) {
+      return null;
+    }
+
+    setIsImportingMusicXml(true);
+
+    try {
+      const convertedScores = [];
+
+      for (const file of orderedFiles) {
+        const { xmlText, extractedFileName } = await readMusicXmlFile(file);
+        convertedScores.push(convertMusicXmlToSlim(xmlText, {
+          fileName: extractedFileName || file.name,
+          title: undefined,
+          bpm,
+          timeSigNum,
+          timeSigDen,
+          tone: audioConfig?.tone,
+          globalKeyOffset: audioConfig?.globalKeyOffset,
+          reverb: audioConfig?.reverb,
+          scaleMode: audioConfig?.scaleMode,
+          accidentals,
+          articulationRatio: 0.9,
+        }));
+      }
+
+      const title = scoreTitle.trim() || `combined_${orderedFiles.length}_musicxml`;
+      const payload = mergeSlimScores(convertedScores, {
+        title,
+        fileName: `${title.replace(/[^\w\-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'combined'}-musicxml-slim.json`,
+        bpm,
+        timeSigNum,
+        timeSigDen,
+      });
+      onLoadLocalScore?.(payload);
+      showToast?.(`已合併 ${orderedFiles.length} 份 MusicXML/MXL 並載入編輯器`, 'success');
+
+      return {
+        file: {
+          name: `${orderedFiles[0].name} ~ ${orderedFiles[orderedFiles.length - 1].name}`,
+          size: orderedFiles.reduce((total, file) => total + (file.size || 0), 0),
+        },
+        payload,
+        sourceType: 'MusicXML/MXL Merge',
+        status: `已依檔名自然排序合併 ${orderedFiles.length} 份檔案，音長套用 90% 留縫，等待上傳至 Firestore 曲庫`,
+      };
+    } catch (error) {
+      console.error(error);
+      showToast?.(error?.message || 'MusicXML/MXL 合併失敗', 'error');
       return null;
     } finally {
       setIsImportingMusicXml(false);
@@ -205,7 +278,22 @@ const ScoreConverter = memo(({
       showToast?.(`已略過 ${unsupportedCount} 個不支援的檔案。`, 'error');
     }
 
-    for (const file of supportedFiles) {
+    const midiFiles = supportedFiles.filter(isMidiFile);
+    const musicXmlFiles = supportedFiles.filter(isMusicXmlFile);
+
+    if (shouldMergeMusicXmlBatch && musicXmlFiles.length > 1) {
+      const result = await handleMergedMusicXmlImport(musicXmlFiles);
+      if (result) {
+        results.push(result);
+      }
+    }
+
+    const filesToConvertSeparately = [
+      ...midiFiles,
+      ...(shouldMergeMusicXmlBatch && musicXmlFiles.length > 1 ? [] : musicXmlFiles),
+    ];
+
+    for (const file of filesToConvertSeparately) {
       const options = {
         shouldLoadToEditor: supportedFiles.length === 1,
         shouldSyncInput: supportedFiles.length === 1,
@@ -225,7 +313,13 @@ const ScoreConverter = memo(({
         showToast?.(`已加入 ${results.length} 份譜面到待上傳清單`, 'success');
       }
     }
-  }, [handleMidiImport, handleMusicXmlImport, showToast]);
+  }, [
+    handleMergedMusicXmlImport,
+    handleMidiImport,
+    handleMusicXmlImport,
+    shouldMergeMusicXmlBatch,
+    showToast,
+  ]);
 
   const handleMidiFileChange = useCallback(async (event) => {
     await importFiles(event.target.files);
@@ -322,9 +416,18 @@ const ScoreConverter = memo(({
               <FileUp size={24} />
             </div>
             <div>
-              <div className="text-base font-bold text-amber-50">拖放 MIDI / MusicXML 到這裡</div>
-              <div className="mt-1 text-sm text-amber-50/55">支援 .mid、.midi、.musicxml、.xml，可一次選擇多個檔案。</div>
+              <div className="text-base font-bold text-amber-50">拖放 MIDI / MusicXML / MXL 到這裡</div>
+              <div className="mt-1 text-sm text-amber-50/55">支援 .mid、.midi、.musicxml、.xml、.mxl，可一次選擇多個檔案。</div>
             </div>
+            <label className="inline-flex max-w-full items-center gap-2 rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs font-semibold text-amber-50/70">
+              <input
+                type="checkbox"
+                checked={shouldMergeMusicXmlBatch}
+                onChange={(event) => setShouldMergeMusicXmlBatch(event.target.checked)}
+                className="h-4 w-4 accent-amber-300"
+              />
+              多個 MusicXML/MXL 自動合併成一份譜面
+            </label>
             <div className="flex flex-wrap justify-center gap-2">
               <button
                 type="button"
@@ -342,7 +445,7 @@ const ScoreConverter = memo(({
                 className="inline-flex items-center gap-2 rounded-2xl border border-amber-300/25 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-50 transition hover:bg-amber-500/20 disabled:opacity-50"
               >
                 <Music2 size={15} />
-                選擇多個 MusicXML
+                選擇多個 MusicXML/MXL
               </button>
             </div>
           </div>
@@ -391,6 +494,12 @@ const ScoreConverter = memo(({
                     <span className="rounded-full border border-amber-300/15 bg-amber-400/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.16em] text-amber-100/75">
                       {result.sourceType}
                     </span>
+                    {result.payload?.meta?.sourceFileCount > 1 ? (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-sky-300/15 bg-sky-400/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-sky-100/75">
+                        <Files size={11} />
+                        {result.payload.meta.sourceFileCount} files
+                      </span>
+                    ) : null}
                   </div>
                   <div className="mt-1 truncate text-xs text-amber-50/55">
                     {result.file.name} · {formatBytes(result.file.size)} · {getPayloadSummary(result.payload)}
@@ -442,7 +551,7 @@ const ScoreConverter = memo(({
           ref={musicXmlInputRef}
           type="file"
           multiple
-          accept=".musicxml,.xml,application/xml,text/xml"
+          accept=".musicxml,.xml,.mxl,application/xml,text/xml,application/vnd.recordare.musicxml"
           className="hidden"
           onChange={handleMusicXmlFileChange}
         />

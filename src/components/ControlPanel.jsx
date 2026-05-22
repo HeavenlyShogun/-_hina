@@ -16,7 +16,12 @@ const RESOLUTION_OPTIONS = [
   { value: 32, label: '1/32 beat grid' },
 ];
 
-const ControlPanel = memo(({ embedded = false, compact = false }) => {
+const ControlPanel = memo(({
+  embedded = false,
+  compact = false,
+  uiMode = 'normal',
+  onPanelPointerDown,
+}) => {
   const {
     vol,
     setVol,
@@ -39,7 +44,15 @@ const ControlPanel = memo(({ embedded = false, compact = false }) => {
     onApplySettingsToScore,
   } = usePlayback();
   const [bpmDraft, setBpmDraft] = useState(() => String(bpm));
+  const [panelModes, setPanelModes] = useState({});
   const lastValidBpmRef = useRef(Number(bpm) || 90);
+
+  const togglePanelMode = useCallback((panelId) => {
+    setPanelModes((prev) => ({
+      ...prev,
+      [panelId]: (prev[panelId] ?? uiMode) === 'clear' ? 'normal' : 'clear',
+    }));
+  }, [uiMode]);
 
   useEffect(() => {
     const numericBpm = Number(bpm);
@@ -76,16 +89,16 @@ const ControlPanel = memo(({ embedded = false, compact = false }) => {
   return (
     <section className={embedded ? 'w-full' : 'z-30 my-8 w-full max-w-6xl px-4 sm:my-10 sm:px-6'}>
       <div className={`grid gap-4 ${compact ? 'xl:grid-cols-[minmax(0,1fr)_minmax(280px,0.82fr)]' : 'xl:grid-cols-[minmax(0,1.28fr)_minmax(280px,0.9fr)]'}`}>
-        <div className={`relative min-w-0 overflow-hidden border border-white/45 bg-white/40 text-slate-900 shadow-[0_20px_70px_rgba(15,23,42,0.10)] backdrop-blur-xl ${compact ? 'rounded-[24px] p-3 sm:p-4' : 'rounded-[28px] p-4 sm:p-5'}`}>
+        <div data-ui-panel="true" data-panel-mode={panelModes.rhythm ?? uiMode} onPointerDown={onPanelPointerDown} className={`ui-panel ui-panel-light relative min-w-0 overflow-hidden border border-white/45 text-slate-900 shadow-[0_20px_70px_rgba(15,23,42,0.10)] ${compact ? 'rounded-[24px] p-3 sm:p-4' : 'rounded-[28px] p-4 sm:p-5'}`}>
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.08),transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.28),rgba(248,250,252,0.14))]" />
           <div className="relative flex min-w-0 flex-col gap-4">
-            <div className="flex min-w-0 items-center gap-3">
+            <div role="button" tabIndex={0} onClick={() => togglePanelMode('rhythm')} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') togglePanelMode('rhythm'); }} className="flex min-w-0 items-center gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-amber-300 bg-amber-50 shadow-[0_0_22px_rgba(245,158,11,0.12)]">
                 <Zap size={16} className="shrink-0 text-amber-600" />
               </div>
               <div className="min-w-0">
                 <div className="truncate text-[10px] font-black uppercase tracking-[0.35em] text-amber-700/70">節奏</div>
-                <div className="truncate text-sm font-semibold text-slate-700">速度、拍號與節拍解析度</div>
+                <div className="truncate text-sm font-semibold text-slate-800">速度、拍號與節拍解析度</div>
               </div>
             </div>
 
@@ -105,7 +118,7 @@ const ControlPanel = memo(({ embedded = false, compact = false }) => {
 
               <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(10rem,0.9fr)_minmax(10rem,0.85fr)_minmax(12rem,1fr)]">
                 <div className="min-w-0 overflow-hidden rounded-[22px] border border-slate-200/45 bg-slate-50/30 px-3 py-3 shadow-sm backdrop-blur-md">
-                  <div className="mb-2 truncate text-[10px] font-black tracking-[0.24em] text-slate-500">BPM</div>
+                  <div className="mb-2 truncate text-[10px] font-black tracking-[0.24em] text-slate-700">BPM</div>
                   <div className="flex min-w-0 items-center overflow-hidden rounded-xl border border-slate-200/45 bg-white/25 p-1 transition-colors focus-within:border-amber-400/70">
                     <button type="button" onClick={() => applyBpm(lastValidBpmRef.current - 1)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-lg leading-none text-amber-700 transition-colors hover:bg-amber-100">-</button>
                     <input
@@ -129,7 +142,7 @@ const ControlPanel = memo(({ embedded = false, compact = false }) => {
                 <div className="min-w-0 overflow-hidden rounded-[22px] border border-slate-200/45 bg-slate-50/30 px-3 py-3 shadow-sm backdrop-blur-md">
                   <div className="mb-2 flex min-w-0 items-center gap-2">
                     <Clock size={15} className="shrink-0 text-teal-600" />
-                    <span className="truncate text-[10px] font-black tracking-[0.24em] text-slate-500">拍號</span>
+                    <span className="truncate text-[10px] font-black tracking-[0.24em] text-slate-700">拍號</span>
                   </div>
                   <div className="flex min-w-0 items-center gap-1 overflow-hidden rounded-xl border border-slate-200/45 bg-white/25 px-2 py-1">
                     <select value={timeSigNum} onChange={(event) => setTimeSigNum(Number(event.target.value))} className="min-w-0 flex-1 bg-transparent px-1 py-1 text-center text-sm font-black text-slate-800 outline-none">
@@ -137,7 +150,7 @@ const ControlPanel = memo(({ embedded = false, compact = false }) => {
                         <option key={value} value={value} className="bg-white text-slate-900">{value}</option>
                       ))}
                     </select>
-                    <span className="shrink-0 font-bold text-slate-400">/</span>
+                    <span className="shrink-0 font-bold text-slate-700">/</span>
                     <select value={timeSigDen} onChange={(event) => setTimeSigDen(Number(event.target.value))} className="min-w-0 flex-1 bg-transparent px-1 py-1 text-center text-sm font-black text-slate-800 outline-none">
                       {[2, 4, 8, 16].map((value) => (
                         <option key={value} value={value} className="bg-white text-slate-900">{value}</option>
@@ -147,7 +160,7 @@ const ControlPanel = memo(({ embedded = false, compact = false }) => {
                 </div>
 
                 <div className="min-w-0 overflow-hidden rounded-[22px] border border-slate-200/45 bg-slate-50/30 px-3 py-3 shadow-sm backdrop-blur-md sm:col-span-2 lg:col-span-1">
-                  <div className="mb-2 truncate text-[10px] font-black tracking-[0.24em] text-slate-500">節拍格線</div>
+                  <div className="mb-2 truncate text-[10px] font-black tracking-[0.24em] text-slate-700">節拍格線</div>
                   <select value={charResolution} onChange={(event) => setCharResolution(Number(event.target.value))} className="block h-10 w-full min-w-0 truncate rounded-xl border border-slate-200/45 bg-white/25 px-3 text-xs font-black text-slate-800 outline-none">
                     {RESOLUTION_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value} className="bg-white text-slate-900">{option.label}</option>
@@ -159,27 +172,27 @@ const ControlPanel = memo(({ embedded = false, compact = false }) => {
           </div>
         </div>
 
-        <div className={`relative min-w-0 overflow-hidden border border-white/45 bg-white/40 text-slate-900 shadow-[0_20px_70px_rgba(15,23,42,0.10)] backdrop-blur-xl ${compact ? 'rounded-[24px] p-3 sm:p-4' : 'rounded-[28px] p-4 sm:p-5'}`}>
+        <div data-ui-panel="true" data-panel-mode={panelModes.sound ?? uiMode} onPointerDown={onPanelPointerDown} className={`ui-panel ui-panel-light relative min-w-0 overflow-hidden border border-white/45 text-slate-900 shadow-[0_20px_70px_rgba(15,23,42,0.10)] ${compact ? 'rounded-[24px] p-3 sm:p-4' : 'rounded-[28px] p-4 sm:p-5'}`}>
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(16,185,129,0.07),transparent_32%),radial-gradient(circle_at_20%_100%,rgba(99,102,241,0.07),transparent_26%),linear-gradient(180deg,rgba(255,255,255,0.22),rgba(248,250,252,0.12))]" />
           <div className="relative flex h-full min-w-0 flex-col gap-4">
-            <div className="flex min-w-0 items-center gap-3">
+            <div role="button" tabIndex={0} onClick={() => togglePanelMode('sound')} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') togglePanelMode('sound'); }} className="flex min-w-0 items-center gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-teal-200 bg-teal-50 shadow-[0_0_22px_rgba(16,185,129,0.12)]">
                 <Volume2 size={16} className="text-teal-700" />
               </div>
               <div className="min-w-0">
                 <div className="truncate text-[10px] font-black uppercase tracking-[0.35em] text-teal-700/70">音色</div>
-                <div className="truncate text-sm font-semibold text-slate-700">音量、殘響與調性設定</div>
+                <div className="truncate text-sm font-semibold text-slate-800">音量、殘響與調性設定</div>
               </div>
             </div>
 
             <div className="flex min-w-0 items-center gap-3 rounded-[22px] border border-slate-200/45 bg-slate-50/30 px-4 py-3 shadow-inner backdrop-blur-md">
               <Volume2 size={15} className="shrink-0 text-teal-700" />
               <input type="range" min="0" max="1" step="0.01" value={vol} onChange={(event) => setVol(Number(event.target.value))} className="min-w-0 flex-1 accent-teal-500" />
-              <span className="shrink-0 text-[9px] font-mono tracking-[0.24em] text-slate-500">音量</span>
+              <span className="shrink-0 text-[9px] font-mono tracking-[0.24em] text-slate-700">音量</span>
             </div>
 
             <div className="grid min-w-0 gap-3 sm:grid-cols-[auto_minmax(0,1fr)]">
-              <button type="button" onClick={onToggleReverb} className={`min-h-[3.5rem] min-w-0 rounded-[22px] border px-5 py-3 text-[10px] font-black tracking-[0.32em] transition-all backdrop-blur-md ${reverb ? 'border-indigo-200/55 bg-indigo-50/40 text-indigo-800 shadow-[0_0_24px_rgba(79,70,229,0.10)]' : 'border-slate-200/45 bg-white/25 text-slate-500'}`}>
+              <button type="button" onClick={onToggleReverb} className={`min-h-[3.5rem] min-w-0 rounded-[22px] border px-5 py-3 text-[10px] font-black tracking-[0.32em] transition-all ${reverb ? 'border-indigo-200/55 bg-indigo-50/40 text-indigo-800 shadow-[0_0_24px_rgba(79,70,229,0.10)]' : 'border-slate-200/45 bg-white/25 text-slate-700'}`}>
                 殘響 <span className="ml-1 opacity-55">{reverb ? '開' : '關'}</span>
               </button>
 

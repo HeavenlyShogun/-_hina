@@ -31,7 +31,6 @@ const PianoKey = memo(({
   isSharp,
   globalOffset,
   isActive,
-  pulseToken,
   onActivate,
   onDeactivate,
   onToggleSharp,
@@ -80,7 +79,7 @@ const PianoKey = memo(({
       <button
         type="button"
         onClick={handleToggle}
-        className={`absolute -right-1 -top-1 z-30 flex h-5 w-5 items-center justify-center rounded-full border text-[8px] font-black transition-all backdrop-blur-lg md:-right-2 md:-top-2 md:h-7 md:w-7 md:text-[9px] ${isSharp ? 'scale-110 border-amber-200 bg-amber-400 text-amber-950 shadow-[0_0_14px_rgba(251,191,36,0.42)]' : 'border-white/10 bg-black/55 text-white/30 hover:bg-white/10 group-hover:text-white/50'}`}
+        className={`absolute -right-1 -top-1 z-30 flex h-5 w-5 items-center justify-center rounded-full border text-[8px] font-black transition-all md:-right-2 md:-top-2 md:h-7 md:w-7 md:text-[9px] ${isSharp ? 'scale-110 border-amber-200 bg-amber-400 text-amber-950 shadow-[0_0_14px_rgba(251,191,36,0.42)]' : 'border-white/10 bg-black/55 text-white/70 hover:bg-white/10 group-hover:text-white/90'}`}
       >
         #
       </button>
@@ -109,11 +108,12 @@ const PianoKey = memo(({
 const PianoKeys = memo(({
   accidentals,
   activeKeys,
-  keyPulseTokens,
   onKeyActivate,
   onKeyDeactivate,
   onToggleSharp,
   progressBarRef,
+  uiMode = 'normal',
+  onPanelPointerDown,
 }) => {
   const { globalKeyOffset } = useAudioConfig();
   const { onSeekToTime, onScrubToTime } = usePlayback();
@@ -220,10 +220,10 @@ const PianoKeys = memo(({
 
   return (
     <main id="lyre-keyboard" className="relative z-20 mt-6 w-full max-w-6xl scroll-mt-6 px-1 sm:mt-10 sm:px-4">
-      <div className="group relative overflow-hidden rounded-[24px] border border-sky-200/25 bg-slate-950/70 p-2 text-slate-100 shadow-[0_35px_120px_rgba(2,6,23,0.42)] backdrop-blur-xl sm:rounded-[36px] sm:p-6 md:rounded-[60px] md:p-14">
+      <div data-ui-panel="true" data-panel-mode={uiMode} onPointerDown={onPanelPointerDown} className="ui-panel group relative overflow-hidden rounded-[24px] border border-sky-200/25 p-2 text-slate-100 shadow-[0_35px_120px_rgba(2,6,23,0.42)] transition-colors duration-300 sm:rounded-[36px] sm:p-6 md:rounded-[60px] md:p-14">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.08),transparent_30%),radial-gradient(circle_at_80%_22%,rgba(250,204,21,0.05),transparent_24%),linear-gradient(180deg,rgba(2,6,23,0.24),rgba(15,23,42,0.32))]" />
         <div className="absolute inset-x-0 top-0 px-4 pt-4 sm:px-6 md:px-8">
-          <div className="mb-2 flex items-center justify-between gap-3 text-[10px] font-black uppercase tracking-[0.22em] text-slate-300">
+          <div className="mb-2 flex items-center justify-between gap-3 text-[10px] font-black uppercase tracking-[0.22em] text-slate-100">
             <span>{isScrubbing ? 'Scrubbing' : 'Playback Timeline'}</span>
             <span>{formatTimeLabel(displayTime)} / {formatTimeLabel(maxTime)}</span>
           </div>
@@ -258,8 +258,8 @@ const PianoKeys = memo(({
           {NOTES_MAP.map((row, rowIndex) => (
             <div key={rowIndex} className="relative mb-3 grid grid-cols-1 gap-1.5 last:mb-0 sm:mb-8 sm:gap-4 md:mb-10 md:gap-8 lg:grid-cols-[104px_1fr] lg:items-center">
               <div className="flex w-full items-center justify-between px-1 text-center lg:flex-col lg:items-end lg:justify-center lg:px-0 lg:text-right">
-                <span className="text-[9px] font-black text-sky-200/80 sm:text-[10px]">{row.label}</span>
-                <span className="rounded-full border border-slate-700 bg-slate-900/70 px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.24em] text-slate-300 backdrop-blur-lg sm:px-2.5 sm:py-1 sm:tracking-[0.32em] lg:inline-flex">{row.sub}</span>
+                <span className="text-[9px] font-black text-sky-100 sm:text-[10px]">{row.label}</span>
+                <span className="rounded-full border border-slate-700 bg-slate-900/70 px-2 py-0.5 text-[8px] font-bold uppercase tracking-[0.24em] text-slate-100 sm:px-2.5 sm:py-1 sm:tracking-[0.32em] lg:inline-flex">{row.sub}</span>
               </div>
               <div className="grid grid-cols-7 items-center justify-items-stretch gap-1.5 sm:gap-4 md:gap-5">
                 {row.keys.map((key) => (
@@ -269,7 +269,6 @@ const PianoKeys = memo(({
                     isSharp={!!accidentals[key.k]}
                     globalOffset={globalKeyOffset}
                     isActive={activeKeys.has(key.k)}
-                    pulseToken={keyPulseTokens[key.k] ?? 0}
                     onActivate={onKeyActivate}
                     onDeactivate={onKeyDeactivate}
                     onToggleSharp={onToggleSharp}

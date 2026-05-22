@@ -1,6 +1,11 @@
 /dist
 /dist-gh
 /dist-fb
+/build
+/.tmp
+__pycache__/
+*.pyc
 node_modules
- # local env files
- .env.local
+
+# local env files
+.env.local

@@ -115,6 +115,19 @@ function getDurationTicks(noteElement, divisions, resolution) {
   return Math.max(1, Math.round((rawDuration / safeDivisions) * resolution));
 }
 
+function getSlimScoreEndTick(score) {
+  if (!Array.isArray(score?.notes)) {
+    return 0;
+  }
+
+  return score.notes.reduce((endTick, note) => {
+    if (!Array.isArray(note)) return endTick;
+    const startTick = Number(note[0]) || 0;
+    const durationTicks = Number(note[1]) || 0;
+    return Math.max(endTick, startTick + durationTicks);
+  }, 0);
+}
+
 function getDynamicsVelocity(noteElement) {
   const velocity = Number(noteElement.querySelector('sound')?.getAttribute('dynamics'));
   if (!Number.isFinite(velocity)) {
@@ -212,8 +225,21 @@ export function convertMusicXmlToSlim(xmlText, options = {}) {
   });
   const notes = parts.flatMap((part, index) => parsePart(part, index, resolution))
     .sort((left, right) => left[0] - right[0] || left[4] - right[4] || left[2] - right[2] || left[1] - right[1]);
+  const articulationRatio = Number(options.articulationRatio);
+  const safeArticulationRatio = Number.isFinite(articulationRatio)
+    ? Math.min(1, Math.max(0.1, articulationRatio))
+    : 1;
+  const articulatedNotes = safeArticulationRatio === 1
+    ? notes
+    : notes.map((note) => [
+      note[0],
+      Math.max(1, Math.round(note[1] * safeArticulationRatio)),
+      note[2],
+      note[3],
+      note[4],
+    ]);
 
-  if (!notes.length) {
+  if (!articulatedNotes.length) {
     throw new Error('No playable notes were found in this MusicXML file.');
   }
 
@@ -229,6 +255,7 @@ export function convertMusicXmlToSlim(xmlText, options = {}) {
       storageFormat: 'hina-slim-score@3.2',
       fileName,
       convertedAt: new Date().toISOString(),
+      sourceFileCount: 1,
     },
     transport: {
       bpm,
@@ -242,6 +269,84 @@ export function convertMusicXmlToSlim(xmlText, options = {}) {
       scaleMode: options.scaleMode ?? DEFAULT_SCORE_PARAMS.scaleMode,
       reverb: options.reverb ?? DEFAULT_SCORE_PARAMS.reverb,
       accidentals: options.accidentals ?? DEFAULT_SCORE_PARAMS.accidentals,
+      tempoMap: [[0, bpm]],
+    },
+    tracks,
+    notes: articulatedNotes,
+  };
+}
+
+export function mergeSlimScores(scores, options = {}) {
+  const sourceScores = Array.isArray(scores) ? scores.filter(Boolean) : [];
+  if (!sourceScores.length) {
+    throw new Error('No converted MusicXML scores were provided.');
+  }
+
+  const resolution = Math.max(Number(sourceScores[0]?.transport?.resolution) || DEFAULT_RESOLUTION, 1);
+  const bpm = Number(options.bpm) || Number(sourceScores[0]?.transport?.bpm) || DEFAULT_SCORE_PARAMS.bpm;
+  const title = String(options.title || `combined_${sourceScores.length}_musicxml`).trim();
+  const fileName = String(options.fileName || `${slugifyFilename(title)}.json`).trim();
+  const notes = [];
+  const tracks = [];
+  let currentOffset = 0;
+  let nextTrackId = 0;
+
+  sourceScores.forEach((score, scoreIndex) => {
+    const trackIdMap = new Map();
+    const sourceTracks = Array.isArray(score.tracks) ? score.tracks : [];
+
+    sourceTracks.forEach((track, trackIndex) => {
+      const sourceTrackId = Array.isArray(track) ? track[1] : track?.id ?? trackIndex;
+      const newTrackId = nextTrackId;
+      nextTrackId += 1;
+      trackIdMap.set(String(sourceTrackId), newTrackId);
+      tracks.push([
+        `${scoreIndex + 1}. ${Array.isArray(track) ? track[0] : track?.name || `Track ${trackIndex + 1}`}`,
+        newTrackId,
+        Array.isArray(track) ? track[2] || 'musicxml' : 'musicxml',
+      ]);
+    });
+
+    (score.notes || []).forEach((entry) => {
+      if (!Array.isArray(entry) || entry.length < 3) return;
+      const sourceTrackId = String(entry[4] ?? 0);
+      notes.push([
+        Math.max(0, Math.round((Number(entry[0]) || 0) + currentOffset)),
+        Math.max(1, Math.round(Number(entry[1]) || 1)),
+        Math.round(Number(entry[2]) || 60),
+        Number.isFinite(Number(entry[3])) ? Number(entry[3]) : DEFAULT_VELOCITY,
+        trackIdMap.get(sourceTrackId) ?? trackIdMap.get('0') ?? 0,
+      ]);
+    });
+
+    currentOffset += getSlimScoreEndTick(score);
+  });
+
+  notes.sort((left, right) => left[0] - right[0] || left[4] - right[4] || left[2] - right[2] || left[1] - right[1]);
+
+  return {
+    version: '3.2-ultra-slim',
+    columns: ['startTick', 'durationTicks', 'note', 'velocity', 'trackId'],
+    meta: {
+      id: `${slugifyFilename(title)}-${Date.now()}`,
+      title,
+      displayTitle: title,
+      sourceType: 'musicxml',
+      originalFormat: 'musicxml',
+      storageFormat: 'hina-slim-score@3.2',
+      fileName,
+      convertedAt: new Date().toISOString(),
+      sourceFileCount: sourceScores.length,
+    },
+    transport: {
+      bpm,
+      timeSigNum: Number(options.timeSigNum) || Number(sourceScores[0]?.transport?.timeSigNum) || DEFAULT_SCORE_PARAMS.timeSigNum,
+      timeSigDen: Number(options.timeSigDen) || Number(sourceScores[0]?.transport?.timeSigDen) || DEFAULT_SCORE_PARAMS.timeSigDen,
+      resolution,
+    },
+    playback: {
+      ...(sourceScores[0]?.playback ?? {}),
+      bpm,
       tempoMap: [[0, bpm]],
     },
     tracks,
