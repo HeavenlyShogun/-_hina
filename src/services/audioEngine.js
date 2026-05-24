@@ -8,11 +8,11 @@ const LIVE_NOTE_RELEASE_SEC = 0.16;
 const SAMPLE_LOAD_TIMEOUT_MS = 8000;
 const MIDI_JS_SOUNDFONT_BASE_URL = 'https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM';
 const PIANO_TONE_SHAPING = {
-  highShelfFrequency: 4000,
+  highShelfFrequency: 3000,
   highShelfMinGain: -6,
-  highShelfMaxGain: -10,
-  lowpassMinFrequency: 3600,
-  lowpassMaxFrequency: 14500,
+  highShelfMaxGain: -12,
+  lowpassMinFrequency: 3000,
+  lowpassMaxFrequency: 13200,
 };
 
 const TONE_ALIASES = {
@@ -313,33 +313,38 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
-function getPianoTimbreCurve(frequency) {
+function getPianoTimbreCurve(frequency, velocity = DEFAULT_RENDER_CONFIG.velocity) {
   const midi = frequencyToMidi(frequency);
+  const normalizedVelocity = clamp(Number(velocity) || DEFAULT_RENDER_CONFIG.velocity, 0.05, 1);
   const lowWeight = clamp((60 - midi) / 24, 0, 1);
   const highWeight = clamp((midi - 68) / 24, 0, 1);
   const bodyWeight = 1 - clamp(Math.abs(midi - 52) / 30, 0, 1);
   const upperRegisterWeight = clamp((midi - 72) / 24, 0, 1);
+  const softTouchWeight = 1 - normalizedVelocity;
+  const velocityBrightness = 0.58 + normalizedVelocity * 0.62;
   const lowpassFrequency = clamp(
-    frequency * (9.5 - upperRegisterWeight * 4.2),
+    frequency * (9.2 - upperRegisterWeight * 4.6) * velocityBrightness,
     PIANO_TONE_SHAPING.lowpassMinFrequency,
     PIANO_TONE_SHAPING.lowpassMaxFrequency,
   );
 
   return {
     midi,
-    gain: 0.94 + lowWeight * 0.14 - upperRegisterWeight * 0.2,
+    velocity: normalizedVelocity,
+    gain: 0.96 + lowWeight * 0.13 - upperRegisterWeight * 0.24 - softTouchWeight * 0.05,
     lowShelfGain: 1.5 + lowWeight * 3.2,
     bodyGain: 1.2 + bodyWeight * 2.1,
-    presenceGain: 0.8 + highWeight * 1.1 - upperRegisterWeight * 1.4,
+    presenceGain: 0.7 + highWeight * 0.9 - upperRegisterWeight * 1.35 - softTouchWeight * 0.55,
     highShelfFrequency: PIANO_TONE_SHAPING.highShelfFrequency,
     highShelfGain: PIANO_TONE_SHAPING.highShelfMinGain
-      + (PIANO_TONE_SHAPING.highShelfMaxGain - PIANO_TONE_SHAPING.highShelfMinGain) * upperRegisterWeight,
+      + (PIANO_TONE_SHAPING.highShelfMaxGain - PIANO_TONE_SHAPING.highShelfMinGain)
+        * clamp(upperRegisterWeight + softTouchWeight * 0.35, 0, 1),
     lowpassFrequency,
-    lowpassQ: 0.42 - upperRegisterWeight * 0.14,
+    lowpassQ: 0.38 - upperRegisterWeight * 0.12,
     hammerBandFrequency: clamp(1450 + highWeight * 2100 - lowWeight * 420, 900, 3900),
     hammerHighpassFrequency: clamp(380 + highWeight * 420, 320, 900),
-    hammerGain: 1.16 - lowWeight * 0.18 - upperRegisterWeight * 0.32,
-    releaseScale: 1 - upperRegisterWeight * 0.58,
+    hammerGain: 1.08 - lowWeight * 0.16 - upperRegisterWeight * 0.38 + normalizedVelocity * 0.18,
+    releaseScale: 1 - upperRegisterWeight * 0.62 - softTouchWeight * 0.08,
   };
 }
 
@@ -376,8 +381,9 @@ function createPianoToneNodes(context, timbreCurve) {
   toneLimit.Q.value = timbreCurve.lowpassQ;
 
   // Piano tuning guide:
-  // - Lower highShelfGain toward -10 for softer treble, toward -6 for brighter attack.
+  // - highShelfGain spans about -6 to -12 dB above 3 kHz; lower it for darker treble.
   // - Lower lowpassFrequency if high notes still feel digital or piercing.
+  // - Velocity feeds lowpassFrequency, so soft notes stay warmer and hard notes open up.
   // - Raise presenceGain only if notes lose definition around the melody range.
   return [lowShelf, bodyPeak, presencePeak, highShelf, toneLimit];
 }
@@ -697,11 +703,12 @@ class AudioEngine {
   }
 
   _buildSynthVoice(context, safeFrequency, startTime, noteDuration, config, voiceMeta = {}) {
-    const timbreCurve = config.pianoTimbre ? getPianoTimbreCurve(safeFrequency) : null;
+    const noteVelocity = Math.max(Number(config.velocity ?? DEFAULT_RENDER_CONFIG.velocity) || 0, 0);
+    const timbreCurve = config.pianoTimbre ? getPianoTimbreCurve(safeFrequency, noteVelocity) : null;
     const keyGainMod = timbreCurve?.gain ?? Math.min(1, 800 / (safeFrequency + 200));
     const outputGain = Math.max(Number(config.outputGain) || 0, 0);
     const reverbAmount = Math.max(Number(config.reverbAmount) || 0, 0);
-    const peak = Math.max(0.0001, (config.velocity ?? 0.85) * config.pk * keyGainMod * outputGain);
+    const peak = Math.max(0.0001, noteVelocity * config.pk * keyGainMod * outputGain);
     const sustainLevel = Math.max(peak * config.sus, 0.0001);
     const sustainUntil = Math.max(startTime + noteDuration, startTime + config.dec + 0.01);
     const releaseDuration = Math.max(
@@ -754,7 +761,7 @@ class AudioEngine {
       noiseGain = context.createGain();
       noiseGain.gain.setValueAtTime(0.0001, startTime);
       noiseGain.gain.linearRampToValueAtTime(
-        Math.max(0.0001, (config.nVol ?? 0.05) * (config.velocity ?? 0.85) * outputGain),
+        Math.max(0.0001, (config.nVol ?? 0.05) * noteVelocity * outputGain),
         startTime + 0.002,
       );
       noiseGain.gain.exponentialRampToValueAtTime(0.0001, startTime + (config.nDur ?? 0.05));
@@ -865,10 +872,11 @@ class AudioEngine {
     const outputGain = Math.max(Number(config.outputGain) || 0, 0);
     const reverbAmount = Math.max(Number(config.reverbAmount) || 0, 0);
     const playbackRate = Math.max(safeFrequency / sample.frequency, 0.125);
-    const timbreCurve = config.pianoTimbre ? getPianoTimbreCurve(safeFrequency) : null;
+    const noteVelocity = Math.max(Number(config.velocity ?? DEFAULT_RENDER_CONFIG.velocity) || 0, 0);
+    const timbreCurve = config.pianoTimbre ? getPianoTimbreCurve(safeFrequency, noteVelocity) : null;
     const peak = Math.max(
       0.0001,
-      (config.velocity ?? 0.85) * (config.pk ?? 1) * outputGain * (timbreCurve?.gain ?? 1),
+      noteVelocity * (config.pk ?? 1) * outputGain * (timbreCurve?.gain ?? 1),
     );
     const sustainUntil = Math.max(startTime + noteDuration, startTime + 0.04);
     const releaseDuration = Math.max((config.release ?? 0.28) * (timbreCurve?.releaseScale ?? 1), 0.05);
@@ -929,7 +937,7 @@ class AudioEngine {
       noiseGain = context.createGain();
       noiseGain.gain.setValueAtTime(0.0001, startTime);
       noiseGain.gain.linearRampToValueAtTime(
-        Math.max(0.0001, Number(config.nVol) * (config.velocity ?? 0.85) * outputGain),
+        Math.max(0.0001, Number(config.nVol) * noteVelocity * outputGain),
         startTime + 0.002,
       );
       noiseGain.gain.exponentialRampToValueAtTime(0.0001, startTime + Math.max(Number(config.nDur) || 0.03, 0.006));
@@ -937,7 +945,6 @@ class AudioEngine {
 
     if (config.hammerNoise && this.shortNoiseBuffer && timbreCurve) {
       const hammerDuration = Math.max(Number(config.hammerDur) || 0.016, 0.006);
-      const velocity = Math.max(Number(config.velocity ?? 0.85) || 0, 0);
       hammerSource = context.createBufferSource();
       hammerSource.buffer = this.shortNoiseBuffer;
 
@@ -954,7 +961,7 @@ class AudioEngine {
       hammerGain = context.createGain();
       hammerGain.gain.setValueAtTime(0.0001, startTime);
       hammerGain.gain.linearRampToValueAtTime(
-        Math.max(0.0001, (config.hammerVol ?? 0.08) * velocity * outputGain * timbreCurve.hammerGain),
+        Math.max(0.0001, (config.hammerVol ?? 0.08) * noteVelocity * outputGain * timbreCurve.hammerGain),
         startTime + 0.0015,
       );
       hammerGain.gain.exponentialRampToValueAtTime(0.0001, startTime + hammerDuration);
