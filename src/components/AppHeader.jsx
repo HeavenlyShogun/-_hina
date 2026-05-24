@@ -3,20 +3,10 @@ import { Keyboard, Music2, Play, Square } from 'lucide-react';
 import { APP_NAME, APP_SUBTITLE, APP_TAGLINE, DEFAULT_SCORE_NAME } from '../config/branding';
 import { usePlayback } from '../contexts/PlaybackContext';
 
-const STAR_POSITIONS = [
-  { left: '8%', top: '18%', size: 'h-14 w-14' },
-  { left: '28%', top: '42%', size: 'h-12 w-12' },
-  { left: '47%', top: '16%', size: 'h-16 w-16' },
-  { left: '64%', top: '48%', size: 'h-12 w-12' },
-  { left: '82%', top: '22%', size: 'h-14 w-14' },
-  { left: '17%', top: '74%', size: 'h-12 w-12' },
-  { left: '52%', top: '78%', size: 'h-14 w-14' },
-  { left: '78%', top: '70%', size: 'h-12 w-12' },
-];
-
 const AppHeader = memo(({
   playHotkey,
   setPlayHotkey,
+  featuredScores = [],
   scoreGroups = [],
   onPlayFeaturedScore,
   scoreTitle,
@@ -27,15 +17,25 @@ const AppHeader = memo(({
 }) => {
   const { isPlaying, onTogglePlay } = usePlayback();
 
-  const stellarScoreGroups = useMemo(() =>
-    scoreGroups.map((group) => ({
-      ...group,
-      files: (group.files || []).slice(0, STAR_POSITIONS.length).map((score, index) => ({
-        ...score,
-        position: STAR_POSITIONS[index],
-      })),
-    })),
-  [scoreGroups]);
+  const scoreOptions = useMemo(() => {
+    if (scoreGroups.length > 0) {
+      return scoreGroups;
+    }
+
+    return [{
+      id: 'featured',
+      label: '內建曲目',
+      files: featuredScores,
+    }];
+  }, [featuredScores, scoreGroups]);
+
+  const flattenedScores = useMemo(
+    () => scoreOptions.flatMap((group) => group.files ?? []),
+    [scoreOptions],
+  );
+  const activeScore = flattenedScores.find((score) =>
+    score.title === scoreTitle || score.displayTitle === scoreTitle,
+  );
 
   return (
     <header className="relative z-30 mt-6 flex w-full max-w-6xl scroll-mt-6 flex-col gap-5 overflow-hidden rounded-[32px] border border-sky-200/30 bg-slate-950/75 px-4 py-5 text-slate-50 shadow-[0_30px_90px_rgba(2,6,23,0.5)] backdrop-blur-xl sm:mt-8 sm:px-6 sm:py-6">
@@ -112,10 +112,10 @@ const AppHeader = memo(({
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
               <div className="text-[10px] font-black uppercase tracking-[0.32em] text-amber-100/55">
-                Featured Scores
+                Score Library
               </div>
               <div className="mt-1 text-sm font-semibold text-white/90">
-                快速切換內建曲目，檢查載入與播放流程。
+                從所有可匯入譜面中選擇一首載入播放。
               </div>
             </div>
             <div className="max-w-[12rem] truncate rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-slate-300">
@@ -123,53 +123,43 @@ const AppHeader = memo(({
             </div>
           </div>
 
-          <div className="relative min-h-[220px] overflow-hidden rounded-[24px] border border-white/10 bg-[radial-gradient(circle_at_50%_50%,rgba(15,23,42,0.2),rgba(2,6,23,0.85)),linear-gradient(180deg,rgba(15,23,42,0.9),rgba(2,6,23,0.95))]">
-            <div className="pointer-events-none absolute inset-0 starfield-grid opacity-60" />
-            <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-              <path d="M8 18 L28 42 L47 16 L64 48 L82 22" stroke="rgba(125,211,252,0.28)" strokeWidth="0.45" fill="none" />
-              <path d="M28 42 L17 74 L52 78 L78 70 L82 22" stroke="rgba(250,204,21,0.18)" strokeWidth="0.4" fill="none" />
-            </svg>
+          <div className="rounded-[24px] border border-white/10 bg-slate-950/70 p-4">
+            <label className="block text-[10px] font-black uppercase tracking-[0.24em] text-amber-100/60">
+              選擇譜面
+            </label>
+            <select
+              value={activeScore?.id ?? ''}
+              disabled={isBusy}
+              onChange={(event) => {
+                const nextScore = flattenedScores.find((score) => score.id === event.target.value);
+                if (nextScore) {
+                  onPlayFeaturedScore?.(nextScore);
+                }
+              }}
+              className="mt-3 h-12 w-full rounded-2xl border border-amber-200/20 bg-slate-900 px-4 text-sm font-bold text-amber-50 outline-none transition focus:border-amber-200/55 disabled:cursor-wait disabled:opacity-60"
+            >
+              <option value="" className="bg-slate-950 text-slate-100">
+                {scoreTitle || DEFAULT_SCORE_NAME}
+              </option>
+              {scoreOptions.map((group) => (
+                <optgroup key={group.id} label={group.label}>
+                  {(group.files ?? []).map((score) => (
+                    <option key={score.id} value={score.id} className="bg-slate-950 text-slate-100">
+                      {score.displayTitle ?? score.title}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
 
-            {stellarScoreGroups.map((group) => group.files.map((score) => {
-              const isActive = score.title === scoreTitle || score.displayTitle === scoreTitle;
-
-              return (
-                <button
-                  key={score.id}
-                  type="button"
-                  disabled={isBusy}
-                  onClick={() => onPlayFeaturedScore?.(score)}
-                  className={`absolute flex flex-col items-center justify-center rounded-full border text-center transition-all disabled:cursor-wait disabled:opacity-55 ${score.position.size} ${isActive ? 'border-amber-200 bg-amber-300/20 text-amber-50 shadow-[0_0_32px_rgba(251,191,36,0.35)]' : 'border-sky-200/30 bg-sky-300/10 text-sky-50 hover:bg-sky-300/18 hover:shadow-[0_0_26px_rgba(56,189,248,0.22)]'}`}
-                  style={{ left: score.position.left, top: score.position.top, transform: 'translate(-50%, -50%)' }}
-                >
-                  <span className="text-[15px] leading-none">✦</span>
-                  <span className="mt-1 max-w-[5rem] truncate px-2 text-[9px] font-black tracking-[0.14em]">
-                    {score.displayTitle ?? score.title}
-                  </span>
-                </button>
-              );
-            }))}
-          </div>
-
-          <div className="mt-4 space-y-2">
-            {scoreGroups.map((group) => (
-              <div key={group.id} className="flex flex-wrap gap-2">
-                <span className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-slate-300">
-                  {group.label}
-                </span>
-                {(group.files ?? []).slice(0, 6).map((score) => (
-                  <button
-                    key={score.id}
-                    type="button"
-                    disabled={isBusy}
-                    onClick={() => onPlayFeaturedScore?.(score)}
-                    className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] text-slate-100 transition-colors hover:bg-white/10 disabled:cursor-wait disabled:opacity-55"
-                  >
-                    {score.displayTitle ?? score.title}
-                  </button>
-                ))}
+            <div className="mt-4 grid gap-2 text-xs text-slate-300 sm:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+                目前曲目：<span className="font-bold text-amber-100">{scoreTitle || DEFAULT_SCORE_NAME}</span>
               </div>
-            ))}
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">
+                可匯入譜面：<span className="font-bold text-amber-100">{flattenedScores.length}</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>

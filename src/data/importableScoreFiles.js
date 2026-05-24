@@ -31,6 +31,15 @@ const IMPORTABLE_SCORE_ORDER = [
   'my-dearest-slim.json',
 ];
 
+function roundBpm(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return DEFAULT_SCORE_PARAMS.bpm;
+  }
+
+  return Number(numeric.toFixed(1));
+}
+
 function scoreOrder(filename) {
   const order = IMPORTABLE_SCORE_ORDER.indexOf(filename);
   return order === -1 ? Number.POSITIVE_INFINITY : order;
@@ -67,7 +76,7 @@ function createSlimMetadata(score = {}, filename) {
     versionLabel: 'Slim JSON',
     groupLabel: 'Slim MIDI',
     sourceType: SCORE_SOURCE_TYPES.JSON,
-    bpm: transport.bpm ?? DEFAULT_SCORE_PARAMS.bpm,
+    bpm: roundBpm(transport.bpm ?? DEFAULT_SCORE_PARAMS.bpm),
     timeSigNum: transport.timeSigNum ?? DEFAULT_SCORE_PARAMS.timeSigNum,
     timeSigDen: transport.timeSigDen ?? DEFAULT_SCORE_PARAMS.timeSigDen,
     charResolution: transport.resolution ?? DEFAULT_SCORE_PARAMS.charResolution,

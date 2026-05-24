@@ -16,6 +16,17 @@ const RESOLUTION_OPTIONS = [
   { value: 32, label: '1/32 beat grid' },
 ];
 
+function normalizeBpm(value, fallback = 90) {
+  const numeric = Number(value);
+  const safeValue = Number.isFinite(numeric) ? numeric : fallback;
+  const clamped = Math.min(BPM_MAX, Math.max(BPM_MIN, safeValue));
+  return Number(clamped.toFixed(1));
+}
+
+function formatBpm(value) {
+  return normalizeBpm(value).toFixed(1);
+}
+
 const ControlPanel = memo(({
   embedded = false,
   compact = false,
@@ -43,7 +54,7 @@ const ControlPanel = memo(({
     setCharResolution,
     onApplySettingsToScore,
   } = usePlayback();
-  const [bpmDraft, setBpmDraft] = useState(() => String(bpm));
+  const [bpmDraft, setBpmDraft] = useState(() => formatBpm(bpm));
   const [panelModes, setPanelModes] = useState({});
   const lastValidBpmRef = useRef(Number(bpm) || 90);
 
@@ -57,19 +68,16 @@ const ControlPanel = memo(({
   useEffect(() => {
     const numericBpm = Number(bpm);
     if (Number.isFinite(numericBpm) && numericBpm >= BPM_MIN && numericBpm <= BPM_MAX) {
-      lastValidBpmRef.current = numericBpm;
+      lastValidBpmRef.current = normalizeBpm(numericBpm);
     }
 
-    setBpmDraft(String(bpm));
+    setBpmDraft(formatBpm(bpm));
   }, [bpm]);
 
   const applyBpm = useCallback((nextBpm) => {
-    const numericBpm = Math.min(
-      BPM_MAX,
-      Math.max(BPM_MIN, Number(nextBpm) || lastValidBpmRef.current),
-    );
+    const numericBpm = normalizeBpm(nextBpm, lastValidBpmRef.current);
     lastValidBpmRef.current = numericBpm;
-    setBpmDraft(String(numericBpm));
+    setBpmDraft(formatBpm(numericBpm));
     setBpm(numericBpm);
   }, [setBpm]);
 
@@ -81,8 +89,8 @@ const ControlPanel = memo(({
       return;
     }
 
-    const fallbackBpm = lastValidBpmRef.current;
-    setBpmDraft(String(fallbackBpm));
+    const fallbackBpm = normalizeBpm(lastValidBpmRef.current);
+    setBpmDraft(formatBpm(fallbackBpm));
     setBpm(fallbackBpm);
   }, [applyBpm, bpmDraft, setBpm]);
 
@@ -108,8 +116,8 @@ const ControlPanel = memo(({
                   type="range"
                   min={BPM_MIN}
                   max={BPM_MAX}
-                  step="1"
-                  value={Number(bpm) || BPM_MIN}
+                  step="0.1"
+                  value={normalizeBpm(bpm, BPM_MIN)}
                   onChange={(event) => applyBpm(Number(event.target.value))}
                   className="min-w-0 flex-1 accent-amber-400"
                 />
@@ -125,6 +133,7 @@ const ControlPanel = memo(({
                       type="number"
                       min={BPM_MIN}
                       max={BPM_MAX}
+                      step="0.1"
                       value={bpmDraft}
                       onChange={(event) => setBpmDraft(event.target.value)}
                       onBlur={commitBpmDraft}
