@@ -9,6 +9,7 @@ export const SCORE_SOURCE_TYPES = {
 };
 
 const JSON_PARSE_CACHE_LIMIT = 12;
+const DEFAULT_EVENT_VELOCITY = 0.85;
 const jsonParseCache = new Map();
 
 function rememberParsedJson(rawText, parsed) {
@@ -96,7 +97,11 @@ export function serializeScoreContent(content, sourceType = SCORE_SOURCE_TYPES.T
   }
 
   if (content && typeof content === 'object') {
-    return JSON.stringify(content, null, 2);
+    const serializableContent = sourceType === SCORE_SOURCE_TYPES.JSON
+      ? minifyDefaultScoreSettings(cloneJsonValue(content))
+      : content;
+
+    return JSON.stringify(serializableContent, null, 2);
   }
 
   return sourceType === SCORE_SOURCE_TYPES.JSON ? '{}' : '';
@@ -267,6 +272,83 @@ function cloneJsonValue(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function valuesMatch(left, right) {
+  if (Number.isFinite(Number(left)) && Number.isFinite(Number(right))) {
+    return Math.abs(Number(left) - Number(right)) < 1e-6;
+  }
+
+  return left === right;
+}
+
+function isPlainObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isEmptyPlainObject(value) {
+  return isPlainObject(value) && Object.keys(value).length === 0;
+}
+
+function deleteIfDefault(target, key, fallback) {
+  if (!target || !Object.prototype.hasOwnProperty.call(target, key)) {
+    return;
+  }
+
+  if (valuesMatch(target[key], fallback)) {
+    delete target[key];
+  }
+}
+
+function minifyDefaultScoreSettings(content) {
+  if (!content || typeof content !== 'object' || Array.isArray(content)) {
+    return content;
+  }
+
+  const transport = content.transport;
+  if (isPlainObject(transport)) {
+    ['bpm', 'timeSigNum', 'timeSigDen'].forEach((key) => {
+      deleteIfDefault(transport, key, DEFAULT_SCORE_PARAMS[key]);
+    });
+
+    if (isEmptyPlainObject(transport)) {
+      delete content.transport;
+    }
+  }
+
+  const playback = content.playback;
+  if (isPlainObject(playback)) {
+    deleteIfDefault(playback, 'tone', DEFAULT_SCORE_PARAMS.tone);
+    deleteIfDefault(playback, 'globalKeyOffset', DEFAULT_SCORE_PARAMS.globalKeyOffset);
+    deleteIfDefault(playback, 'scaleMode', DEFAULT_SCORE_PARAMS.scaleMode);
+    deleteIfDefault(playback, 'reverb', DEFAULT_SCORE_PARAMS.reverb);
+
+    if (isEmptyPlainObject(playback.accidentals)) {
+      delete playback.accidentals;
+    }
+
+    if (isEmptyPlainObject(playback)) {
+      delete content.playback;
+    }
+  }
+
+  if (Array.isArray(content.tracks)) {
+    content.tracks.forEach((track) => {
+      if (!Array.isArray(track?.events)) {
+        return;
+      }
+
+      track.events.forEach((event) => {
+        if (!event || typeof event !== 'object') {
+          return;
+        }
+
+        deleteIfDefault(event, 'velocity', DEFAULT_EVENT_VELOCITY);
+      });
+    });
+  }
+
+  return content;
+}
+
 function buildTransportPatch(settings = {}) {
   const patch = {};
 
@@ -379,5 +461,5 @@ export function applyScoreSettingsToJsonContent(content, settings = {}) {
     applySingleTempoMapBpm(nextContent, transportPatch.bpm, settings);
   }
 
-  return nextContent;
+  return minifyDefaultScoreSettings(nextContent);
 }

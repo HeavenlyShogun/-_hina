@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { DEFAULT_SCORE } from '../constants/music';
+import { DEFAULT_SCORE, DEFAULT_SCORE_PARAMS } from '../constants/music';
 import { DEFAULT_SCORE_NAME } from '../config/branding';
 import { createScoreDocument, SCORE_SOURCE_TYPES } from '../utils/scoreDocument';
 import { applyScoreRecommendation } from '../utils/scoreRecommendations';
