@@ -231,7 +231,7 @@ export const DEFAULT_SCORE_PARAMS = {
   globalKeyOffset: 0,
   accidentals: {},
   scaleMode: 'major',
-  tone: 'piano',
+  tone: 'midi-original',
   reverb: true,
 };
 

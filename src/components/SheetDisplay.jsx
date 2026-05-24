@@ -143,6 +143,10 @@ function countJsonScoreEvents(scoreJson) {
     return 0;
   }
 
+  if (scoreJson.version === '3.2-ultra-slim' && Array.isArray(scoreJson.notes)) {
+    return scoreJson.notes.length;
+  }
+
   return (Array.isArray(scoreJson.tracks) ? scoreJson.tracks : []).reduce(
     (count, track) => count + (Array.isArray(track?.events) ? track.events.length : 0),
     0,
@@ -150,6 +154,23 @@ function countJsonScoreEvents(scoreJson) {
 }
 
 function getJsonTrackSummaries(scoreJson) {
+  if (scoreJson?.version === '3.2-ultra-slim') {
+    return (Array.isArray(scoreJson?.tracks) ? scoreJson.tracks : []).map((track, index) => {
+      const [name, channel, instrument, programNumber] = Array.isArray(track) ? track : [];
+
+      return {
+        id: String(index),
+        name: name ?? `Track ${index + 1}`,
+        events: Array.isArray(scoreJson.notes)
+          ? scoreJson.notes.filter((note) => Array.isArray(note) && Number(note[4] ?? 0) === index).length
+          : 0,
+        channel: Number.isFinite(Number(channel)) ? Number(channel) : null,
+        instrument: instrument ?? null,
+        programNumber: Number.isFinite(Number(programNumber)) ? Number(programNumber) : null,
+      };
+    });
+  }
+
   return (Array.isArray(scoreJson?.tracks) ? scoreJson.tracks : []).map((track, index) => ({
     id: track?.id ?? `track-${index + 1}`,
     name: track?.name ?? track?.id ?? `Track ${index + 1}`,

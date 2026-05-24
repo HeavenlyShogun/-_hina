@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { AudioLines, Drum, Piano, Waves } from 'lucide-react';
+import { AudioLines, Drum, Guitar, Music2, Piano, Waves } from 'lucide-react';
 import { useAudioConfig } from '../contexts/AudioConfigContext';
 import { SUPPORTED_TONES, listAvailableInstruments } from '../constants/instruments';
 
@@ -12,6 +12,8 @@ const LEGACY_INSTRUMENTS = [
 const ICONS = {
   'audio-lines': AudioLines,
   drum: Drum,
+  guitar: Guitar,
+  music: Music2,
   piano: Piano,
   waves: Waves,
 };

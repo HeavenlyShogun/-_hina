@@ -64,6 +64,20 @@ function buildTimeSignatures(timeSignatures) {
     .sort((left, right) => left[0] - right[0]);
 }
 
+function getTrackProgramNumber(track) {
+  const candidates = [
+    track?.instrument?.number,
+    track?.instrument?.program,
+    track?.instrument?.programNumber,
+  ];
+
+  const resolved = candidates
+    .map((value) => Number(value))
+    .find((value) => Number.isInteger(value) && value >= 0 && value <= 127);
+
+  return Number.isInteger(resolved) ? resolved : null;
+}
+
 async function main() {
   const input = getArg('input');
   const output = getArg('output');
@@ -99,6 +113,8 @@ async function main() {
     track.name?.trim() || `track-${index + 1}`,
     Number(track.channel ?? 0),
     track.instrument?.name || 'unknown',
+    getTrackProgramNumber(track),
+    track.instrument?.family || null,
   ]);
 
   const notes = activeTracks
@@ -137,7 +153,7 @@ async function main() {
       resolution,
     },
     playback: {
-      tone: 'piano',
+      tone: 'midi-original',
       globalKeyOffset: 0,
       scaleMode: 'major',
       reverb: true,

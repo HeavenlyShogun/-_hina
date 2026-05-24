@@ -6,6 +6,25 @@ import { parseScoreMetaHeader } from './scoreTextMeta.js';
 const OCTAVE_PREFIXES = new Set(['+', '-', '??', '??']);
 const DEFAULT_TRACK_ID = 'main';
 const DEFAULT_NOTE_VELOCITY = 0.85;
+const GM_PROGRAM_SOUNDFONTS = [
+  'acoustic_grand_piano', 'bright_acoustic_piano', 'electric_grand_piano', 'honkytonk_piano',
+  'electric_piano_1', 'electric_piano_2', 'harpsichord', 'clavinet',
+  'celesta', 'glockenspiel', 'music_box', 'vibraphone', 'marimba', 'xylophone', 'tubular_bells', 'dulcimer',
+  'drawbar_organ', 'percussive_organ', 'rock_organ', 'church_organ', 'reed_organ', 'accordion', 'harmonica', 'tango_accordion',
+  'acoustic_guitar_nylon', 'acoustic_guitar_steel', 'electric_guitar_jazz', 'electric_guitar_clean', 'electric_guitar_muted', 'overdriven_guitar', 'distortion_guitar', 'guitar_harmonics',
+  'acoustic_bass', 'electric_bass_finger', 'electric_bass_pick', 'fretless_bass', 'slap_bass_1', 'slap_bass_2', 'synth_bass_1', 'synth_bass_2',
+  'violin', 'viola', 'cello', 'contrabass', 'tremolo_strings', 'pizzicato_strings', 'orchestral_harp', 'timpani',
+  'string_ensemble_1', 'string_ensemble_2', 'synth_strings_1', 'synth_strings_2', 'choir_aahs', 'voice_oohs', 'synth_choir', 'orchestra_hit',
+  'trumpet', 'trombone', 'tuba', 'muted_trumpet', 'french_horn', 'brass_section', 'synth_brass_1', 'synth_brass_2',
+  'soprano_sax', 'alto_sax', 'tenor_sax', 'baritone_sax', 'oboe', 'english_horn', 'bassoon', 'clarinet',
+  'piccolo', 'flute', 'recorder', 'pan_flute', 'blown_bottle', 'shakuhachi', 'whistle', 'ocarina',
+  'lead_1_square', 'lead_2_sawtooth', 'lead_3_calliope', 'lead_4_chiff', 'lead_5_charang', 'lead_6_voice', 'lead_7_fifths', 'lead_8_bass__lead',
+  'pad_1_new_age', 'pad_2_warm', 'pad_3_polysynth', 'pad_4_choir', 'pad_5_bowed', 'pad_6_metallic', 'pad_7_halo', 'pad_8_sweep',
+  'fx_1_rain', 'fx_2_soundtrack', 'fx_3_crystal', 'fx_4_atmosphere', 'fx_5_brightness', 'fx_6_goblins', 'fx_7_echoes', 'fx_8_scifi',
+  'sitar', 'banjo', 'shamisen', 'koto', 'kalimba', 'bagpipe', 'fiddle', 'shanai',
+  'tinkle_bell', 'agogo', 'steel_drums', 'woodblock', 'taiko_drum', 'melodic_tom', 'synth_drum', 'reverse_cymbal',
+  'guitar_fret_noise', 'breath_noise', 'seashore', 'bird_tweet', 'telephone_ring', 'helicopter', 'applause', 'gunshot',
+];
 const DEFAULT_CHORD_STRUM_MS = 12;
 const DEFAULT_JIANPU_OCTAVE = 4;
 const DEFAULT_NUMBERED_ARTICULATION_RATIO = 0.85;
@@ -128,6 +147,51 @@ function buildNormalizedResult(events, playback) {
 
 function midiToFrequency(midi) {
   return 440 * 2 ** ((midi - 69) / 12);
+}
+
+function soundfontNameFromMidiInstrument(instrumentName, programNumber) {
+  const programIndex = Number(programNumber);
+  if (Number.isInteger(programIndex) && programIndex >= 0 && programIndex < GM_PROGRAM_SOUNDFONTS.length) {
+    return GM_PROGRAM_SOUNDFONTS[programIndex];
+  }
+
+  const normalized = String(instrumentName || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\(([^)]+)\)/gu, '$1')
+    .replace(/[^a-z0-9]+/gu, '_')
+    .replace(/^_+|_+$/gu, '');
+
+  return normalized || 'acoustic_grand_piano';
+}
+
+function normalizeTrackMetadata(track, index = 0) {
+  if (Array.isArray(track)) {
+    const [name, channel, instrument, programNumber, instrumentFamily] = track;
+    const soundfont = soundfontNameFromMidiInstrument(instrument, programNumber);
+
+    return {
+      id: String(index),
+      name: name ?? `Track ${index + 1}`,
+      channel: Number.isFinite(Number(channel)) ? Number(channel) : null,
+      instrument: instrument ?? null,
+      programNumber: Number.isInteger(Number(programNumber)) ? Number(programNumber) : null,
+      instrumentFamily: instrumentFamily ?? null,
+      midiSampleSet: `gm:${soundfont}`,
+    };
+  }
+
+  const soundfont = soundfontNameFromMidiInstrument(track?.instrument, track?.programNumber);
+
+  return {
+    id: String(track?.id ?? index),
+    name: track?.name ?? track?.id ?? `Track ${index + 1}`,
+    channel: Number.isFinite(Number(track?.channel)) ? Number(track.channel) : null,
+    instrument: track?.instrument ?? null,
+    programNumber: Number.isInteger(Number(track?.programNumber)) ? Number(track.programNumber) : null,
+    instrumentFamily: track?.instrumentFamily ?? null,
+    midiSampleSet: `gm:${soundfont}`,
+  };
 }
 
 function getScaleIntervals(scaleMode) {
@@ -1375,6 +1439,9 @@ function createNormalizedNoteEvent({
   midi = null,
   pitchClass = null,
   octave = null,
+  midiInstrument = null,
+  midiProgramNumber = null,
+  midiSampleSet = null,
 }) {
   const safeTick = Math.max(0, Math.round(Number(tick) || 0));
   const safeDurationTicks = Math.max(1, Math.round(Number(durationTicks) || 0));
@@ -1397,6 +1464,9 @@ function createNormalizedNoteEvent({
     midi: toFiniteOrNull(midi),
     pitchClass: pitchClass ?? null,
     octave: toFiniteOrNull(octave),
+    midiInstrument: midiInstrument ?? null,
+    midiProgramNumber: toFiniteOrNull(midiProgramNumber),
+    midiSampleSet: midiSampleSet ?? null,
   };
 }
 
@@ -1894,6 +1964,9 @@ function normalizeJsonEvent(event, context) {
     midi: transposedMidi,
     pitchClass: noteName ? noteName.replace(/-?\d+$/u, '') : event?.pitchClass ?? null,
     octave: transposedMidi !== null ? Math.floor(transposedMidi / 12) - 1 : event?.octave ?? null,
+    midiInstrument: event?.midiInstrument ?? context.midiInstrument ?? null,
+    midiProgramNumber: event?.midiProgramNumber ?? context.midiProgramNumber ?? null,
+    midiSampleSet: event?.midiSampleSet ?? context.midiSampleSet ?? null,
   })];
 }
 
@@ -1931,6 +2004,9 @@ export function parseScoreJson(scoreJson, config = {}) {
   const fixedPitchOffset = transposeFixedPitch ? playback.globalKeyOffset : 0;
 
   if (scoreJson.version === '3.2-ultra-slim') {
+    const trackMetadata = Array.isArray(scoreJson.tracks)
+      ? scoreJson.tracks.map((track, index) => normalizeTrackMetadata(track, index))
+      : [];
     const events = Array.isArray(scoreJson.notes)
       ? scoreJson.notes.flatMap((entry) => {
         if (!Array.isArray(entry) || entry.length < 3) {
@@ -1944,6 +2020,7 @@ export function parseScoreJson(scoreJson, config = {}) {
         }
 
         const noteName = midiToNoteName(midi);
+        const trackMeta = trackMetadata[Number(trackId)] ?? null;
 
         return [createNormalizedNoteEvent({
           tick: startTick,
@@ -1958,11 +2035,18 @@ export function parseScoreJson(scoreJson, config = {}) {
           midi,
           pitchClass: noteName.replace(/-?\d+$/u, ''),
           octave: Math.floor(midi / 12) - 1,
+          midiInstrument: trackMeta?.instrument,
+          midiProgramNumber: trackMeta?.programNumber,
+          midiSampleSet: trackMeta?.midiSampleSet,
         })];
       })
       : [];
 
-    return buildNormalizedResult(events, { ...playback, resolution });
+    return buildNormalizedResult(events, {
+      ...playback,
+      resolution,
+      midiOriginalSampleSets: [...new Set(trackMetadata.map((track) => track.midiSampleSet).filter(Boolean))],
+    });
   }
 
   // >> V3 NATIVE SUPPORT BRANCH
@@ -2020,12 +2104,14 @@ export function parseScoreJson(scoreJson, config = {}) {
   // << V2 COMPATIBILITY BRANCH
   // This is the original logic for handling V2 scores.
   const tracks = Array.isArray(scoreJson.tracks) ? scoreJson.tracks : [];
+  const trackMetadata = tracks.map((track, index) => normalizeTrackMetadata(track, index));
   const events = [];
 
   tracks.forEach((track, trackIndex) => {
     if (!track || track.mute) return;
 
     const trackId = track.id || `track-${trackIndex + 1}`;
+    const trackMeta = trackMetadata[trackIndex] ?? null;
     const trackEvents = Array.isArray(track.events) ? track.events : [];
 
     trackEvents.forEach((event) => {
@@ -2035,6 +2121,9 @@ export function parseScoreJson(scoreJson, config = {}) {
         trackId,
         transposeFixedPitch,
         fixedPitchOffset,
+        midiInstrument: trackMeta?.instrument,
+        midiProgramNumber: trackMeta?.programNumber,
+        midiSampleSet: trackMeta?.midiSampleSet,
       }));
     });
   });
@@ -2042,6 +2131,7 @@ export function parseScoreJson(scoreJson, config = {}) {
   return buildNormalizedResult(events, {
     ...playback,
     resolution,
+    midiOriginalSampleSets: [...new Set(trackMetadata.map((track) => track.midiSampleSet).filter(Boolean))],
   });
 }
 

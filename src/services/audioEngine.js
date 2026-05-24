@@ -9,6 +9,7 @@ const DEFAULT_RENDER_CONFIG = {
 const LIVE_NOTE_RELEASE_SEC = 0.16;
 const SAMPLE_LOAD_TIMEOUT_MS = 8000;
 const MIDI_JS_SOUNDFONT_BASE_URL = 'https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM';
+const MIDI_JS_SAMPLE_NOTES = ['C2', 'E2', 'G2', 'B2', 'D3', 'F3', 'A3', 'C4', 'E4', 'G4', 'B4', 'D5', 'F5', 'A5', 'C6', 'E6', 'G6'];
 const PIANO_TONE_SHAPING = {
   highShelfFrequency: 3000,
   highShelfMinGain: -6,
@@ -18,6 +19,20 @@ const PIANO_TONE_SHAPING = {
 };
 
 const TONE_PRESETS = {
+  'midi-original': {
+    tone: 'midi-original',
+    engine: 'sampler',
+    sampleSet: 'gm:acoustic_grand_piano',
+    layerGain: 0.95,
+    type: 'triangle',
+    dur: 4.2,
+    atk: 0.003,
+    dec: 0.24,
+    sus: 0.74,
+    pk: 0.9,
+    release: 0.42,
+    velocity: 0.86,
+  },
   piano: {
     tone: 'piano',
     engine: 'sampler',
@@ -48,6 +63,34 @@ const TONE_PRESETS = {
     hammerVol: 0.095,
     release: 0.64,
     velocity: 0.88,
+  },
+  'bright-acoustic-piano': {
+    tone: 'bright-acoustic-piano',
+    engine: 'sampler',
+    sampleSet: 'gm:bright_acoustic_piano',
+    layerGain: 0.96,
+    type: 'triangle',
+    dur: 4.4,
+    atk: 0.003,
+    dec: 0.24,
+    sus: 0.7,
+    pk: 0.88,
+    release: 0.44,
+    velocity: 0.86,
+  },
+  'electric-guitar-clean': {
+    tone: 'electric-guitar-clean',
+    engine: 'sampler',
+    sampleSet: 'gm:electric_guitar_clean',
+    layerGain: 0.9,
+    type: 'sawtooth',
+    dur: 3.2,
+    atk: 0.004,
+    dec: 0.18,
+    sus: 0.68,
+    pk: 0.82,
+    release: 0.28,
+    velocity: 0.84,
   },
   'tongue-drum': {
     tone: 'tongue-drum',
@@ -171,6 +214,42 @@ const SAMPLE_LIBRARY_CONFIG = {
     samples: ['C4', 'E4', 'G4', 'B4', 'D5', 'F5', 'A5', 'C6'],
   },
 };
+
+const GM_PROGRAM_SOUNDFONTS = [
+  'acoustic_grand_piano', 'bright_acoustic_piano', 'electric_grand_piano', 'honkytonk_piano',
+  'electric_piano_1', 'electric_piano_2', 'harpsichord', 'clavinet',
+  'celesta', 'glockenspiel', 'music_box', 'vibraphone', 'marimba', 'xylophone', 'tubular_bells', 'dulcimer',
+  'drawbar_organ', 'percussive_organ', 'rock_organ', 'church_organ', 'reed_organ', 'accordion', 'harmonica', 'tango_accordion',
+  'acoustic_guitar_nylon', 'acoustic_guitar_steel', 'electric_guitar_jazz', 'electric_guitar_clean', 'electric_guitar_muted', 'overdriven_guitar', 'distortion_guitar', 'guitar_harmonics',
+  'acoustic_bass', 'electric_bass_finger', 'electric_bass_pick', 'fretless_bass', 'slap_bass_1', 'slap_bass_2', 'synth_bass_1', 'synth_bass_2',
+  'violin', 'viola', 'cello', 'contrabass', 'tremolo_strings', 'pizzicato_strings', 'orchestral_harp', 'timpani',
+  'string_ensemble_1', 'string_ensemble_2', 'synth_strings_1', 'synth_strings_2', 'choir_aahs', 'voice_oohs', 'synth_choir', 'orchestra_hit',
+  'trumpet', 'trombone', 'tuba', 'muted_trumpet', 'french_horn', 'brass_section', 'synth_brass_1', 'synth_brass_2',
+  'soprano_sax', 'alto_sax', 'tenor_sax', 'baritone_sax', 'oboe', 'english_horn', 'bassoon', 'clarinet',
+  'piccolo', 'flute', 'recorder', 'pan_flute', 'blown_bottle', 'shakuhachi', 'whistle', 'ocarina',
+  'lead_1_square', 'lead_2_sawtooth', 'lead_3_calliope', 'lead_4_chiff', 'lead_5_charang', 'lead_6_voice', 'lead_7_fifths', 'lead_8_bass__lead',
+  'pad_1_new_age', 'pad_2_warm', 'pad_3_polysynth', 'pad_4_choir', 'pad_5_bowed', 'pad_6_metallic', 'pad_7_halo', 'pad_8_sweep',
+  'fx_1_rain', 'fx_2_soundtrack', 'fx_3_crystal', 'fx_4_atmosphere', 'fx_5_brightness', 'fx_6_goblins', 'fx_7_echoes', 'fx_8_scifi',
+  'sitar', 'banjo', 'shamisen', 'koto', 'kalimba', 'bagpipe', 'fiddle', 'shanai',
+  'tinkle_bell', 'agogo', 'steel_drums', 'woodblock', 'taiko_drum', 'melodic_tom', 'synth_drum', 'reverse_cymbal',
+  'guitar_fret_noise', 'breath_noise', 'seashore', 'bird_tweet', 'telephone_ring', 'helicopter', 'applause', 'gunshot',
+];
+
+function soundfontNameFromMidiInstrument(instrumentName, programNumber) {
+  const programIndex = Number(programNumber);
+  if (Number.isInteger(programIndex) && programIndex >= 0 && programIndex < GM_PROGRAM_SOUNDFONTS.length) {
+    return GM_PROGRAM_SOUNDFONTS[programIndex];
+  }
+
+  const normalized = String(instrumentName || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\(([^)]+)\)/gu, '$1')
+    .replace(/[^a-z0-9]+/gu, '_')
+    .replace(/^_+|_+$/gu, '');
+
+  return normalized || 'acoustic_grand_piano';
+}
 
 class BaseInstrumentAdapter {
   constructor(engine, id) {
@@ -456,29 +535,38 @@ class AudioEngine {
     return context;
   }
 
-  async prepareTone(tone) {
+  async prepareTone(tone, playback = {}) {
     const context = this.init();
     const toneNames = this.normalizeToneList(tone);
+    const midiOriginalSampleSets = toneNames.includes('midi-original')
+      ? [...new Set((playback?.midiOriginalSampleSets ?? []).filter(Boolean))]
+      : [];
 
-    await Promise.all(toneNames.map((toneName) => {
-      const adapter = this.getInstrumentAdapter(toneName);
-      if (adapter) {
-        return adapter.prepare(TONE_PRESETS).catch((error) => {
-          console.warn(`Instrument "${toneName}" is unavailable. Falling back to synth playback.`, error);
+    await Promise.all([
+      ...toneNames.map((toneName) => {
+        const adapter = this.getInstrumentAdapter(toneName);
+        if (adapter) {
+          return adapter.prepare(TONE_PRESETS).catch((error) => {
+            console.warn(`Instrument "${toneName}" is unavailable. Falling back to synth playback.`, error);
+            return null;
+          });
+        }
+
+        const config = this.resolveRenderConfig({ tone: toneName }, 1);
+        if (config.engine !== 'sampler' || !config.sampleSet) {
+          return null;
+        }
+
+        return this.loadSampleSet(config.sampleSet).catch((error) => {
+          console.warn(`Sampler "${config.sampleSet}" is unavailable. Falling back to synth playback.`, error);
           return null;
         });
-      }
-
-      const config = this.resolveRenderConfig({ tone: toneName }, 1);
-      if (config.engine !== 'sampler' || !config.sampleSet) {
+      }),
+      ...midiOriginalSampleSets.map((sampleSet) => this.loadSampleSet(sampleSet).catch((error) => {
+        console.warn(`MIDI original sampler "${sampleSet}" is unavailable.`, error);
         return null;
-      }
-
-      return this.loadSampleSet(config.sampleSet).catch((error) => {
-        console.warn(`Sampler "${config.sampleSet}" is unavailable. Falling back to synth playback.`, error);
-        return null;
-      });
-    }));
+      })),
+    ]);
     return context;
   }
 
@@ -1207,16 +1295,23 @@ class AudioEngine {
 
     const sampleConfig = SAMPLE_LIBRARY_CONFIG[sampleSetId];
     if (!sampleConfig) {
-      return null;
+      if (!String(sampleSetId).startsWith('gm:')) {
+        return null;
+      }
     }
+    const resolvedSampleConfig = sampleConfig ?? {
+      source: 'midi-js',
+      instrument: String(sampleSetId).slice(3) || 'acoustic_grand_piano',
+      samples: MIDI_JS_SAMPLE_NOTES,
+    };
 
     const context = this.init();
-    const soundfontEntriesPromise = sampleConfig.source === 'midi-js'
-      ? this.loadMidiJsSoundfont(sampleConfig.instrument)
+    const soundfontEntriesPromise = resolvedSampleConfig.source === 'midi-js'
+      ? this.loadMidiJsSoundfont(resolvedSampleConfig.instrument)
       : Promise.resolve(null);
 
     const loadPromise = soundfontEntriesPromise.then((soundfontEntries) => (
-      Promise.all(sampleConfig.samples.map(async (sampleEntry) => {
+      Promise.all(resolvedSampleConfig.samples.map(async (sampleEntry) => {
       const noteName = typeof sampleEntry === 'string' ? sampleEntry : sampleEntry?.noteName;
       const midi = Number(sampleEntry?.midi) || noteNameToMidi(noteName);
       if (!Number.isFinite(midi)) {
@@ -1224,9 +1319,9 @@ class AudioEngine {
       }
 
       const normalizedNoteName = normalizeMidiJsNoteName(noteName);
-      const url = sampleConfig.source === 'midi-js'
+      const url = resolvedSampleConfig.source === 'midi-js'
         ? soundfontEntries?.[normalizedNoteName] ?? soundfontEntries?.[noteName]
-        : sampleEntry?.url ?? `${sampleConfig.baseUrl}/${noteName}.mp3`;
+        : sampleEntry?.url ?? `${resolvedSampleConfig.baseUrl}/${noteName}.mp3`;
 
       if (!url) {
         return null;
@@ -1339,5 +1434,7 @@ class AudioEngine {
     return bestSample;
   }
 }
+
+export { soundfontNameFromMidiInstrument };
 
 export default new AudioEngine();

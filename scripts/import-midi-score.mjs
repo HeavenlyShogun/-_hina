@@ -167,7 +167,7 @@ async function main() {
       resolution,
     },
     playback: {
-      tone: 'piano',
+      tone: 'midi-original',
       globalKeyOffset: 0,
       scaleMode: 'major',
       reverb: true,

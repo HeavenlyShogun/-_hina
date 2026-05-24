@@ -247,6 +247,9 @@ function normalizeEvents(events, timing, articulationRatio = 1) {
         trackId: event?.trackId ?? 'main',
         frequency: Number.isFinite(Number(event?.frequency)) ? Number(event.frequency) : null,
         noteName: event?.noteName ?? null,
+        midiInstrument: event?.midiInstrument ?? null,
+        midiProgramNumber: Number.isFinite(Number(event?.midiProgramNumber)) ? Number(event.midiProgramNumber) : null,
+        midiSampleSet: event?.midiSampleSet ?? null,
       };
     })
     .filter(Boolean)
@@ -278,6 +281,7 @@ class PlaybackController {
     this.currentPointer = 0;
     this.currentAudioTime = 0;
     this.timing = createTimingModel();
+    this.playback = {};
     this.articulationRatio = 1;
     this.transport = this.createTransportState();
     this.snapshot = this.createSnapshot();
@@ -331,6 +335,7 @@ class PlaybackController {
   load(events, maxTime = 0, playback = {}) {
     this.stop({ preserveLoadedEvents: false });
 
+    this.playback = playback ?? {};
     this.timing = createTimingModel(playback);
     this.articulationRatio = normalizeArticulationRatio(playback?.articulationRatio, 1);
     this.events = normalizeEvents(events, this.timing, this.articulationRatio);
@@ -810,6 +815,12 @@ class PlaybackController {
 
     this.audioEngine.scheduleNote(frequency, absoluteTime, durationSec, {
       tone: this.snapshot.tone,
+      ...(this.snapshot.tone === 'midi-original' && event.midiSampleSet
+        ? {
+          engine: 'sampler',
+          sampleSet: event.midiSampleSet,
+        }
+        : {}),
       mode: 'scheduled',
       importance: event.importance ?? 100,
       outputGain: this.snapshot.vol,

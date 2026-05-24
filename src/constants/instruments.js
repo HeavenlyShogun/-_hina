@@ -1,10 +1,31 @@
 export const AVAILABLE_INSTRUMENTS = {
+  'midi-original': {
+    id: 'midi-original',
+    label: 'MIDI 原始指示',
+    type: 'sampled',
+    icon: 'music',
+    description: '依照譜面每個 MIDI 音軌的原始樂器指示播放',
+  },
   piano: {
     id: 'piano',
     label: '平台鋼琴',
     type: 'sampled',
     icon: 'piano',
     description: 'Salamander grand piano samples',
+  },
+  'bright-acoustic-piano': {
+    id: 'bright-acoustic-piano',
+    label: '亮音鋼琴',
+    type: 'sampled',
+    icon: 'piano',
+    description: 'FluidR3 bright acoustic piano SoundFont',
+  },
+  'electric-guitar-clean': {
+    id: 'electric-guitar-clean',
+    label: '電吉他',
+    type: 'sampled',
+    icon: 'guitar',
+    description: 'FluidR3 clean electric guitar SoundFont',
   },
   'tongue-drum': {
     id: 'tongue-drum',

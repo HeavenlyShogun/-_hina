@@ -26,6 +26,7 @@ function createDefaultState() {
     sourceType: SCORE_SOURCE_TYPES.JSON,
     ...surgesScore?.transport,
     ...surgesScore?.playback,
+    tone: DEFAULT_SCORE_PARAMS.tone,
   }, { force: true }));
 }
 

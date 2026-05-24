@@ -297,7 +297,7 @@ export function useScorePlayback({
   }, [buildSnapshot, drainQueuedSeek]);
 
   const playFromStart = useCallback(async () => {
-    const { events } = loadCurrentScore();
+    const { events, playback } = loadCurrentScore();
 
     if (!events.length) {
       stopAll();
@@ -306,7 +306,7 @@ export function useScorePlayback({
     }
 
     await audioEngine.resume();
-    await audioEngine.prepareTone(playbackConfigRef.current.audioConfig?.tone);
+    await audioEngine.prepareTone(playbackConfigRef.current.audioConfig?.tone, playback);
     await playbackController.play(audioEngine.audioContext, buildSnapshot());
   }, [buildSnapshot, loadCurrentScore, showToast, stopAll]);
 
@@ -323,7 +323,10 @@ export function useScorePlayback({
 
       if (playbackState.isPaused) {
         await runBusyTask('重新接續播放中...', async () => {
-          await audioEngine.prepareTone(playbackConfigRef.current.audioConfig?.tone);
+          await audioEngine.prepareTone(
+            playbackConfigRef.current.audioConfig?.tone,
+            playbackController.playback,
+          );
           await audioEngine.resume();
           await playbackController.resume(buildSnapshot());
         });
@@ -343,7 +346,7 @@ export function useScorePlayback({
   const playScoreSourceAction = useCallback(async (source) => {
     try {
       stopAll();
-      const { events } = loadProvidedScore(source);
+      const { events, playback } = loadProvidedScore(source);
 
       if (!events.length) {
         showToast('沒有可播放的音符。', 'error');
@@ -353,6 +356,7 @@ export function useScorePlayback({
       await audioEngine.resume();
       await audioEngine.prepareTone(
         source?.audioConfig?.tone ?? playbackConfigRef.current.audioConfig?.tone,
+        playback,
       );
       audioEngine.setReverbEnabled(source?.audioConfig?.reverb);
       await playbackController.play(audioEngine.audioContext, buildSnapshot({
@@ -378,7 +382,10 @@ export function useScorePlayback({
       }
 
       await runBusyTask('重新接續播放中...', async () => {
-        await audioEngine.prepareTone(playbackConfigRef.current.audioConfig?.tone);
+        await audioEngine.prepareTone(
+          playbackConfigRef.current.audioConfig?.tone,
+          playbackController.playback,
+        );
         await audioEngine.resume();
         await playbackController.resume(buildSnapshot());
       });
