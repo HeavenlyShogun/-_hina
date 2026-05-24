@@ -147,7 +147,21 @@ export function useAudioEngine() {
     const baseDur = durationSec !== null ? durationSec : 0.5;
     switch (tone) {
       case 'piano':
-        return { type: 'sawtooth', dur: 3.5, atk: 0.01, dec: 0.8, sus: 0.1, pk: 0.6, flt: true, fltStartMult: 5.0, fltEndMult: 1.0, fltDec: 0.2, nBuf: null };
+        return {
+          type: 'triangle',
+          dur: 5.8,
+          atk: 0.002,
+          dec: 0.34,
+          sus: 0.07,
+          pk: 0.82,
+          flt: true,
+          fltStartMult: 10,
+          fltEndMult: 2.8,
+          fltDec: 0.48,
+          nBuf: shortNoiseBufferRef.current,
+          nDur: 0.026,
+          nVol: 0.028,
+        };
       case 'flute':
         return { type: 'sine', dur: 2.5, atk: 0.08, dec: 0.2, sus: 0.8, pk: 0.7, flt: false, nBuf: noiseBufferRef.current, nDur: 0.8, nVol: 0.015 };
       case 'lyre-long':

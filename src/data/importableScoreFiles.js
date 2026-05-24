@@ -18,6 +18,7 @@ const IMPORTABLE_SCORE_ORDER = [
   'bansanka-slim.json',
   'crossing-field-slim.json',
   'unravel-slim.json',
+  'lilas-slim.json',
   'combined_22_mxl-slim.json',
   'my-dearest-slim.json',
 ];

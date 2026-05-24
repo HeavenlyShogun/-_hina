@@ -7,6 +7,13 @@ const DEFAULT_RENDER_CONFIG = {
 const LIVE_NOTE_RELEASE_SEC = 0.16;
 const SAMPLE_LOAD_TIMEOUT_MS = 8000;
 const MIDI_JS_SOUNDFONT_BASE_URL = 'https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM';
+const PIANO_TONE_SHAPING = {
+  highShelfFrequency: 4000,
+  highShelfMinGain: -6,
+  highShelfMaxGain: -10,
+  lowpassMinFrequency: 3600,
+  lowpassMaxFrequency: 14500,
+};
 
 const TONE_ALIASES = {
   lyre: 'lyre-long',
@@ -17,15 +24,32 @@ const TONE_PRESETS = {
     tone: 'piano',
     engine: 'sampler',
     sampleSet: 'piano',
-    layerGain: 1.08,
-    dur: 5.2,
-    atk: 0.003,
-    dec: 0.22,
-    sus: 0.82,
-    pk: 1,
-    flt: false,
-    release: 0.38,
-    velocity: 0.9,
+    pianoTimbre: true,
+    layerGain: 1.04,
+    type: 'triangle',
+    dur: 5.8,
+    atk: 0.002,
+    dec: 0.34,
+    sus: 0.7,
+    pk: 0.96,
+    flt: true,
+    fltStartMult: 10,
+    fltEndMult: 2.8,
+    fltDec: 0.48,
+    harmonics: [
+      { ratio: 2, gain: 0.26, type: 'triangle', detune: -2 },
+      { ratio: 3, gain: 0.12, type: 'sine', detune: 3 },
+      { ratio: 4, gain: 0.055, type: 'sine', detune: -4 },
+      { ratio: 5, gain: 0.024, type: 'sine', detune: 2 },
+    ],
+    nBufKey: 'shortNoise',
+    nDur: 0.026,
+    nVol: 0.028,
+    hammerNoise: true,
+    hammerDur: 0.018,
+    hammerVol: 0.095,
+    release: 0.64,
+    velocity: 0.88,
   },
   flute: {
     tone: 'flute',
@@ -285,6 +309,91 @@ function frequencyToMidi(frequency) {
   return 69 + (12 * Math.log2(frequency / 440));
 }
 
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function getPianoTimbreCurve(frequency) {
+  const midi = frequencyToMidi(frequency);
+  const lowWeight = clamp((60 - midi) / 24, 0, 1);
+  const highWeight = clamp((midi - 68) / 24, 0, 1);
+  const bodyWeight = 1 - clamp(Math.abs(midi - 52) / 30, 0, 1);
+  const upperRegisterWeight = clamp((midi - 72) / 24, 0, 1);
+  const lowpassFrequency = clamp(
+    frequency * (9.5 - upperRegisterWeight * 4.2),
+    PIANO_TONE_SHAPING.lowpassMinFrequency,
+    PIANO_TONE_SHAPING.lowpassMaxFrequency,
+  );
+
+  return {
+    midi,
+    gain: 0.94 + lowWeight * 0.14 - upperRegisterWeight * 0.2,
+    lowShelfGain: 1.5 + lowWeight * 3.2,
+    bodyGain: 1.2 + bodyWeight * 2.1,
+    presenceGain: 0.8 + highWeight * 1.1 - upperRegisterWeight * 1.4,
+    highShelfFrequency: PIANO_TONE_SHAPING.highShelfFrequency,
+    highShelfGain: PIANO_TONE_SHAPING.highShelfMinGain
+      + (PIANO_TONE_SHAPING.highShelfMaxGain - PIANO_TONE_SHAPING.highShelfMinGain) * upperRegisterWeight,
+    lowpassFrequency,
+    lowpassQ: 0.42 - upperRegisterWeight * 0.14,
+    hammerBandFrequency: clamp(1450 + highWeight * 2100 - lowWeight * 420, 900, 3900),
+    hammerHighpassFrequency: clamp(380 + highWeight * 420, 320, 900),
+    hammerGain: 1.16 - lowWeight * 0.18 - upperRegisterWeight * 0.32,
+    releaseScale: 1 - upperRegisterWeight * 0.58,
+  };
+}
+
+function createPianoToneNodes(context, timbreCurve) {
+  if (!timbreCurve) {
+    return [];
+  }
+
+  const lowShelf = context.createBiquadFilter();
+  lowShelf.type = 'lowshelf';
+  lowShelf.frequency.value = 180;
+  lowShelf.gain.value = timbreCurve.lowShelfGain;
+
+  const bodyPeak = context.createBiquadFilter();
+  bodyPeak.type = 'peaking';
+  bodyPeak.frequency.value = 360;
+  bodyPeak.Q.value = 0.85;
+  bodyPeak.gain.value = timbreCurve.bodyGain;
+
+  const presencePeak = context.createBiquadFilter();
+  presencePeak.type = 'peaking';
+  presencePeak.frequency.value = 2600;
+  presencePeak.Q.value = 0.75;
+  presencePeak.gain.value = timbreCurve.presenceGain;
+
+  const highShelf = context.createBiquadFilter();
+  highShelf.type = 'highshelf';
+  highShelf.frequency.value = timbreCurve.highShelfFrequency;
+  highShelf.gain.value = timbreCurve.highShelfGain;
+
+  const toneLimit = context.createBiquadFilter();
+  toneLimit.type = 'lowpass';
+  toneLimit.frequency.value = timbreCurve.lowpassFrequency;
+  toneLimit.Q.value = timbreCurve.lowpassQ;
+
+  // Piano tuning guide:
+  // - Lower highShelfGain toward -10 for softer treble, toward -6 for brighter attack.
+  // - Lower lowpassFrequency if high notes still feel digital or piercing.
+  // - Raise presenceGain only if notes lose definition around the melody range.
+  return [lowShelf, bodyPeak, presencePeak, highShelf, toneLimit];
+}
+
+function connectNodeChain(sourceNode, nodes, destinationNode) {
+  if (!nodes.length) {
+    sourceNode.connect(destinationNode);
+    return;
+  }
+
+  sourceNode.connect(nodes[0]);
+  nodes.forEach((node, index) => {
+    node.connect(nodes[index + 1] ?? destinationNode);
+  });
+}
+
 function normalizeMidiJsNoteName(noteName) {
   return String(noteName || '').replace('s', '#');
 }
@@ -309,6 +418,7 @@ class AudioEngine {
   constructor() {
     this.audioContext = null;
     this.compressor = null;
+    this.reverbConvolver = null;
     this.reverbBus = null;
     this.reverbWetGain = null;
     this.noiseBuffer = null;
@@ -358,6 +468,7 @@ class AudioEngine {
 
     this.audioContext = context;
     this.compressor = compressor;
+    this.reverbConvolver = convolver;
     this.reverbBus = reverbBus;
     this.reverbWetGain = reverbWetGain;
     this.noiseBuffer = this.createNoiseBuffer(context, 0.06, true);
@@ -502,6 +613,23 @@ class AudioEngine {
     });
   }
 
+  async loadImpulseResponse(url) {
+    const context = this.init();
+    if (!url || !this.reverbConvolver) {
+      return null;
+    }
+
+    const response = await fetch(url, { mode: 'cors' });
+    if (!response.ok) {
+      throw new Error(`Failed to load impulse response: ${url}`);
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = await context.decodeAudioData(arrayBuffer.slice(0));
+    this.reverbConvolver.buffer = buffer;
+    return buffer;
+  }
+
   stopAll(releaseTime = LIVE_NOTE_RELEASE_SEC) {
     if (!this.audioContext || this.activeVoices.size === 0) return;
 
@@ -569,14 +697,15 @@ class AudioEngine {
   }
 
   _buildSynthVoice(context, safeFrequency, startTime, noteDuration, config, voiceMeta = {}) {
-    const keyGainMod = Math.min(1, 800 / (safeFrequency + 200));
+    const timbreCurve = config.pianoTimbre ? getPianoTimbreCurve(safeFrequency) : null;
+    const keyGainMod = timbreCurve?.gain ?? Math.min(1, 800 / (safeFrequency + 200));
     const outputGain = Math.max(Number(config.outputGain) || 0, 0);
     const reverbAmount = Math.max(Number(config.reverbAmount) || 0, 0);
     const peak = Math.max(0.0001, (config.velocity ?? 0.85) * config.pk * keyGainMod * outputGain);
     const sustainLevel = Math.max(peak * config.sus, 0.0001);
     const sustainUntil = Math.max(startTime + noteDuration, startTime + config.dec + 0.01);
     const releaseDuration = Math.max(
-      config.release ?? Math.min(config.dur * 0.35, 0.45),
+      (config.release ?? Math.min(config.dur * 0.35, 0.45)) * (timbreCurve?.releaseScale ?? 1),
       0.04,
     );
     const stopTime = sustainUntil + releaseDuration;
@@ -614,6 +743,8 @@ class AudioEngine {
         startTime + config.fltDec,
       );
     }
+    const timbreNodes = createPianoToneNodes(context, timbreCurve);
+    const sourceDestination = filter || (timbreNodes[0] ?? envelopeGain);
 
     let noiseSource = null;
     let noiseGain = null;
@@ -629,7 +760,7 @@ class AudioEngine {
       noiseGain.gain.exponentialRampToValueAtTime(0.0001, startTime + (config.nDur ?? 0.05));
     }
 
-    oscillator.connect(filter || envelopeGain);
+    oscillator.connect(sourceDestination);
     if (Array.isArray(config.harmonics)) {
       config.harmonics.forEach((harmonic) => {
         const ratio = Math.max(Number(harmonic?.ratio) || 1, 0.25);
@@ -645,15 +776,19 @@ class AudioEngine {
         harmonicOscillator.detune.setValueAtTime(Number(harmonic?.detune) || 0, startTime);
         harmonicGain.gain.value = gainValue;
         harmonicOscillator.connect(harmonicGain);
-        harmonicGain.connect(filter || envelopeGain);
+        harmonicGain.connect(sourceDestination);
         oscillators.push(harmonicOscillator);
       });
     }
     if (noiseSource && noiseGain) {
       noiseSource.connect(noiseGain);
-      noiseGain.connect(filter || envelopeGain);
+      noiseGain.connect(sourceDestination);
     }
-    if (filter) filter.connect(envelopeGain);
+    if (filter) {
+      connectNodeChain(filter, timbreNodes, envelopeGain);
+    } else if (timbreNodes.length) {
+      connectNodeChain(timbreNodes[0], timbreNodes.slice(1), envelopeGain);
+    }
     envelopeGain.connect(dryGain);
     envelopeGain.connect(wetGain);
     dryGain.connect(this.compressor);
@@ -693,6 +828,7 @@ class AudioEngine {
       dryGain,
       wetGain,
       filter,
+      timbreNodes,
       noiseSource,
       noiseGain,
       vibratoOscillator,
@@ -729,9 +865,13 @@ class AudioEngine {
     const outputGain = Math.max(Number(config.outputGain) || 0, 0);
     const reverbAmount = Math.max(Number(config.reverbAmount) || 0, 0);
     const playbackRate = Math.max(safeFrequency / sample.frequency, 0.125);
-    const peak = Math.max(0.0001, (config.velocity ?? 0.85) * (config.pk ?? 1) * outputGain);
+    const timbreCurve = config.pianoTimbre ? getPianoTimbreCurve(safeFrequency) : null;
+    const peak = Math.max(
+      0.0001,
+      (config.velocity ?? 0.85) * (config.pk ?? 1) * outputGain * (timbreCurve?.gain ?? 1),
+    );
     const sustainUntil = Math.max(startTime + noteDuration, startTime + 0.04);
-    const releaseDuration = Math.max(config.release ?? 0.28, 0.05);
+    const releaseDuration = Math.max((config.release ?? 0.28) * (timbreCurve?.releaseScale ?? 1), 0.05);
     const sampleStartOffset = Math.min(
       Math.max(Number(config.sampleStartOffset) || 0, 0),
       Math.max(sample.buffer.duration - 0.02, 0),
@@ -761,6 +901,10 @@ class AudioEngine {
     dryGain.gain.value = 1;
     const wetGain = context.createGain();
     wetGain.gain.value = reverbAmount;
+    let hammerSource = null;
+    let hammerGain = null;
+    let hammerBandpass = null;
+    let hammerHighpass = null;
 
     let samplerFilter = null;
     if (config.samplerFilterFrequency || (config.flt && config.fltEndMult)) {
@@ -775,6 +919,7 @@ class AudioEngine {
       );
       samplerFilter.Q.value = Math.max(Number(config.samplerFilterQ) || 0.3, 0.0001);
     }
+    const timbreNodes = createPianoToneNodes(context, timbreCurve);
 
     let noiseSource = null;
     let noiseGain = null;
@@ -790,11 +935,42 @@ class AudioEngine {
       noiseGain.gain.exponentialRampToValueAtTime(0.0001, startTime + Math.max(Number(config.nDur) || 0.03, 0.006));
     }
 
-    source.connect(samplerFilter || envelopeGain);
-    if (samplerFilter) samplerFilter.connect(envelopeGain);
+    if (config.hammerNoise && this.shortNoiseBuffer && timbreCurve) {
+      const hammerDuration = Math.max(Number(config.hammerDur) || 0.016, 0.006);
+      const velocity = Math.max(Number(config.velocity ?? 0.85) || 0, 0);
+      hammerSource = context.createBufferSource();
+      hammerSource.buffer = this.shortNoiseBuffer;
+
+      hammerBandpass = context.createBiquadFilter();
+      hammerBandpass.type = 'bandpass';
+      hammerBandpass.frequency.value = timbreCurve.hammerBandFrequency;
+      hammerBandpass.Q.value = 1.8;
+
+      hammerHighpass = context.createBiquadFilter();
+      hammerHighpass.type = 'highpass';
+      hammerHighpass.frequency.value = timbreCurve.hammerHighpassFrequency;
+      hammerHighpass.Q.value = 0.55;
+
+      hammerGain = context.createGain();
+      hammerGain.gain.setValueAtTime(0.0001, startTime);
+      hammerGain.gain.linearRampToValueAtTime(
+        Math.max(0.0001, (config.hammerVol ?? 0.08) * velocity * outputGain * timbreCurve.hammerGain),
+        startTime + 0.0015,
+      );
+      hammerGain.gain.exponentialRampToValueAtTime(0.0001, startTime + hammerDuration);
+
+      hammerSource.connect(hammerBandpass);
+      hammerBandpass.connect(hammerHighpass);
+      hammerHighpass.connect(hammerGain);
+      hammerGain.connect(dryGain);
+      hammerGain.connect(wetGain);
+    }
+
+    const samplerToneNodes = samplerFilter ? [samplerFilter, ...timbreNodes] : timbreNodes;
+    connectNodeChain(source, samplerToneNodes, envelopeGain);
     if (noiseSource && noiseGain) {
       noiseSource.connect(noiseGain);
-      noiseGain.connect(envelopeGain);
+      connectNodeChain(noiseGain, timbreNodes, envelopeGain);
     }
     envelopeGain.connect(dryGain);
     envelopeGain.connect(wetGain);
@@ -819,7 +995,12 @@ class AudioEngine {
       filter: samplerFilter,
       noiseSource,
       noiseGain,
-      sourceNodes: [source],
+      timbreNodes,
+      hammerSource,
+      hammerGain,
+      hammerBandpass,
+      hammerHighpass,
+      sourceNodes: [source, hammerSource].filter(Boolean),
     };
 
     this.activeVoices.add(voice);
@@ -829,6 +1010,10 @@ class AudioEngine {
     if (noiseSource) {
       noiseSource.start(startTime);
       noiseSource.stop(Math.min(stopTime, startTime + Math.max(Number(config.nDur) || 0.03, 0.006) + 0.02));
+    }
+    if (hammerSource) {
+      hammerSource.start(startTime);
+      hammerSource.stop(Math.min(stopTime, startTime + Math.max(Number(config.hammerDur) || 0.018, 0.006) + 0.01));
     }
 
     return voice;
@@ -916,6 +1101,11 @@ class AudioEngine {
     } catch {}
     try {
       voice.filter?.disconnect();
+      voice.timbreNodes?.forEach((node) => node.disconnect());
+      voice.hammerSource?.disconnect();
+      voice.hammerGain?.disconnect();
+      voice.hammerBandpass?.disconnect();
+      voice.hammerHighpass?.disconnect();
       voice.noiseSource?.disconnect();
       voice.noiseGain?.disconnect();
       voice.vibratoOscillator?.disconnect();
