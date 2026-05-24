@@ -154,7 +154,19 @@ function getJsonTrackSummaries(scoreJson) {
     id: track?.id ?? `track-${index + 1}`,
     name: track?.name ?? track?.id ?? `Track ${index + 1}`,
     events: Array.isArray(track?.events) ? track.events.length : 0,
+    channel: Number.isFinite(Number(track?.channel)) ? Number(track.channel) : null,
+    instrument: track?.instrument ?? null,
+    programNumber: Number.isFinite(Number(track?.programNumber)) ? Number(track.programNumber) : null,
   }));
+}
+
+function getTempoMapSummary(scoreJson) {
+  const tempoMap = Array.isArray(scoreJson?.playback?.tempoMap) ? scoreJson.playback.tempoMap : [];
+  if (tempoMap.length <= 1) {
+    return tempoMap.length === 1 ? '1 tempo' : 'single tempo';
+  }
+
+  return `${tempoMap.length} tempo changes`;
 }
 
 const SheetDisplay = memo(({
@@ -200,6 +212,22 @@ const SheetDisplay = memo(({
   const jsonScoreEventCount = isJsonScore ? countJsonScoreEvents(score) : 0;
   const shouldSummarizeJsonEditor = isJsonScore && jsonScoreEventCount > LARGE_JSON_EVENT_LIMIT;
   const jsonTrackSummaries = useMemo(() => (isJsonScore ? getJsonTrackSummaries(score) : []), [isJsonScore, score]);
+  const isMidiLikeScore = isJsonScore && ['midi', 'musicxml'].includes(
+    String(score?.meta?.originalFormat ?? score?.meta?.sourceType ?? '').toLowerCase(),
+  );
+  const playerPresetSummary = useMemo(() => {
+    if (!isJsonScore) {
+      return null;
+    }
+
+    return {
+      ppq: score?.transport?.resolution ?? score?.source?.midi?.ppq ?? PPQ,
+      tempoMap: getTempoMapSummary(score),
+      sourceTracks: score?.source?.midi?.tracks ?? jsonTrackSummaries.length,
+      activeTracks: jsonTrackSummaries.length,
+      fixedPitch: score?.playback?.fixedPitch === true || isMidiLikeScore,
+    };
+  }, [isJsonScore, isMidiLikeScore, jsonTrackSummaries.length, score]);
   const scoreEditorValue = useMemo(
     () => {
       if (typeof score === 'string') {
@@ -720,7 +748,20 @@ const SheetDisplay = memo(({
                     <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/40">拍號</div>
                     <div className="mt-1 font-semibold">{score?.transport?.timeSigNum ?? timeSigNum}/{score?.transport?.timeSigDen ?? timeSigDen}</div>
                   </div>
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/40">PPQ</div>
+                    <div className="mt-1 font-semibold">{playerPresetSummary?.ppq ?? PPQ}</div>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/40">PLAYER PRESET</div>
+                    <div className="mt-1 font-semibold">{playerPresetSummary?.tempoMap ?? 'single tempo'}</div>
+                  </div>
                 </div>
+                {playerPresetSummary ? (
+                  <div className="mt-3 rounded-2xl border border-emerald-300/10 bg-black/20 px-3 py-2 text-xs font-semibold text-emerald-50/70">
+                    {playerPresetSummary.fixedPitch ? '固定音高來源' : '本機調性來源'} / {playerPresetSummary.activeTracks}/{playerPresetSummary.sourceTracks} tracks / 匯入檔 playback 優先
+                  </div>
+                ) : null}
               </div>
               <div className="rounded-[24px] border border-white/10 bg-black/25 p-4">
                 <div className="mb-3 flex items-center justify-between gap-3">
@@ -729,8 +770,13 @@ const SheetDisplay = memo(({
                 </div>
                 <div className="custom-scrollbar max-h-[160px] space-y-2 overflow-y-auto pr-1">
                   {jsonTrackSummaries.map((track) => (
-                    <div key={track.id} className="flex items-center justify-between rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-emerald-50/80">
-                      <span className="truncate font-semibold">{track.name}</span>
+                    <div key={track.id} className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-sm text-emerald-50/80">
+                      <span className="min-w-0">
+                        <span className="block truncate font-semibold">{track.name}</span>
+                        <span className="block truncate text-[10px] uppercase tracking-[0.14em] text-emerald-100/40">
+                          {track.instrument || 'instrument n/a'}{track.channel === null ? '' : ` / ch ${track.channel}`}{track.programNumber === null ? '' : ` / pgm ${track.programNumber}`}
+                        </span>
+                      </span>
                       <span className="shrink-0 text-xs text-emerald-100/45">{track.events} 個音符</span>
                     </div>
                   ))}

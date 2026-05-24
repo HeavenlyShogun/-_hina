@@ -162,13 +162,6 @@ export function useAudioEngine() {
           nDur: 0.026,
           nVol: 0.028,
         };
-      case 'flute':
-        return { type: 'sine', dur: 2.5, atk: 0.08, dec: 0.2, sus: 0.8, pk: 0.7, flt: false, nBuf: noiseBufferRef.current, nDur: 0.8, nVol: 0.015 };
-      case 'lyre-long':
-      case 'lyre':
-        return { type: 'sawtooth', dur: 4.0, atk: 0.015, dec: 0.6, sus: 0.1, pk: 0.4, flt: true, fltStartMult: 6, fltEndMult: 1.2, fltDec: 0.4, nBuf: noiseBufferRef.current, nDur: 0.05, nVol: 0.08 };
-      case 'lyre-short':
-        return { type: 'sawtooth', dur: Math.max(baseDur * 2.0, 0.8), atk: 0.015, dec: 0.1, sus: 0.001, pk: 0.4, flt: true, fltStartMult: 6, fltEndMult: 1.2, fltDec: 0.3, nBuf: noiseBufferRef.current, nDur: 0.06, nVol: 0.1 };
       case 'tongue-drum':
         return { type: 'triangle', dur: 3.0, atk: 0.02, dec: 0.5, sus: 0.2, pk: 0.6, flt: true, fltStartMult: 3.0, fltEndMult: 1.0, fltDec: 0.6, nBuf: noiseBufferRef.current, nDur: 0.03, nVol: 0.05 };
       default:

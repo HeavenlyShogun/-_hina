@@ -31,6 +31,57 @@ function toRoundedTick(value) {
   return Math.max(0, Math.round(Number(value) || 0));
 }
 
+function buildTempoMap(tempos, fallbackBpm, resolution) {
+  const safeResolution = Math.max(Number(resolution) || PPQ, 1);
+  const safeFallbackBpm = Math.max(Number(fallbackBpm) || DEFAULT_SCORE_PARAMS.bpm, 1);
+  const normalized = (Array.isArray(tempos) ? tempos : [])
+    .map((entry) => {
+      const bpm = Math.max(Number(entry?.bpm) || 0, 0);
+      if (!bpm) {
+        return null;
+      }
+
+      return {
+        startTick: toRoundedTick(entry?.ticks ?? entry?.startTick ?? entry?.tick),
+        bpm,
+        secondsPerTick: (60 / bpm) / safeResolution,
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => left.startTick - right.startTick);
+
+  if (normalized.length === 0 || normalized[0].startTick !== 0) {
+    normalized.unshift({
+      startTick: 0,
+      bpm: safeFallbackBpm,
+      secondsPerTick: (60 / safeFallbackBpm) / safeResolution,
+    });
+  }
+
+  return normalized.filter((entry, index) => {
+    if (index === 0) {
+      return true;
+    }
+
+    const previous = normalized[index - 1];
+    return entry.startTick !== previous.startTick || Math.abs(entry.bpm - previous.bpm) > 1e-6;
+  });
+}
+
+function getTrackProgramNumber(track) {
+  const candidates = [
+    track?.instrument?.number,
+    track?.instrument?.program,
+    track?.instrument?.programNumber,
+  ];
+
+  const resolved = candidates
+    .map((value) => Number(value))
+    .find((value) => Number.isInteger(value) && value >= 0 && value <= 127);
+
+  return Number.isInteger(resolved) ? resolved : null;
+}
+
 function mapMidiNoteToEvent(note) {
   const noteName = note?.name || `${note?.pitch ?? 'C'}${note?.octave ?? 4}`;
   const mappedKey = NOTE_NAME_TO_KEY[noteName] || null;
@@ -76,12 +127,22 @@ export async function parseMidiToV2(fileOrBuffer, options = {}) {
   }
 
   const transportBpm = Number(tempo) || options.bpm || DEFAULT_SCORE_PARAMS.bpm;
+  const tempoMap = buildTempoMap(midi.header.tempos, transportBpm, resolution);
   const playback = {
     tone: options.tone ?? DEFAULT_SCORE_PARAMS.tone,
     globalKeyOffset: Number(options.globalKeyOffset) || DEFAULT_SCORE_PARAMS.globalKeyOffset,
     reverb: options.reverb ?? DEFAULT_SCORE_PARAMS.reverb,
     scaleMode: options.scaleMode ?? DEFAULT_SCORE_PARAMS.scaleMode,
     accidentals: options.accidentals ?? DEFAULT_SCORE_PARAMS.accidentals,
+    tempoMap,
+    articulationRatio: 1,
+    fixedPitch: true,
+    sourcePreset: {
+      format: midi.header.format,
+      ppq: resolution,
+      tracks: midi.tracks.length,
+      activeTracks: activeTracks.length,
+    },
   };
 
   return {
@@ -112,15 +173,22 @@ export async function parseMidiToV2(fileOrBuffer, options = {}) {
         timeSignatures: midi.header.timeSignatures ?? [],
       },
     },
-    tracks: activeTracks.map((track, index) => ({
-      id: track.name?.trim() || `track-${index + 1}`,
-      name: track.name?.trim() || `Track ${index + 1}`,
-      mute: false,
-      channel: Number(track.channel ?? 0),
-      instrument: track.instrument?.name || 'unknown',
-      events: [...track.notes]
-        .sort((left, right) => left.ticks - right.ticks)
-        .map(mapMidiNoteToEvent),
-    })),
+    tracks: activeTracks.map((track, index) => {
+      const channel = Math.min(15, Math.max(0, Math.round(Number(track.channel ?? 0) || 0)));
+      const programNumber = getTrackProgramNumber(track);
+
+      return {
+        id: track.name?.trim() || `track-${index + 1}`,
+        name: track.name?.trim() || track.instrument?.name || `Track ${index + 1}`,
+        mute: false,
+        channel,
+        instrument: track.instrument?.name || 'unknown',
+        ...(programNumber === null ? {} : { programNumber }),
+        instrumentFamily: track.instrument?.family || null,
+        events: [...track.notes]
+          .sort((left, right) => left.ticks - right.ticks)
+          .map(mapMidiNoteToEvent),
+      };
+    }),
   };
 }

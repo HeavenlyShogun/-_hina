@@ -105,6 +105,8 @@ function createPlaybackState(overrides = {}) {
     articulationRatio: Number.isFinite(Number(overrides.articulationRatio))
       ? Math.min(1, Math.max(Number(overrides.articulationRatio), 0.1))
       : 1,
+    tempoMap: Array.isArray(overrides.tempoMap) ? overrides.tempoMap : [],
+    fixedPitch: overrides.fixedPitch ?? false,
   };
 }
 

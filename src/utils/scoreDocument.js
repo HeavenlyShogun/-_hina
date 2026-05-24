@@ -135,21 +135,37 @@ export function inferSourceType(source = {}) {
 }
 
 export function createScorePlaybackConfig(source = {}) {
+  const contentPlayback = source.sourceType === SCORE_SOURCE_TYPES.JSON && source.content && typeof source.content === 'object'
+    ? source.content.playback ?? {}
+    : {};
+  const contentTransport = source.sourceType === SCORE_SOURCE_TYPES.JSON && source.content && typeof source.content === 'object'
+    ? source.content.transport ?? {}
+    : {};
+  const base = {
+    ...contentTransport,
+    ...contentPlayback,
+    ...source,
+  };
+
   return {
-    bpm: Number(source.bpm) || DEFAULT_SCORE_PARAMS.bpm,
-    timeSigNum: Number(source.timeSigNum) || DEFAULT_SCORE_PARAMS.timeSigNum,
-    timeSigDen: Number(source.timeSigDen) || DEFAULT_SCORE_PARAMS.timeSigDen,
-    charResolution: resolveDefaultCharResolution(source),
-    globalKeyOffset: Number(source.globalKeyOffset) || DEFAULT_SCORE_PARAMS.globalKeyOffset,
+    bpm: Number(base.bpm) || DEFAULT_SCORE_PARAMS.bpm,
+    timeSigNum: Number(base.timeSigNum) || DEFAULT_SCORE_PARAMS.timeSigNum,
+    timeSigDen: Number(base.timeSigDen) || DEFAULT_SCORE_PARAMS.timeSigDen,
+    charResolution: resolveDefaultCharResolution(base),
+    globalKeyOffset: Number(base.globalKeyOffset) || DEFAULT_SCORE_PARAMS.globalKeyOffset,
     accidentals:
-      source.accidentals && typeof source.accidentals === 'object' && !Array.isArray(source.accidentals)
-        ? source.accidentals
+      base.accidentals && typeof base.accidentals === 'object' && !Array.isArray(base.accidentals)
+        ? base.accidentals
         : {},
-    scaleMode: source.scaleMode ?? DEFAULT_SCORE_PARAMS.scaleMode,
-    tone: source.tone ?? DEFAULT_SCORE_PARAMS.tone,
-    reverb: source.reverb ?? DEFAULT_SCORE_PARAMS.reverb,
-    legacyTimingMode: source.legacyTimingMode,
-    textNotation: source.textNotation,
+    scaleMode: base.scaleMode ?? DEFAULT_SCORE_PARAMS.scaleMode,
+    tone: base.tone ?? DEFAULT_SCORE_PARAMS.tone,
+    reverb: base.reverb ?? DEFAULT_SCORE_PARAMS.reverb,
+    vol: Number.isFinite(Number(base.vol)) ? Number(base.vol) : undefined,
+    resolution: Number.isFinite(Number(base.resolution)) ? Math.max(1, Math.round(Number(base.resolution))) : undefined,
+    tempoMap: Array.isArray(base.tempoMap) ? base.tempoMap : undefined,
+    articulationRatio: Number.isFinite(Number(base.articulationRatio)) ? Number(base.articulationRatio) : undefined,
+    legacyTimingMode: base.legacyTimingMode,
+    textNotation: base.textNotation,
   };
 }
 
@@ -309,6 +325,9 @@ function buildPlaybackPatch(settings = {}) {
 
   if (hasOwnValue(settings, 'tone')) {
     patch.tone = settings.tone;
+  }
+  if (hasOwnValue(settings, 'vol')) {
+    patch.vol = numberOrFallback(settings.vol, 0.6);
   }
   if (hasOwnValue(settings, 'globalKeyOffset')) {
     patch.globalKeyOffset = numberOrFallback(

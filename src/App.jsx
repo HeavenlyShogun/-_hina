@@ -465,6 +465,7 @@ function AppContent({
       charResolution,
       accidentals,
       tone: audioConfig.tone,
+      vol: audioConfig.vol,
       reverb: audioConfig.reverb,
       globalKeyOffset: audioConfig.globalKeyOffset,
       scaleMode: audioConfig.scaleMode,
@@ -507,6 +508,7 @@ function AppContent({
     audioConfig.reverb,
     audioConfig.scaleMode,
     audioConfig.tone,
+    audioConfig.vol,
     bpm,
     charResolution,
     scoreDocument,
@@ -1067,6 +1069,9 @@ export default function App() {
     if (patch.tone !== undefined) {
       nextPatch.tone = patch.tone;
     }
+    if (patch.vol !== undefined) {
+      nextPatch.vol = patch.vol;
+    }
     if (patch.reverb !== undefined) {
       nextPatch.reverb = patch.reverb;
     }
@@ -1083,6 +1088,7 @@ export default function App() {
   }, [updateScoreDocument]);
 
   const initialAudioConfig = useMemo(() => ({
+    ...(scoreDocument.vol === undefined ? {} : { vol: scoreDocument.vol }),
     tone: scoreDocument.tone,
     reverb: scoreDocument.reverb,
     globalKeyOffset: scoreDocument.globalKeyOffset,
@@ -1092,6 +1098,7 @@ export default function App() {
     scoreDocument.reverb,
     scoreDocument.scaleMode,
     scoreDocument.tone,
+    scoreDocument.vol,
   ]);
 
   return (

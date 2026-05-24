@@ -1,20 +1,32 @@
 import React, { memo } from 'react';
-import { AudioLines, Drum, Music2, Piano, Wind } from 'lucide-react';
+import { AudioLines, Drum, Piano, Waves } from 'lucide-react';
 import { useAudioConfig } from '../contexts/AudioConfigContext';
+import { SUPPORTED_TONES, listAvailableInstruments } from '../constants/instruments';
 
-const INSTRUMENTS = [
+const LEGACY_INSTRUMENTS = [
   { id: 'piano', label: '真鋼琴', Icon: Piano, sub: 'Salamander grand piano samples' },
-  { id: 'violin', label: '小提琴', Icon: Music2, sub: 'FluidR3 violin samples' },
-  { id: 'lyre-long', label: '里拉長音', Icon: Music2, sub: 'FluidR3 orchestral harp samples, longer sustain' },
-  { id: 'lyre-short', label: '里拉短音', Icon: AudioLines, sub: 'FluidR3 orchestral harp samples, shorter pluck' },
-  { id: 'flute', label: '長笛', Icon: Wind, sub: 'FluidR3 flute samples' },
   { id: 'tongue-drum', label: '空靈鼓', Icon: Drum, sub: 'FluidR3 steel drums samples' },
   { id: 'tongue-drum-electronic', label: '電子空靈鼓', Icon: AudioLines, sub: 'Synthesized tongue drum layer' },
 ];
 
+const ICONS = {
+  'audio-lines': AudioLines,
+  drum: Drum,
+  piano: Piano,
+  waves: Waves,
+};
+
+const INSTRUMENTS = listAvailableInstruments().map((instrument) => ({
+  ...instrument,
+  Icon: ICONS[instrument.icon] ?? AudioLines,
+  sub: `${instrument.type} / ${instrument.description}`,
+}));
+
 function normalizeToneList(tone) {
   const entries = Array.isArray(tone) ? tone : [tone || 'piano'];
-  return [...new Set(entries.filter(Boolean))];
+  const allowed = new Set(SUPPORTED_TONES);
+  const normalized = [...new Set(entries.filter((entry) => allowed.has(entry)))];
+  return normalized.length > 0 ? normalized : ['piano'];
 }
 
 const InstrumentSelector = memo(({ disabled = false }) => {

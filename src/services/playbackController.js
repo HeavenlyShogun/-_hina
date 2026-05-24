@@ -52,12 +52,14 @@ function normalizeTempoMap(tempoMap, bpm, resolution) {
   const fallbackSecondsPerTick = (60 / bpm) / resolution;
   const normalized = (Array.isArray(tempoMap) ? tempoMap : [])
     .map((entry) => {
-      const entryBpm = Number(entry?.bpm);
-      const beatSeconds = Number(entry?.beatSeconds);
-      const secondsPerTick = Number(entry?.secondsPerTick);
+      const isTuple = Array.isArray(entry);
+      const rawStartTick = isTuple ? entry[0] : entry?.startTick ?? entry?.ticks ?? entry?.tick;
+      const entryBpm = Number(isTuple ? entry[1] : entry?.bpm);
+      const beatSeconds = Number(isTuple ? null : entry?.beatSeconds);
+      const secondsPerTick = Number(isTuple ? null : entry?.secondsPerTick);
 
       return {
-        startTick: roundTick(entry?.startTick),
+        startTick: roundTick(rawStartTick),
         secondsPerTick:
           Number.isFinite(secondsPerTick) && secondsPerTick > 0
             ? secondsPerTick

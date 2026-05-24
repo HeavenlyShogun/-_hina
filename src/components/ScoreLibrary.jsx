@@ -16,11 +16,8 @@ function formatToneLabel(tone) {
 
   const labels = {
     piano: 'Piano',
-    violin: 'Violin',
-    'lyre-long': 'Lyre Long',
-    'lyre-short': 'Lyre Short',
-    flute: 'Flute',
     'tongue-drum': 'Tongue Drum',
+    'tongue-drum-electronic': 'Electronic Tongue Drum',
   };
 
   return labels[tone] ?? tone ?? 'Unknown';

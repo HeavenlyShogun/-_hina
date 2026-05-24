@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { DEFAULT_SCORE_PARAMS } from '../constants/music';
+import { DEFAULT_SCORE_PARAMS, normalizeToneSelection } from '../constants/music';
 
 const AudioConfigContext = createContext(null);
 
@@ -24,6 +24,7 @@ export function AudioConfigProvider({
   const [config, setConfig] = useState(() => ({
     ...DEFAULT_AUDIO_CONFIG,
     ...initialConfig,
+    tone: normalizeToneSelection(initialConfig.tone ?? DEFAULT_AUDIO_CONFIG.tone),
   }));
 
   useEffect(() => {
@@ -34,7 +35,7 @@ export function AudioConfigProvider({
     setConfig((prev) => ({
       ...prev,
       ...(initialConfig.vol === undefined ? {} : { vol: initialConfig.vol }),
-      ...(initialConfig.tone === undefined ? {} : { tone: initialConfig.tone }),
+      ...(initialConfig.tone === undefined ? {} : { tone: normalizeToneSelection(initialConfig.tone) }),
       ...(initialConfig.reverb === undefined ? {} : { reverb: initialConfig.reverb }),
       ...(initialConfig.globalKeyOffset === undefined ? {} : { globalKeyOffset: initialConfig.globalKeyOffset }),
       ...(initialConfig.scaleMode === undefined ? {} : { scaleMode: initialConfig.scaleMode }),
@@ -65,7 +66,7 @@ export function AudioConfigProvider({
   }, [updateConfig]);
 
   const setTone = useCallback((nextValue) => {
-    updateConfig((prev) => ({ tone: resolveNextValue(nextValue, prev.tone) }));
+    updateConfig((prev) => ({ tone: normalizeToneSelection(resolveNextValue(nextValue, prev.tone)) }));
   }, [updateConfig]);
 
   const setReverb = useCallback((nextValue) => {

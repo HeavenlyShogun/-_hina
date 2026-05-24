@@ -1,3 +1,5 @@
+import { getInstrumentDefinition } from '../constants/instruments.js';
+
 const DEFAULT_RENDER_CONFIG = {
   tone: 'piano',
   velocity: 0.85,
@@ -13,10 +15,6 @@ const PIANO_TONE_SHAPING = {
   highShelfMaxGain: -12,
   lowpassMinFrequency: 3000,
   lowpassMaxFrequency: 13200,
-};
-
-const TONE_ALIASES = {
-  lyre: 'lyre-long',
 };
 
 const TONE_PRESETS = {
@@ -50,98 +48,6 @@ const TONE_PRESETS = {
     hammerVol: 0.095,
     release: 0.64,
     velocity: 0.88,
-  },
-  flute: {
-    tone: 'flute',
-    engine: 'sampler',
-    sampleSet: 'flute',
-    layerGain: 0.82,
-    type: 'sine',
-    dur: 2.5,
-    atk: 0.08,
-    dec: 0.2,
-    sus: 0.8,
-    pk: 0.7,
-    flt: false,
-    nBufKey: 'noise',
-    nDur: 0.8,
-    nVol: 0.015,
-    release: 0.12,
-    velocity: 0.85,
-  },
-  violin: {
-    tone: 'violin',
-    engine: 'sampler',
-    sampleSet: 'violin',
-    layerGain: 0.74,
-    type: 'sawtooth',
-    dur: 3.8,
-    atk: 0.045,
-    dec: 0.36,
-    sus: 0.88,
-    pk: 0.52,
-    flt: true,
-    samplerFilterType: 'lowpass',
-    samplerFilterFrequency: 5200,
-    samplerFilterQ: 0.55,
-    samplerDetune: -4,
-    sampleStartOffset: 0.018,
-    vibratoDelay: 0.18,
-    vibratoRate: 5.8,
-    vibratoDepth: 16,
-    harmonics: [
-      { ratio: 1, gain: 0.44, type: 'sawtooth', detune: 5 },
-      { ratio: 2, gain: 0.1, type: 'triangle', detune: -2 },
-      { ratio: 3, gain: 0.04, type: 'sine', detune: 3 },
-      { ratio: 4, gain: 0.018, type: 'sine', detune: -4 },
-    ],
-    nBufKey: 'noise',
-    nDur: 0.18,
-    nVol: 0.012,
-    release: 0.58,
-    velocity: 0.84,
-  },
-  'lyre-long': {
-    tone: 'lyre-long',
-    engine: 'sampler',
-    sampleSet: 'orchestral-harp',
-    layerGain: 0.86,
-    type: 'sawtooth',
-    dur: 4,
-    atk: 0.015,
-    dec: 0.6,
-    sus: 0.1,
-    pk: 0.4,
-    flt: true,
-    fltStartMult: 6,
-    fltEndMult: 1.2,
-    fltDec: 0.4,
-    nBufKey: 'noise',
-    nDur: 0.05,
-    nVol: 0.08,
-    release: 0.18,
-    velocity: 0.85,
-  },
-  'lyre-short': {
-    tone: 'lyre-short',
-    engine: 'sampler',
-    sampleSet: 'orchestral-harp',
-    layerGain: 1.02,
-    type: 'sawtooth',
-    atk: 0.002,
-    dec: 0.16,
-    sus: 0.012,
-    pk: 0.78,
-    flt: true,
-    samplerFilterType: 'lowpass',
-    samplerFilterFrequency: 7200,
-    samplerFilterQ: 0.35,
-    sampleStartOffset: 0.006,
-    nBufKey: 'noise',
-    nDur: 0.018,
-    nVol: 0.035,
-    release: 0.055,
-    velocity: 0.92,
   },
   'tongue-drum': {
     tone: 'tongue-drum',
@@ -185,6 +91,51 @@ const TONE_PRESETS = {
     release: 0.42,
     velocity: 0.82,
   },
+  'retro-saw-synth': {
+    tone: 'retro-saw-synth',
+    instrumentType: 'synthesized',
+    layerGain: 0.72,
+    type: 'sawtooth',
+    dur: 2.4,
+    atk: 0.045,
+    dec: 0.22,
+    sus: 0.54,
+    pk: 0.42,
+    flt: true,
+    fltStartMult: 7.6,
+    fltEndMult: 2.2,
+    fltDec: 0.28,
+    harmonics: [
+      { ratio: 2, gain: 0.07, type: 'square', detune: -5 },
+      { ratio: 3, gain: 0.035, type: 'sawtooth', detune: 4 },
+    ],
+    vibratoDepth: 5,
+    vibratoRate: 5.2,
+    vibratoDelay: 0.18,
+    release: 0.32,
+    velocity: 0.76,
+  },
+  'cozy-triangle-lead': {
+    tone: 'cozy-triangle-lead',
+    instrumentType: 'synthesized',
+    layerGain: 0.82,
+    type: 'triangle',
+    dur: 3.2,
+    atk: 0.09,
+    dec: 0.36,
+    sus: 0.62,
+    pk: 0.46,
+    flt: true,
+    fltStartMult: 4.2,
+    fltEndMult: 1.7,
+    fltDec: 0.5,
+    harmonics: [
+      { ratio: 2, gain: 0.09, type: 'sine', detune: 2 },
+      { ratio: 3, gain: 0.035, type: 'triangle', detune: -3 },
+    ],
+    release: 0.52,
+    velocity: 0.8,
+  },
   classic: {
     tone: 'classic',
     layerGain: 0.85,
@@ -203,9 +154,6 @@ const TONE_PRESETS = {
 };
 
 const DYNAMIC_TONE_OVERRIDES = {
-  'lyre-short': (baseDuration) => ({
-    dur: Math.min(Math.max(baseDuration * 0.62, 0.11), 0.42),
-  }),
   classic: (baseDuration) => ({
     dur: Math.max(baseDuration * 1.5, 0.6),
   }),
@@ -217,27 +165,45 @@ const SAMPLE_LIBRARY_CONFIG = {
     baseUrl: 'https://tonejs.github.io/audio/salamander',
     samples: ['A2', 'C3', 'Ds3', 'Fs3', 'A3', 'C4', 'Ds4', 'Fs4', 'A4', 'C5', 'Ds5', 'Fs5', 'A5'],
   },
-  violin: {
-    source: 'midi-js',
-    instrument: 'violin',
-    samples: ['G3', 'C4', 'E4', 'G4', 'B4', 'D5', 'F#5', 'A5', 'C6'],
-  },
-  flute: {
-    source: 'midi-js',
-    instrument: 'flute',
-    samples: ['C4', 'D4', 'F4', 'A4', 'C5', 'D5', 'F5', 'A5', 'C6'],
-  },
-  'orchestral-harp': {
-    source: 'midi-js',
-    instrument: 'orchestral_harp',
-    samples: ['C3', 'E3', 'G3', 'B3', 'D4', 'F4', 'A4', 'C5', 'E5', 'G5', 'B5'],
-  },
   'steel-drums': {
     source: 'midi-js',
     instrument: 'steel_drums',
     samples: ['C4', 'E4', 'G4', 'B4', 'D5', 'F5', 'A5', 'C6'],
   },
 };
+
+class BaseInstrumentAdapter {
+  constructor(engine, id) {
+    this.engine = engine;
+    this.id = id;
+    this.definition = getInstrumentDefinition(id);
+  }
+
+  getRenderPreset(presets = TONE_PRESETS) {
+    return presets[this.id] ?? null;
+  }
+
+  async prepare() {
+    return null;
+  }
+}
+
+class SampledInstrumentAdapter extends BaseInstrumentAdapter {
+  async prepare(presets = TONE_PRESETS) {
+    const preset = this.getRenderPreset(presets);
+    if (!preset?.sampleSet) {
+      return null;
+    }
+
+    return this.engine.loadSampleSet(preset.sampleSet);
+  }
+}
+
+class SynthesizedInstrumentAdapter extends BaseInstrumentAdapter {
+  async prepare() {
+    return null;
+  }
+}
 
 function createImpulseResponse(context, duration = 2.6, decay = 2.4) {
   const safeDuration = Math.max(Number(duration) || 0, 0.2);
@@ -433,6 +399,7 @@ class AudioEngine {
     this.activeLiveVoices = new Map();
     this.sampleSets = new Map();
     this.sampleSetLoads = new Map();
+    this.instrumentAdapters = new Map();
   }
 
   init() {
@@ -492,21 +459,26 @@ class AudioEngine {
   async prepareTone(tone) {
     const context = this.init();
     const toneNames = this.normalizeToneList(tone);
-    const sampleSetIds = new Set();
 
-    toneNames.forEach((toneName) => {
-      const config = this.resolveRenderConfig({ tone: toneName }, 1);
-      if (config.engine === 'sampler' && config.sampleSet) {
-        sampleSetIds.add(config.sampleSet);
+    await Promise.all(toneNames.map((toneName) => {
+      const adapter = this.getInstrumentAdapter(toneName);
+      if (adapter) {
+        return adapter.prepare(TONE_PRESETS).catch((error) => {
+          console.warn(`Instrument "${toneName}" is unavailable. Falling back to synth playback.`, error);
+          return null;
+        });
       }
-    });
 
-    await Promise.all([...sampleSetIds].map((sampleSetId) => (
-      this.loadSampleSet(sampleSetId).catch((error) => {
-        console.warn(`Sampler "${sampleSetId}" is unavailable. Falling back to synth playback.`, error);
+      const config = this.resolveRenderConfig({ tone: toneName }, 1);
+      if (config.engine !== 'sampler' || !config.sampleSet) {
         return null;
-      })
-    )));
+      }
+
+      return this.loadSampleSet(config.sampleSet).catch((error) => {
+        console.warn(`Sampler "${config.sampleSet}" is unavailable. Falling back to synth playback.`, error);
+        return null;
+      });
+    }));
     return context;
   }
 
@@ -1154,7 +1126,11 @@ class AudioEngine {
   }
 
   normalizeToneName(tone) {
-    return TONE_ALIASES[tone] || tone || 'classic';
+    if (getInstrumentDefinition(tone) || TONE_PRESETS[tone]) {
+      return tone;
+    }
+
+    return DEFAULT_RENDER_CONFIG.tone;
   }
 
   normalizeToneList(tone) {
@@ -1172,7 +1148,26 @@ class AudioEngine {
   }
 
   getTonePreset(tone) {
-    return TONE_PRESETS[tone] || TONE_PRESETS.classic;
+    const adapter = this.getInstrumentAdapter(tone);
+    return adapter?.getRenderPreset(TONE_PRESETS) || TONE_PRESETS[tone] || TONE_PRESETS.classic;
+  }
+
+  getInstrumentAdapter(tone) {
+    const definition = getInstrumentDefinition(tone);
+    if (!definition) {
+      return null;
+    }
+
+    if (this.instrumentAdapters.has(tone)) {
+      return this.instrumentAdapters.get(tone);
+    }
+
+    const AdapterClass = definition.type === 'sampled'
+      ? SampledInstrumentAdapter
+      : SynthesizedInstrumentAdapter;
+    const adapter = new AdapterClass(this, tone);
+    this.instrumentAdapters.set(tone, adapter);
+    return adapter;
   }
 
   getDynamicToneOverrides(tone, duration) {

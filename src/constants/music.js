@@ -1,3 +1,5 @@
+import { SUPPORTED_TONES } from './instruments.js';
+
 export const NOTES_MAP = [
   {
     label: '高音區',
@@ -232,6 +234,13 @@ export const DEFAULT_SCORE_PARAMS = {
   tone: 'piano',
   reverb: true,
 };
+
+export function normalizeToneSelection(tone) {
+  const entries = Array.isArray(tone) ? tone : [tone ?? DEFAULT_SCORE_PARAMS.tone];
+  const allowed = new Set(SUPPORTED_TONES);
+  const normalized = [...new Set(entries.filter((entry) => allowed.has(entry)))];
+  return normalized.length > 0 ? (Array.isArray(tone) ? normalized : normalized[0]) : DEFAULT_SCORE_PARAMS.tone;
+}
 
 export const ALL_KEYS_FLAT = NOTES_MAP.flatMap((row) => row.keys);
 export const KEY_INFO_MAP = Object.fromEntries(ALL_KEYS_FLAT.map((key) => [key.k, key]));
