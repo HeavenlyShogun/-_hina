@@ -96,19 +96,30 @@ const ScoreConverter = memo(({
   showToast,
   onLoadLocalScore,
   onBatchUpload,
+  convertedResults: controlledConvertedResults,
+  onConvertedResultsChange,
 }) => {
   const midiInputRef = useRef(null);
   const musicXmlInputRef = useRef(null);
   const [isImportingMidi, setIsImportingMidi] = useState(false);
   const [isImportingMusicXml, setIsImportingMusicXml] = useState(false);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
-  const [convertedResults, setConvertedResults] = useState([]);
+  const [localConvertedResults, setLocalConvertedResults] = useState([]);
   const [isBatchUploading, setIsBatchUploading] = useState(false);
   const [shouldMergeMusicXmlBatch, setShouldMergeMusicXmlBatch] = useState(true);
   const [gridSize, setGridSize] = useState(null);
   const [filterChannel10, setFilterChannel10] = useState(true);
 
   const isImporting = isImportingMidi || isImportingMusicXml;
+  const convertedResults = controlledConvertedResults ?? localConvertedResults;
+
+  const setConvertedResults = useCallback((updater) => {
+    if (onConvertedResultsChange) {
+      onConvertedResultsChange(updater);
+      return;
+    }
+    setLocalConvertedResults(updater);
+  }, [onConvertedResultsChange]);
 
   const confirmLargeFile = useCallback((file) => {
     if (!file || file.size <= LARGE_FILE_WARNING_BYTES) {
@@ -238,12 +249,13 @@ const ScoreConverter = memo(({
     timeSigNum,
   ]);
 
-  const handleMergedMusicXmlImport = useCallback(async (files) => {
+  const handleMergedMusicXmlImport = useCallback(async (files, options = {}) => {
     const orderedFiles = [...files].sort(naturalCompareByName);
     if (!orderedFiles.every(confirmLargeFile)) {
       return null;
     }
 
+    const { shouldLoadToEditor = true } = options;
     setIsImportingMusicXml(true);
 
     try {
@@ -274,8 +286,15 @@ const ScoreConverter = memo(({
         timeSigNum,
         timeSigDen,
       });
-      onLoadLocalScore?.(payload, { gridSize, filterChannel10 });
-      showToast?.(`已合併 ${orderedFiles.length} 份 MusicXML/MXL 並載入編輯器`, 'success');
+      if (shouldLoadToEditor) {
+        onLoadLocalScore?.(payload, { gridSize, filterChannel10 });
+      }
+      showToast?.(
+        shouldLoadToEditor
+          ? `已合併 ${orderedFiles.length} 份 MusicXML/MXL 並載入編輯器`
+          : `已合併 ${orderedFiles.length} 份 MusicXML/MXL 並暫存`,
+        'success',
+      );
 
       return {
         file: {
@@ -315,17 +334,19 @@ const ScoreConverter = memo(({
     if (!acceptedFiles.length) return;
 
     const results = [];
-    const supportedFiles = acceptedFiles.filter(isMidiFile);
-    const unsupportedCount = acceptedFiles.length - supportedFiles.length;
+    const midiFiles = acceptedFiles.filter(isMidiFile);
+    const musicXmlFiles = acceptedFiles.filter(isMusicXmlFile);
+    const supportedCount = midiFiles.length + musicXmlFiles.length;
+    const unsupportedCount = acceptedFiles.length - supportedCount;
 
     if (unsupportedCount > 0) {
-      showToast?.(`已略過 ${unsupportedCount} 個非 MIDI 檔案，請使用 .mid 或 .midi。`, 'error');
+      showToast?.(`已略過 ${unsupportedCount} 個不支援的檔案，請使用 .mid、.midi、.musicxml、.xml 或 .mxl。`, 'error');
     }
 
-    for (const file of supportedFiles) {
+    for (const file of midiFiles) {
       const options = {
-        shouldLoadToEditor: supportedFiles.length === 1,
-        shouldSyncInput: supportedFiles.length === 1,
+        shouldLoadToEditor: supportedCount === 1,
+        shouldSyncInput: supportedCount === 1,
       };
       const result = await handleMidiImport(file, options);
 
@@ -334,14 +355,40 @@ const ScoreConverter = memo(({
       }
     }
 
+    if (musicXmlFiles.length > 1 && shouldMergeMusicXmlBatch) {
+      const result = await handleMergedMusicXmlImport(musicXmlFiles, {
+        shouldLoadToEditor: supportedCount === 1,
+      });
+      if (result) {
+        results.push(result);
+      }
+    } else {
+      for (const file of musicXmlFiles) {
+        const options = {
+          shouldLoadToEditor: supportedCount === 1,
+          shouldSyncInput: supportedCount === 1,
+          articulationRatio: 0.9,
+        };
+        const result = await handleMusicXmlImport(file, options);
+
+        if (result) {
+          results.push(result);
+        }
+      }
+    }
+
     if (results.length > 0) {
       setConvertedResults((prev) => [...prev, ...results]);
       if (results.length > 1) {
-        showToast?.(`已轉換 ${results.length} 個 MIDI 檔案`, 'success');
+        showToast?.(`已轉換 ${results.length} 個譜面檔案`, 'success');
       }
     }
   }, [
     handleMidiImport,
+    handleMergedMusicXmlImport,
+    handleMusicXmlImport,
+    setConvertedResults,
+    shouldMergeMusicXmlBatch,
     showToast,
   ]);
 
@@ -497,6 +544,16 @@ const ScoreConverter = memo(({
               />
               <span>自動過濾 Channel 10 爵士鼓伴奏軌（強烈建議）</span>
             </label>
+
+            <label className="flex min-h-11 items-center gap-3 rounded-2xl border border-amber-300/15 bg-black/20 px-4 py-3 text-sm font-semibold text-amber-50/85 md:col-span-2">
+              <input
+                type="checkbox"
+                checked={shouldMergeMusicXmlBatch}
+                onChange={(event) => setShouldMergeMusicXmlBatch(event.target.checked)}
+                className="h-4 w-4 rounded border-amber-300/40 bg-slate-950 text-amber-400 focus:ring-2 focus:ring-amber-400/25"
+              />
+              <span>多個 MusicXML / MXL 依檔名自然排序合併，並保留 MXL 解壓縮轉檔流程</span>
+            </label>
           </div>
         </div>
 
@@ -521,8 +578,8 @@ const ScoreConverter = memo(({
               <FileUp size={24} />
             </div>
             <div>
-              <div className="text-base font-bold text-amber-50">拖放 MIDI 檔案到這裡</div>
-              <div className="mt-1 text-sm text-amber-50/55">支援 .mid、.midi；會保留 MIDI 的 BPM、拍號、PPQ、track 與 velocity 資訊。</div>
+              <div className="text-base font-bold text-amber-50">拖放 MIDI / MusicXML / MXL 檔案到這裡</div>
+              <div className="mt-1 text-sm text-amber-50/55">支援 .mid、.midi、.musicxml、.xml、.mxl；MXL 會先解壓縮再轉成可播放譜面。</div>
             </div>
             <div className="flex flex-wrap justify-center gap-2">
               <button
@@ -533,6 +590,15 @@ const ScoreConverter = memo(({
               >
                 <FileUp size={15} />
                 選擇 MIDI
+              </button>
+              <button
+                type="button"
+                onClick={() => musicXmlInputRef.current?.click()}
+                disabled={isImporting}
+                className="inline-flex items-center gap-2 rounded-2xl border border-sky-300/25 bg-sky-500/10 px-4 py-2 text-sm font-semibold text-sky-50 transition hover:bg-sky-500/20 disabled:opacity-50"
+              >
+                <Files size={15} />
+                選擇 MusicXML / MXL
               </button>
             </div>
           </div>
@@ -638,6 +704,14 @@ const ScoreConverter = memo(({
           accept=".mid,.midi,audio/midi"
           className="hidden"
           onChange={handleMidiFileChange}
+        />
+        <input
+          ref={musicXmlInputRef}
+          type="file"
+          multiple
+          accept=".musicxml,.xml,.mxl,application/vnd.recordare.musicxml,application/vnd.recordare.musicxml+xml"
+          className="hidden"
+          onChange={handleMusicXmlFileChange}
         />
       </div>
     </section>

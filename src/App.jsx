@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, CheckCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle, FolderOpen, Trash2 } from 'lucide-react';
 import ScoreConverter from './components/ScoreConverter';
 import ScoreEditor from './components/ScoreEditor';
 import PianoRoom from './pages/PianoRoom';
@@ -237,6 +237,7 @@ function AppContent({
   const [featuredLoadState, setFeaturedLoadState] = useState({ isLoading: false, message: '' });
   const [uiMode, setUiMode] = useState('normal');
   const [panelModes, setPanelModes] = useState({});
+  const [pendingConvertedScores, setPendingConvertedScores] = useState([]);
   const toastTimerRef = useRef(null);
   const visualEventQueueRef = useRef([]);
   const visualFlushFrameRef = useRef(0);
@@ -375,7 +376,52 @@ function AppContent({
   }, []);
 
   const selectableScores = useMemo(() => IMPORTABLE_SCORE_FILES, []);
-  const selectableScoreGroups = useMemo(() => IMPORTABLE_SCORE_GROUPS, []);
+  const pendingConvertedScoreOptions = useMemo(() => (
+    pendingConvertedScores.map((result, index) => {
+      const payload = result.payload;
+      const title = payload?.meta?.displayTitle ?? payload?.meta?.title ?? result.file?.name ?? `本機暫存 ${index + 1}`;
+
+      return {
+        id: `pending-converted-${index}-${result.file?.name ?? title}`,
+        filename: result.file?.name,
+        title,
+        displayTitle: title,
+        subtitle: result.sourceType ?? 'Converted score',
+        versionLabel: result.sourceType ?? 'Converted',
+        groupLabel: '本機暫存轉檔',
+        sourceType: SCORE_SOURCE_TYPES.JSON,
+        bpm: payload?.transport?.bpm ?? payload?.playback?.bpm,
+        timeSigNum: payload?.transport?.timeSigNum,
+        timeSigDen: payload?.transport?.timeSigDen,
+        charResolution: payload?.transport?.resolution,
+        globalKeyOffset: payload?.playback?.globalKeyOffset,
+        scaleMode: payload?.playback?.scaleMode,
+        tone: payload?.playback?.tone,
+        reverb: payload?.playback?.reverb,
+        accidentals: payload?.playback?.accidentals ?? {},
+        load: async () => ({
+          title,
+          displayTitle: title,
+          content: payload,
+          sourceType: SCORE_SOURCE_TYPES.JSON,
+          ...payload?.transport,
+          ...payload?.playback,
+        }),
+      };
+    })
+  ), [pendingConvertedScores]);
+  const selectableScoreGroups = useMemo(() => (
+    pendingConvertedScoreOptions.length
+      ? [
+        ...IMPORTABLE_SCORE_GROUPS,
+        {
+          id: 'pending-converted',
+          label: '本機暫存轉檔',
+          files: pendingConvertedScoreOptions,
+        },
+      ]
+      : IMPORTABLE_SCORE_GROUPS
+  ), [pendingConvertedScoreOptions]);
 
   const workspaceSections = useMemo(() => ([
     { id: 'main-screen', label: '\u4e3b\u756b\u9762', shortLabel: '\u4e3b\u756b\u9762', caption: '\u66f2\u5eab\u8207\u64ad\u653e\u5165\u53e3' },
@@ -789,6 +835,11 @@ function AppContent({
     stopAll();
   }, [loadScoreSource, scoreDocument.content, scoreDocument.rawText, scoreDocument.sourceType, stopAll]);
 
+  const handleRemovePendingConvertedScore = useCallback((indexToRemove) => {
+    setPendingConvertedScores((prev) => prev.filter((_, index) => index !== indexToRemove));
+    showToast('已移除本機暫存譜面', 'success');
+  }, [showToast]);
+
   const editorScore = useMemo(() => {
     if (scoreDocument.sourceType === SCORE_SOURCE_TYPES.JSON) {
       if (scoreDocument.content && typeof scoreDocument.content === 'object') {
@@ -926,6 +977,59 @@ function AppContent({
                     </button>
                   ))}
                 </div>
+
+                <div className="mt-5 border-t border-white/10 pt-4">
+                  <div className="mb-3 flex items-center justify-between gap-2 px-1">
+                    <div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.26em] text-amber-100/65">
+                        Local Stash
+                      </div>
+                      <div className="mt-1 text-xs font-semibold text-amber-50/75">
+                        本機暫存轉檔
+                      </div>
+                    </div>
+                    <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2 py-1 text-[10px] font-black text-amber-100">
+                      {pendingConvertedScores.length}
+                    </span>
+                  </div>
+
+                  <div className="custom-scrollbar max-h-[280px] space-y-2 overflow-y-auto pr-1">
+                    {pendingConvertedScores.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] px-3 py-4 text-xs leading-relaxed text-white/45">
+                        轉換 MIDI、MusicXML 或 MXL 後，譜面會先暫存在這裡，也會出現在上方預設歌曲選單。
+                      </div>
+                    ) : pendingConvertedScores.map((result, index) => (
+                      <div
+                        key={`${result.file?.name ?? 'converted'}-${index}`}
+                        className="rounded-2xl border border-white/10 bg-white/[0.04] p-3"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => handleLoadLocalConvertedScore(result.payload, { mode: 'replace' })}
+                          className="flex w-full items-start gap-2 text-left"
+                        >
+                          <FolderOpen size={14} className="mt-0.5 shrink-0 text-amber-100" />
+                          <span className="min-w-0">
+                            <span className="block truncate text-xs font-bold text-amber-50">
+                              {result.payload?.meta?.displayTitle ?? result.payload?.meta?.title ?? result.file?.name}
+                            </span>
+                            <span className="mt-1 block truncate text-[10px] uppercase tracking-[0.18em] text-amber-100/60">
+                              {result.sourceType ?? 'Converted'}
+                            </span>
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRemovePendingConvertedScore(index)}
+                          className="mt-2 inline-flex items-center gap-1 rounded-xl border border-rose-300/20 bg-rose-500/10 px-2 py-1 text-[10px] font-bold text-rose-100/80 transition hover:bg-rose-500/20"
+                        >
+                          <Trash2 size={12} />
+                          移除
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </aside>
 
@@ -990,6 +1094,8 @@ function AppContent({
                   showToast={showToast}
                   onLoadLocalScore={handleLoadLocalConvertedScore}
                   onBatchUpload={uploadCloudScores}
+                  convertedResults={pendingConvertedScores}
+                  onConvertedResultsChange={setPendingConvertedScores}
                   onClearCurrentScore={handleClearCurrentScore}
                 />
               </div>
