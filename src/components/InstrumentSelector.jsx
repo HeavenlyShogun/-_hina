@@ -89,11 +89,12 @@ const InstrumentSelector = memo(({ disabled = false }) => {
           gap: 5px;
           padding: 8px 14px;
           border-radius: 18px;
-          border: 1px solid rgba(255,255,255,0.12);
+          border: 1px solid rgba(219,234,254,0.18);
           background:
-            linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02)),
-            rgba(3, 7, 18, 0.72);
-          color: rgba(236,253,245,0.62);
+            radial-gradient(circle at 50% 0%, rgba(125,211,252,0.1), transparent 48%),
+            linear-gradient(180deg, rgba(226,232,255,0.08), rgba(196,181,253,0.025)),
+            rgba(5, 8, 28, 0.76);
+          color: rgba(219,234,254,0.7);
           cursor: pointer;
           transition: transform 160ms ease, border-color 180ms ease, color 180ms ease, box-shadow 180ms ease, background 180ms ease;
           font-family: inherit;
@@ -101,7 +102,8 @@ const InstrumentSelector = memo(({ disabled = false }) => {
           min-height: 58px;
           box-shadow:
             inset 0 1px 0 rgba(255,255,255,0.08),
-            0 14px 34px rgba(0,0,0,0.22);
+            0 14px 34px rgba(0,0,0,0.26),
+            0 0 18px rgba(99,102,241,0.08);
           backdrop-filter: blur(14px);
         }
         .instrument-btn:disabled {
@@ -122,14 +124,15 @@ const InstrumentSelector = memo(({ disabled = false }) => {
         .instrument-btn:hover {
           transform: translateY(-2px);
           background:
-            linear-gradient(180deg, rgba(255,255,255,0.11), rgba(255,255,255,0.035)),
-            rgba(6, 16, 27, 0.86);
+            radial-gradient(circle at 50% 0%, rgba(250,204,21,0.12), transparent 48%),
+            linear-gradient(180deg, rgba(255,255,255,0.11), rgba(196,181,253,0.04)),
+            rgba(8, 12, 34, 0.88);
           color: rgba(255,255,255,0.92);
-          border-color: rgba(167,243,208,0.28);
+          border-color: rgba(253,224,171,0.34);
           box-shadow:
             inset 0 1px 0 rgba(255,255,255,0.12),
             0 18px 38px rgba(0,0,0,0.3),
-            0 0 22px rgba(45,212,191,0.12);
+            0 0 24px rgba(250,204,21,0.12);
         }
         .instrument-btn:hover::before {
           opacity: 1;
@@ -137,15 +140,16 @@ const InstrumentSelector = memo(({ disabled = false }) => {
         }
         .instrument-btn.active {
           background:
-            radial-gradient(circle at 50% 0%, rgba(251,191,36,0.24), transparent 52%),
-            linear-gradient(180deg, rgba(16,185,129,0.22), rgba(20,184,166,0.1)),
-            rgba(3, 7, 18, 0.84);
-          border-color: rgba(252,211,77,0.58);
-          color: #fde68a;
+            radial-gradient(circle at 50% 0%, rgba(253,224,171,0.26), transparent 52%),
+            linear-gradient(180deg, rgba(125,211,252,0.18), rgba(196,181,253,0.12)),
+            rgba(6, 10, 30, 0.88);
+          border-color: rgba(253,224,171,0.58);
+          color: #fef3c7;
           box-shadow:
             inset 0 1px 0 rgba(255,255,255,0.14),
             0 18px 42px rgba(0,0,0,0.28),
-            0 0 26px rgba(251,191,36,0.18);
+            0 0 28px rgba(191,219,254,0.16),
+            0 0 18px rgba(250,204,21,0.14);
         }
         .instrument-icon {
           display: flex;

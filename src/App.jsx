@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle, CheckCircle, FolderOpen, Trash2 } from 'lucide-react';
 import ScoreConverter from './components/ScoreConverter';
 import ScoreEditor from './components/ScoreEditor';
+import GalaxyBackground from './components/GalaxyBackground';
 import PianoRoom from './pages/PianoRoom';
 import galaxyBackgroundUrl from './assets/galaxy.jpg';
 import { AudioConfigProvider, useAudioConfig } from './contexts/AudioConfigContext';
@@ -911,8 +912,12 @@ function AppContent({
         className="app-shell relative flex min-h-screen select-none flex-col items-center pb-20 font-serif text-slate-50 touch-pan-y"
         onPointerDown={handleBackgroundPointerDown}
         onContextMenu={(event) => event.preventDefault()}
-        style={{ backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.48)), url(${galaxyBackgroundUrl})` }}
+        style={{
+          backgroundImage: `linear-gradient(135deg, rgba(2, 3, 15, 0.38), rgba(24, 18, 54, 0.34) 44%, rgba(3, 12, 32, 0.58)), url(${galaxyBackgroundUrl})`,
+        }}
       >
+        <GalaxyBackground />
+
         {toast ? (
           <div className={`fixed right-6 top-6 z-50 flex items-center gap-3 rounded-2xl border px-6 py-3.5 shadow-[0_10px_40px_rgba(0,0,0,0.5)] backdrop-blur-md animate-in slide-in-from-top-5 fade-in duration-300 ${toast.type === 'error' ? 'border-rose-500/50 bg-rose-500/20 text-rose-100' : 'border-emerald-500/50 bg-emerald-500/20 text-emerald-100'}`}>
             {toast.type === 'error' ? <AlertCircle size={18} /> : <CheckCircle size={18} />}
