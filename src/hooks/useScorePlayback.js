@@ -13,10 +13,6 @@ function resolveCharResolution(source = {}) {
     return explicitCharResolution;
   }
 
-  if (source?.textNotation === 'legacy' || source?.legacyTimingMode === 'absolute') {
-    return 8;
-  }
-
   return DEFAULT_SCORE_PARAMS.charResolution;
 }
 
@@ -51,8 +47,6 @@ export function useScorePlayback({
   timeSigNum,
   timeSigDen,
   charResolution,
-  legacyTimingMode,
-  textNotation,
   audioConfig,
   accidentals,
   showToast,
@@ -75,8 +69,6 @@ export function useScorePlayback({
     timeSigNum,
     timeSigDen,
     charResolution,
-    legacyTimingMode,
-    textNotation,
     audioConfig,
     accidentals,
   });
@@ -88,12 +80,10 @@ export function useScorePlayback({
       timeSigNum,
       timeSigDen,
       charResolution,
-      legacyTimingMode,
-      textNotation,
       audioConfig,
       accidentals,
     };
-  }, [accidentals, audioConfig, bpm, charResolution, legacyTimingMode, score, textNotation, timeSigDen, timeSigNum]);
+  }, [accidentals, audioConfig, bpm, charResolution, score, timeSigDen, timeSigNum]);
 
   useEffect(() => {
     isPlayingRef.current = playbackState.isPlaying;
@@ -200,8 +190,6 @@ export function useScorePlayback({
       charResolution: current.charResolution,
       globalKeyOffset: current.audioConfig?.globalKeyOffset,
       scaleMode: current.audioConfig?.scaleMode,
-      legacyTimingMode: current.legacyTimingMode,
-      textNotation: current.textNotation,
     });
 
     playbackController.load(events, maxTime, playback);
@@ -223,8 +211,6 @@ export function useScorePlayback({
         source?.audioConfig?.scaleMode
         ?? source?.scaleMode
         ?? DEFAULT_SCORE_PARAMS.scaleMode,
-      legacyTimingMode: source?.legacyTimingMode,
-      textNotation: source?.textNotation,
     });
 
     playbackController.load(events, maxTime, playback);
@@ -342,6 +328,23 @@ export function useScorePlayback({
       showToast('播放失敗。', 'error');
     }
   }, [buildSnapshot, playbackState.isPaused, playbackState.isPlaying, playFromStart, runBusyTask, showToast, stopAll]);
+
+  const restartScoreAction = useCallback(async () => {
+    try {
+      if (busyRef.current) {
+        return;
+      }
+
+      await runBusyTask('從頭播放中...', async () => {
+        stopAll();
+        await playFromStart();
+      });
+    } catch (error) {
+      console.error(error);
+      stopAll();
+      showToast('從頭播放失敗。', 'error');
+    }
+  }, [playFromStart, runBusyTask, showToast, stopAll]);
 
   const playScoreSourceAction = useCallback(async (source) => {
     try {
@@ -525,6 +528,7 @@ export function useScorePlayback({
     playScoreSourceAction,
     pauseScoreAction,
     resumeScoreAction,
+    restartScoreAction,
     seekToTime,
     scrubToTime,
     seekToTick,

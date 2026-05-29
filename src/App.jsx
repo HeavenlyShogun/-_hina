@@ -15,12 +15,10 @@ import { APP_NAME, APP_TAGLINE, APP_VERSION } from './config/branding';
 import {
   applyScoreSettingsToJsonContent,
   createScoreDocument,
-  createScoreTextMeta,
   parseScoreContent,
   SCORE_SOURCE_TYPES,
 } from './utils/scoreDocument';
 import { applyScoreRecommendation } from './utils/scoreRecommendations';
-import { buildScoreTextWithMeta } from './utils/scoreTextMeta';
 import { normalizeScoreSource } from './utils/score';
 import { scoreJsonToMidiBytes } from './utils/scoreToMidi';
 
@@ -32,29 +30,25 @@ async function readImportedScore(file) {
   const raw = await file.text();
   const isJsonFile = file.name.toLowerCase().endsWith('.json');
 
-  if (isJsonFile) {
-    if (!raw.trim()) {
-      throw new Error(`${file.name} 是空的 JSON 檔案。`);
-    }
+  if (!isJsonFile) {
+    throw new Error(`${file.name} 不是可直接讀取的譜面。請匯入 JSON/Slim JSON；MIDI、MusicXML 與 MXL 請使用轉換區載入。`);
+  }
 
-    let content;
-    try {
-      content = JSON.parse(raw);
-    } catch {
-      throw new Error(`${file.name} 的 JSON 格式無法解析。`);
-    }
+  if (!raw.trim()) {
+    throw new Error(`${file.name} 是空的 JSON 檔案。`);
+  }
 
-    return {
-      title: getFileTitle(file.name),
-      content,
-      sourceType: SCORE_SOURCE_TYPES.JSON,
-    };
+  let content;
+  try {
+    content = JSON.parse(raw);
+  } catch {
+    throw new Error(`${file.name} 的 JSON 格式無法解析。`);
   }
 
   return {
     title: getFileTitle(file.name),
-    rawText: raw,
-    sourceType: SCORE_SOURCE_TYPES.TEXT,
+    content,
+    sourceType: SCORE_SOURCE_TYPES.JSON,
   };
 }
 
@@ -458,6 +452,7 @@ function AppContent({
     playScoreAction,
     pauseScoreAction,
     resumeScoreAction,
+    restartScoreAction,
     seekToTime,
     scrubToTime,
     seekToTick,
@@ -472,8 +467,6 @@ function AppContent({
     timeSigNum,
     timeSigDen,
     charResolution,
-    legacyTimingMode: scoreDocument.legacyTimingMode,
-    textNotation: scoreDocument.textNotation,
     audioConfig,
     accidentals,
     showToast,
@@ -518,36 +511,21 @@ function AppContent({
       scaleMode: audioConfig.scaleMode,
     };
 
-    if (effectiveScoreDocument.sourceType === SCORE_SOURCE_TYPES.JSON) {
-      const currentContent = effectiveScoreDocument.content ?? parseScoreContent(
-        effectiveScoreDocument.rawText,
-        SCORE_SOURCE_TYPES.JSON,
-      );
-      const content = applyScoreSettingsToJsonContent(currentContent, {
-        ...effectiveScoreDocument,
-        title: titleOverride,
-      });
-
-      return createScoreDocument({
-        ...effectiveScoreDocument,
-        title: titleOverride,
-        content,
-        rawText: JSON.stringify(content, null, 2),
-        sourceType: SCORE_SOURCE_TYPES.JSON,
-      });
-    }
+    const currentContent = effectiveScoreDocument.content ?? parseScoreContent(
+      effectiveScoreDocument.rawText,
+      SCORE_SOURCE_TYPES.JSON,
+    );
+    const content = applyScoreSettingsToJsonContent(currentContent, {
+      ...effectiveScoreDocument,
+      title: titleOverride,
+    });
 
     return createScoreDocument({
       ...effectiveScoreDocument,
       title: titleOverride,
-      rawText: buildScoreTextWithMeta(
-        effectiveScoreDocument.rawText,
-        createScoreTextMeta({
-          ...effectiveScoreDocument,
-          title: titleOverride,
-        }),
-      ),
-      sourceType: SCORE_SOURCE_TYPES.TEXT,
+      content,
+      rawText: JSON.stringify(content, null, 2),
+      sourceType: SCORE_SOURCE_TYPES.JSON,
     });
   }, [
     accidentals,
@@ -634,11 +612,7 @@ function AppContent({
     try {
       if (files.length === 1) {
         const source = await readImportedScore(files[0]);
-        loadScoreSource(
-          source.sourceType === SCORE_SOURCE_TYPES.JSON
-            ? applyScoreRecommendation(source)
-            : source,
-        );
+        loadScoreSource(applyScoreRecommendation(source));
         stopAll();
         showToast(`已匯入 ${source.title}`, 'success');
       } else {
@@ -647,11 +621,7 @@ function AppContent({
             const source = await readImportedScore(file);
             return {
               title: source.title,
-              payload: createScoreDocument(
-                source.sourceType === SCORE_SOURCE_TYPES.JSON
-                  ? applyScoreRecommendation(source)
-                  : source,
-              ),
+              payload: createScoreDocument(applyScoreRecommendation(source)),
             };
           }),
         );
@@ -672,64 +642,16 @@ function AppContent({
 
   const handleExportLocal = useCallback((format = 'source') => {
     const snapshot = buildCurrentScoreSnapshot(scoreTitle.trim() || scoreDocument.title);
-    let filename = `${scoreTitle.trim() || 'score'}.txt`;
+    let filename = `${scoreTitle.trim() || 'score'}.json`;
     let blob = null;
 
     if (format === 'midi') {
-      const scoreJson = snapshot.sourceType === SCORE_SOURCE_TYPES.JSON
-        ? snapshot.content
-        : normalizeScoreSource(snapshot.rawText, snapshot);
-      const midiBytes = scoreJsonToMidiBytes(
-        snapshot.sourceType === SCORE_SOURCE_TYPES.JSON
-          ? scoreJson
-          : {
-            version: '2.0',
-            meta: {
-              title: snapshot.title,
-              sourceType: 'text',
-            },
-            transport: {
-              bpm: snapshot.bpm,
-              timeSigNum: snapshot.timeSigNum,
-              timeSigDen: snapshot.timeSigDen,
-              resolution: scoreJson?.playback?.resolution ?? 480,
-            },
-            playback: {
-              tone: snapshot.tone,
-              globalKeyOffset: snapshot.globalKeyOffset,
-              reverb: snapshot.reverb,
-              scaleMode: snapshot.scaleMode,
-              accidentals: snapshot.accidentals,
-            },
-            tracks: [
-              {
-                id: 'main',
-                name: 'Main',
-                mute: false,
-                events: (scoreJson?.events ?? [])
-                  .filter((event) => !event?.isRest)
-                  .map((event) => ({
-                    type: 'note',
-                    startTick: event.startTick ?? event.tick,
-                    durationTicks: event.durationTicks,
-                    key: event.k ?? null,
-                    velocity: event.v ?? 0.85,
-                    frequency: event.frequency ?? null,
-                    noteName: event.noteName ?? null,
-                    midi: event.midi ?? null,
-                  })),
-              },
-            ],
-          },
-      );
+      const midiBytes = scoreJsonToMidiBytes(snapshot.content ?? {});
       filename = `${scoreTitle.trim() || 'score'}.mid`;
       blob = new Blob([midiBytes], { type: 'audio/midi' });
-    } else if (snapshot.sourceType === SCORE_SOURCE_TYPES.JSON) {
+    } else {
       filename = `${scoreTitle.trim() || 'score'}.json`;
       blob = new Blob([JSON.stringify(snapshot.content ?? {}, null, 2)], { type: 'application/json;charset=utf-8' });
-    } else {
-      filename = `${scoreTitle.trim() || 'score'}.txt`;
-      blob = new Blob([snapshot.rawText], { type: 'text/plain;charset=utf-8' });
     }
 
     const url = URL.createObjectURL(blob);
@@ -750,14 +672,50 @@ function AppContent({
   }, [resetScoreState, showToast, stopAll]);
 
   const handleClearCurrentScore = useCallback(() => {
+    const emptyScore = {
+      version: '3.2-ultra-slim',
+      meta: {
+        title: '未命名譜面',
+        displayTitle: '未命名譜面',
+        sourceType: 'json',
+        storageFormat: 'hina-slim-score@3.2',
+      },
+      transport: {
+        bpm,
+        timeSigNum,
+        timeSigDen,
+        resolution: 480,
+      },
+      playback: {
+        tone: audioConfig.tone,
+        globalKeyOffset: audioConfig.globalKeyOffset,
+        scaleMode: audioConfig.scaleMode,
+        reverb: audioConfig.reverb,
+        accidentals,
+      },
+      tracks: [],
+      notes: [],
+    };
+
     loadScoreSource({
       id: `cleared-score-${Date.now()}`,
       title: '未命名譜面',
-      rawText: '',
-      sourceType: SCORE_SOURCE_TYPES.TEXT,
+      content: emptyScore,
+      sourceType: SCORE_SOURCE_TYPES.JSON,
     });
     stopAll();
-  }, [loadScoreSource, stopAll]);
+  }, [
+    accidentals,
+    audioConfig.globalKeyOffset,
+    audioConfig.reverb,
+    audioConfig.scaleMode,
+    audioConfig.tone,
+    bpm,
+    loadScoreSource,
+    stopAll,
+    timeSigDen,
+    timeSigNum,
+  ]);
 
   const handlePlayFeaturedScore = useCallback(async (featuredScore) => {
     const requestId = featuredRequestIdRef.current + 1;
@@ -781,8 +739,6 @@ function AppContent({
       timeSigNum: nextScore.timeSigNum,
       timeSigDen: nextScore.timeSigDen,
       charResolution: nextScore.charResolution,
-      legacyTimingMode: nextScore.legacyTimingMode,
-      textNotation: nextScore.textNotation,
       storageFormat: nextScore.storageFormat,
       filename: nextScore.filename,
       globalKeyOffset: nextScore.globalKeyOffset,
@@ -866,14 +822,13 @@ function AppContent({
     setTimeSigDen,
     charResolution,
     setCharResolution,
-    textNotation: scoreDocument.textNotation,
-    legacyTimingMode: scoreDocument.legacyTimingMode,
     isPlaying,
     isPaused,
     playbackState,
     onTogglePlay: playScoreAction,
     onPause: pauseScoreAction,
     onResume: resumeScoreAction,
+    onRestart: restartScoreAction,
     onSeekToTime: seekToTime,
     onScrubToTime: scrubToTime,
     onSeekToTick: seekToTick,
@@ -886,11 +841,10 @@ function AppContent({
     handleApplyCurrentSettingsToScore,
     isPlaying,
     isPaused,
-    scoreDocument.legacyTimingMode,
-    scoreDocument.textNotation,
     playbackState,
     pauseScoreAction,
     playScoreAction,
+    restartScoreAction,
     resumeScoreAction,
     scrubToTick,
     scrubToTime,
@@ -1109,10 +1063,17 @@ function AppContent({
           </div>
         </section>
 
-        <section id="background-board" className="z-20 mt-12 w-full max-w-6xl scroll-mt-6 px-4">
-          <div data-ui-panel="true" data-panel-mode={getPanelMode('background-board')} onPointerDown={handlePanelPointerDown} className="relative min-h-[64vh] overflow-hidden rounded-[36px] border border-white/12 bg-slate-950/24 p-5 shadow-[0_24px_90px_rgba(0,0,0,0.22)] backdrop-blur-[2px] transition-colors duration-300 md:min-h-[68vh] md:rounded-[44px] md:p-8">
+        <section id="background-board" className="z-10 mt-12 w-full max-w-6xl scroll-mt-6 px-4">
+          <div data-ui-panel="true" data-panel-mode={getPanelMode('background-board')} onPointerDown={handlePanelPointerDown} className="relative min-h-[64vh] overflow-hidden rounded-[36px] border border-white/12 bg-slate-950/16 p-5 shadow-[0_24px_90px_rgba(0,0,0,0.18)] transition-colors duration-300 md:min-h-[68vh] md:rounded-[44px] md:p-8">
             <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.22),rgba(2,6,23,0.08)_42%,rgba(2,6,23,0.26)),radial-gradient(circle_at_18%_18%,rgba(56,189,248,0.12),transparent_32%),radial-gradient(circle_at_82%_26%,rgba(253,224,171,0.10),transparent_28%)]" />
-            <div className="relative flex min-h-[calc(64vh-2.5rem)] flex-col justify-between gap-10 md:min-h-[calc(68vh-4rem)]">
+            <button
+              type="button"
+              onClick={() => togglePanelMode('background-board')}
+              className="absolute right-4 top-4 z-10 rounded-full border border-white/12 bg-slate-950/45 px-4 py-2 text-[10px] font-black tracking-[0.2em] text-sky-50/85 transition hover:bg-slate-900/70"
+            >
+              {getPanelMode('background-board') === 'clear' ? '顯示介紹' : '淡化介紹'}
+            </button>
+            <div className={`relative flex min-h-[calc(64vh-2.5rem)] flex-col justify-between gap-10 transition duration-500 md:min-h-[calc(68vh-4rem)] ${getPanelMode('background-board') === 'clear' ? 'pointer-events-none opacity-0' : 'opacity-100'}`}>
               <div className="max-w-3xl">
                 <div className="text-[10px] font-black uppercase tracking-[0.38em] text-sky-100/75">
                   Background Board

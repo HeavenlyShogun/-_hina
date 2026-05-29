@@ -111,7 +111,7 @@ function normalizeLegacyRecord(record = {}) {
   const hasStructuredDocument = typeof record.rawText === 'string';
   const sourceType =
     record.sourceType
-    ?? (record.content && typeof record.content === 'object' ? SCORE_SOURCE_TYPES.JSON : SCORE_SOURCE_TYPES.TEXT);
+    ?? SCORE_SOURCE_TYPES.JSON;
 
   if (hasStructuredDocument) {
     return createScoreDocument({
@@ -126,7 +126,7 @@ function normalizeLegacyRecord(record = {}) {
       typeof record.content === 'string'
         ? record.content
         : JSON.stringify(record.content ?? {}, null, 2),
-    sourceType,
+    sourceType: SCORE_SOURCE_TYPES.JSON,
   });
 }
 
@@ -270,7 +270,7 @@ export function normalizeLoadedScoreSummary(record) {
   return {
     id: record.id,
     title: record.title ?? DEFAULT_SCORE_NAME,
-    sourceType: record.sourceType ?? SCORE_SOURCE_TYPES.TEXT,
+    sourceType: record.sourceType ?? SCORE_SOURCE_TYPES.JSON,
     bpm: record.bpm,
     timeSigNum: record.timeSigNum,
     timeSigDen: record.timeSigDen,

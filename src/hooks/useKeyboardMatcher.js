@@ -66,15 +66,15 @@ function buildScoreInput(scoreDocument) {
     return scoreDocument;
   }
 
-  if (typeof scoreDocument.rawText === 'string') {
-    return parseScoreContent(
-      scoreDocument.rawText,
-      scoreDocument.sourceType ?? SCORE_SOURCE_TYPES.TEXT,
-    );
-  }
-
   if (scoreDocument.content && typeof scoreDocument.content === 'object') {
     return scoreDocument.content;
+  }
+
+  if (typeof scoreDocument.rawText === 'string' && scoreDocument.rawText.trim()) {
+    return parseScoreContent(
+      scoreDocument.rawText,
+      SCORE_SOURCE_TYPES.JSON,
+    );
   }
 
   return null;
@@ -125,8 +125,6 @@ function buildNoteIndex(scoreDocument) {
       timeSigNum: scoreDocument.timeSigNum,
       timeSigDen: scoreDocument.timeSigDen,
       charResolution: scoreDocument.charResolution,
-      legacyTimingMode: scoreDocument.legacyTimingMode,
-      textNotation: scoreDocument.textNotation,
     });
     const measureTicks = resolveMeasureTicks(normalized.playback);
     const notesPerMeasure = {};

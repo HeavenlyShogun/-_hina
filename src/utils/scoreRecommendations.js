@@ -10,7 +10,6 @@ const RECOMMENDED_SCORES = [
     timeSigNum: 4,
     timeSigDen: 4,
     charResolution: 16,
-    textNotation: 'keshifu',
     reverb: true,
   },
   {
@@ -121,7 +120,7 @@ export function applyScoreRecommendation(source = {}, options = {}) {
   }
 
   const next = { ...source };
-  ['bpm', 'globalKeyOffset', 'scaleMode', 'timeSigNum', 'timeSigDen', 'charResolution', 'textNotation', 'reverb'].forEach((key) => {
+  ['bpm', 'globalKeyOffset', 'scaleMode', 'timeSigNum', 'timeSigDen', 'charResolution', 'reverb'].forEach((key) => {
     if (recommendation[key] !== undefined && (force || !hasExplicitValue(next[key]))) {
       next[key] = recommendation[key];
     }

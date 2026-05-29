@@ -1,7 +1,6 @@
 import { DEFAULT_SCORE_PARAMS } from '../constants/music.js';
 import { DEFAULT_SCORE_NAME } from '../config/branding.js';
 import { normalizeScoreSource } from './score.js';
-import { buildScoreMetaPayload, parseScoreMetaHeader } from './scoreTextMeta.js';
 
 export const SCORE_SOURCE_TYPES = {
   TEXT: 'text',
@@ -29,10 +28,6 @@ function resolveDefaultCharResolution(source = {}) {
   const explicitCharResolution = Number(source.charResolution);
   if (Number.isFinite(explicitCharResolution) && explicitCharResolution > 0) {
     return explicitCharResolution;
-  }
-
-  if (source.textNotation === 'legacy' || source.legacyTimingMode === 'absolute') {
-    return 8;
   }
 
   return DEFAULT_SCORE_PARAMS.charResolution;
@@ -67,7 +62,7 @@ function normalizeScoreReferences(references) {
     .filter(Boolean);
 }
 
-function resolveReferenceFields(source = {}, sourceType = SCORE_SOURCE_TYPES.TEXT) {
+function resolveReferenceFields(source = {}, sourceType = SCORE_SOURCE_TYPES.JSON) {
   const directReferences = normalizeScoreReferences(source.references);
   const directReferenceNotes = typeof source.referenceNotes === 'string' ? source.referenceNotes : '';
 
@@ -91,7 +86,7 @@ function resolveReferenceFields(source = {}, sourceType = SCORE_SOURCE_TYPES.TEX
   };
 }
 
-export function serializeScoreContent(content, sourceType = SCORE_SOURCE_TYPES.TEXT) {
+export function serializeScoreContent(content, sourceType = SCORE_SOURCE_TYPES.JSON) {
   if (typeof content === 'string') {
     return content;
   }
@@ -107,7 +102,7 @@ export function serializeScoreContent(content, sourceType = SCORE_SOURCE_TYPES.T
   return sourceType === SCORE_SOURCE_TYPES.JSON ? '{}' : '';
 }
 
-export function parseScoreContent(rawText, sourceType = SCORE_SOURCE_TYPES.TEXT) {
+export function parseScoreContent(rawText, sourceType = SCORE_SOURCE_TYPES.JSON) {
   if (sourceType === SCORE_SOURCE_TYPES.JSON) {
     const source = rawText || '{}';
     if (jsonParseCache.has(source)) {
@@ -136,7 +131,7 @@ export function inferSourceType(source = {}) {
     } catch {}
   }
 
-  return SCORE_SOURCE_TYPES.TEXT;
+  return SCORE_SOURCE_TYPES.JSON;
 }
 
 export function createScorePlaybackConfig(source = {}) {
@@ -169,13 +164,11 @@ export function createScorePlaybackConfig(source = {}) {
     resolution: Number.isFinite(Number(base.resolution)) ? Math.max(1, Math.round(Number(base.resolution))) : undefined,
     tempoMap: Array.isArray(base.tempoMap) ? base.tempoMap : undefined,
     articulationRatio: Number.isFinite(Number(base.articulationRatio)) ? Number(base.articulationRatio) : undefined,
-    legacyTimingMode: base.legacyTimingMode,
-    textNotation: base.textNotation,
   };
 }
 
 export function compileScoreEvents(rawText, options = {}) {
-  const sourceType = options.sourceType ?? SCORE_SOURCE_TYPES.TEXT;
+  const sourceType = options.sourceType ?? SCORE_SOURCE_TYPES.JSON;
   const playback = createScorePlaybackConfig(options);
   const content = parseScoreContent(rawText, sourceType);
   const normalized = normalizeScoreSource(content, playback);
@@ -201,13 +194,17 @@ export function createScoreDocument(source = {}) {
     : sourceType === SCORE_SOURCE_TYPES.JSON && source.content && typeof source.content === 'object'
       ? ''
       : serializeScoreContent(source.content, sourceType);
-  const content = sourceType === SCORE_SOURCE_TYPES.JSON && source.content && typeof source.content === 'object'
+  let content = sourceType === SCORE_SOURCE_TYPES.JSON && source.content && typeof source.content === 'object'
     ? source.content
     : null;
-  const textMeta = sourceType === SCORE_SOURCE_TYPES.TEXT ? parseScoreMetaHeader(rawText) : null;
-  const mergedSource = textMeta?.hasMeta && !textMeta?.error
-    ? { ...source, ...textMeta.meta }
-    : source;
+  if (!content && sourceType === SCORE_SOURCE_TYPES.JSON && rawText.trim()) {
+    try {
+      content = parseScoreContent(rawText, SCORE_SOURCE_TYPES.JSON);
+    } catch {
+      content = null;
+    }
+  }
+  const mergedSource = source;
   const playback = createScorePlaybackConfig(mergedSource);
   const referenceFields = resolveReferenceFields(source, sourceType);
   const compiledEvents = Array.isArray(source.compiledEvents)
@@ -242,17 +239,6 @@ export function createScoreDocument(source = {}) {
     referenceNotes: referenceFields.referenceNotes,
     ...playback,
   };
-}
-
-export function createScoreTextMeta(source = {}) {
-  return buildScoreMetaPayload({
-    ...source,
-    storageFormat:
-      source.storageFormat
-      ?? (source.textNotation === 'legacy' ? 'legacy-text@1' : source.textNotation === 'legacy-beat' ? 'legacy-beat@1' : 'numbered-text@1'),
-    textNotation: source.textNotation ?? 'jianpu',
-    ppq: source.ppq ?? 96,
-  });
 }
 
 function hasOwnValue(source, key) {

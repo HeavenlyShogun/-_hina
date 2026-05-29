@@ -87,18 +87,13 @@ npm run preview:pages
 
 `風物之琴譜/` 是專案內的譜面素材工作區，目前結構如下：
 
-- `可匯入譜面/`：可直接匯入網站的文字譜，第一行使用 `// [META]` 保存參數
-- `待整理/`：尚未符合目前譜面格式或保留中的原始備份
+- `縮小版可匯入譜面/slim-json/`：網站可直接讀取的壓縮 JSON / Slim JSON。
+- `縮小版可匯入譜面/midi/`：轉檔來源 MIDI，需透過轉換區或 `scores:slim:midi` 產出 JSON 後讀取。
+- `待整理/`：尚未符合目前譜面格式或保留中的原始備份。
 - `工具與參考/`：外掛、捷徑、圖片等非譜面檔案
 
-若要批次整理這個資料夾內的檔案，可執行：
-
-```bash
-node scripts/normalize-score-files.mjs
-```
-
-## 2026-05-02 Notes
+## 2026-05-29 Notes
 
 - Canonical event schema is unified as `tick`, `durationTicks`, `k`, `v`, `noteName`, `frequency`, `trackId`.
 - `playbackController` now consumes only canonical events and no longer depends on `startTick`, `pitch`, `velocity`, `key`, or other fallback aliases.
-- Score text normalization defaults to `numbered-text@1` with `textNotation: "jianpu"` and `ppq: 96`.
+- 1.1 起不再讀取舊版鍵盤文字譜或數字譜；可讀取格式收斂為 MIDI/MusicXML/MXL 轉出的 JSON，以及壓縮後 Slim JSON。

@@ -1,6 +1,6 @@
 # 樂理底層邏輯
 
-本文件是 parser、播放器、譜面顯示與匯入流程的共同合約。任何新譜面格式最後都必須轉成 canonical event，再交給播放與顯示層使用。
+本文件是 parser、播放器、譜面顯示與匯入流程的共同合約。1.1 起，網站讀取格式收斂為 MIDI / MusicXML / MXL 轉出的 JSON，以及壓縮後 Slim JSON；舊版鍵盤文字譜與數字譜不再作為載入格式。
 
 ## Step 0：編碼規範
 
@@ -36,34 +36,26 @@ durationSeconds = durationTicks * secondsPerTick
 measureTicks = PPQ * timeSigNum * (4 / timeSigDen)
 ```
 
-## 音高模型
-
-簡譜以 `1 2 3 4 5 6 7` 表示音階級數，`0` 表示休止符。
+## 音高與調性模型
 
 - `globalKeyOffset`：主音相對 C 的半音偏移，例如 C=0、F#=6。
 - `scaleMode`：`major` 或 `minor`。
-- `#` / `b`：臨時升降記號。
-- `'` / `,` 或 `+` / `-`：八度位移。
+- `major` 對應 Ionian：`[0, 2, 4, 5, 7, 9, 11]`。
+- `minor` 對應自然小調 Aeolian：`[0, 2, 3, 5, 7, 8, 10]`。
+- MIDI / MusicXML 來源優先保留原始 MIDI 音高；`globalKeyOffset` 與 `scaleMode` 只用於需要依主音重建音階時。
 
-簡譜轉 MIDI 的概念：
+MIDI 音高轉頻率：
 
 ```text
-midi = baseOctaveMidi + globalKeyOffset + scaleInterval[degree - 1] + accidental + octaveShift * 12
 frequency = 440 * 2 ** ((midi - 69) / 12)
 ```
 
-## 舊版鍵位譜語法
+## 讀取格式
 
-舊版鍵位譜以鍵盤字母直接表示音高，主要給 `textNotation: "legacy-beat"` 或 `legacyTimingMode: "beat"` 使用。parser 採用 slash cell 節奏引擎：每個 `/` 結束一個 `charResolution` 時間槽，預設就是 16 分音符；槽內的音符、和弦與空白都會被保留並一起細分該槽。
-
-| 語法標記 | 對應音樂概念 | 實際操作邏輯 |
-|---|---|---|
-| `/` | 16 分音符槽邊界 | 每個 `/` 都推進一個 `charResolution` 時間單位。`(VA) / M / (MG) /(AG) Q /` 會形成 4 個時間槽。 |
-| `(ABC)` | 和弦 / 撥奏 | 括號整體是槽內的一個事件；括號內空白只當和弦排版。多鍵會以約 12ms 間距依序觸發，保留原版撥奏感。 |
-| 空格 | 槽內休止時間 | 空白本身就是時間，包含前後空白；它會和音符一起細分所在 `/` 時間槽，不能 trim 掉。 |
-| `AB` | 槽內快速連彈 | `A` 與 `B` 是同一槽內的連續事件，依槽內事件數平均分配 onset。 |
-| `0` | 明確休止符 | 是槽內的一個休止事件，會輸出 rest event，方便顯示與練習判定。 |
-| `A-M`, `Q-U`, `Z-M` | 音高 | `A-J` 是中音排，`Q-U` 是高音排，`Z-M` 是低音排；大小寫都會正規化成同一鍵位。 |
+- JSON V2：`transport / playback / tracks / events`。
+- Slim JSON 3.2：`tracks` 加 `notes` 壓縮資料，載入後正規化為 canonical events。
+- MIDI、MusicXML、MXL：先由轉換流程輸出 JSON / Slim JSON，再進入播放器。
+- 舊版鍵位文字譜、簡譜、numbered-grid 與 keshifu 相關讀取入口已下線；鍵盤字母只保留給即時演奏 UI 與視覺鍵位映射。
 
 ## Canonical Event Contract
 
@@ -125,8 +117,8 @@ frequency = 440 * 2 ** ((midi - 69) / 12)
     "reverb": true
   },
   "source": {
-    "format": "numbered-text@1",
-    "rawText": "1 1 5 5 6 6 5-"
+    "format": "midi",
+    "fileName": "example.mid"
   },
   "tracks": [
     {
@@ -138,8 +130,9 @@ frequency = 440 * 2 ** ((midi - 69) / 12)
           "type": "note",
           "startTick": 0,
           "durationTicks": 480,
-          "degree": 1,
-          "velocity": 0.85
+            "midi": 60,
+            "noteName": "C4",
+            "velocity": 0.85
         }
       ]
     }
@@ -147,9 +140,9 @@ frequency = 440 * 2 ** ((midi - 69) / 12)
 }
 ```
 
-## 新版譜面時值規範
+## 譜面時值規範
 
-新版文字譜可以接受「一拍 = `1.0`」作為輸入時值單位，但 parser 進入第二版內部模型後必須換算成整數 tick。不要把 float 拍數或秒數寫入 canonical 主資料。
+任何轉檔流程進入主資料後都必須換算成整數 tick。不要把 float 拍數或秒數寫入 canonical 主資料。
 
 在 4/4 拍中，每一小節的總和必須等於 `1920` ticks。parser 遇到小節線 `|` 時會立刻檢查該 track 目前累積時值；如果不等於拍號要求，必須丟出錯誤，不可默默補齊或略過。
 

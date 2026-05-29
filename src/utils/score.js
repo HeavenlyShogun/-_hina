@@ -1,7 +1,5 @@
 
 import { ALL_KEYS_FLAT, DEFAULT_SCORE_PARAMS, mapKey } from '../constants/music.js';
-import { parseKeshifuToCanonical } from './keshifuScoreParser.js';
-import { parseScoreMetaHeader } from './scoreTextMeta.js';
 
 const OCTAVE_PREFIXES = new Set(['+', '-', '??', '??']);
 const DEFAULT_TRACK_ID = 'main';
@@ -2137,59 +2135,7 @@ export function parseScoreJson(scoreJson, config = {}) {
 
 function normalizeScoreSourceUncached(input, config = {}) {
   if (typeof input === 'string') {
-    const explicitNotation = config.textNotation;
-    const routeConfig = { ...config };
-
-    if (!explicitNotation) {
-      const metaHeader = parseScoreMetaHeader(input);
-
-      if (metaHeader.error) {
-        throw new Error('譜面首行 [META] JSON 格式解析失敗，請檢查語法。');
-      }
-
-      if (!metaHeader.hasMeta) {
-        throw new Error('缺少強制格式宣告！請在首行加入 // [META] {"textNotation":"jianpu"} 或 {"textNotation":"legacy"}。');
-      }
-
-      if (!metaHeader.meta?.textNotation) {
-        throw new Error("META 中缺少 'textNotation' 屬性，無法判別譜面格式。");
-      }
-
-      Object.assign(routeConfig, metaHeader.meta);
-    }
-
-    if (routeConfig.textNotation === 'keshifu') {
-      return parseKeshifuToCanonical(input, {
-        defaultBPM: routeConfig.bpm ?? DEFAULT_SCORE_PARAMS.bpm,
-        globalKeyOffset: routeConfig.globalKeyOffset ?? DEFAULT_SCORE_PARAMS.globalKeyOffset,
-        scaleMode: routeConfig.scaleMode ?? DEFAULT_SCORE_PARAMS.scaleMode,
-        ppq: PPQ,
-        arpeggioAcceleration: routeConfig.arpeggioAcceleration ?? 0,
-      });
-    }
-
-    if (routeConfig.textNotation === 'jianpu') {
-      return parseJianpuScoreText(input, routeConfig);
-    }
-
-    if (routeConfig.textNotation === 'timed-token') {
-      return parseTimedTokenNotation(input, routeConfig);
-    }
-
-    if (routeConfig.textNotation === 'numbered-grid') {
-      return parseNumberedGridNotation(input, routeConfig);
-    }
-
-    if (routeConfig.textNotation === 'legacy-beat' || routeConfig.legacyTimingMode === 'beat') {
-      console.warn('Deprecated score format: legacy-beat. Migrate this score to jianpu when possible.');
-      return parseBeatLegacyScoreText(input, routeConfig);
-    }
-
-    if (routeConfig.textNotation === 'legacy') {
-      return parseLegacyScoreText(input, routeConfig);
-    }
-
-    throw new Error(`不支援的譜面格式宣告：${routeConfig.textNotation}`);
+    throw new Error('文字鍵盤譜與數字譜已停止作為讀取格式；請匯入 MIDI、MusicXML/MXL，或使用壓縮後 JSON/Slim JSON。');
   }
 
   if (input && typeof input === 'object') {

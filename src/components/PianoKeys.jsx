@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pause, Play } from 'lucide-react';
+import { Pause, Play, RotateCcw } from 'lucide-react';
 import { NOTES_MAP, getSolfege } from '../constants/music';
 import { useAudioConfig } from '../contexts/AudioConfigContext';
 import { usePlayback } from '../contexts/PlaybackContext';
@@ -120,10 +120,12 @@ const PianoKeys = memo(({
   const {
     isPlaying,
     isPaused,
+    onTogglePlay,
     onSeekToTime,
     onScrubToTime,
     onPause,
     onResume,
+    onRestart,
   } = usePlayback();
   const playbackState = useLivePlaybackFrame();
   const timelineTrackRef = useRef(null);
@@ -250,6 +252,19 @@ const PianoKeys = memo(({
             <div className="flex items-center gap-2">
               <button
                 type="button"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  void onTogglePlay?.();
+                }}
+                className="inline-flex h-7 items-center gap-1.5 rounded-full border border-emerald-300/35 bg-emerald-400/12 px-3 text-[10px] font-black tracking-[0.16em] text-emerald-50 transition-colors hover:bg-emerald-400/22"
+                title={isPlaying ? '停止目前播放' : '播放目前譜面'}
+              >
+                <Play size={12} fill="currentColor" />
+                播放
+              </button>
+              <button
+                type="button"
                 onClick={handlePauseToggle}
                 disabled={!isPlaying && !isPaused}
                 className={`inline-flex h-7 items-center gap-1.5 rounded-full border px-3 text-[10px] font-black tracking-[0.16em] transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
@@ -261,6 +276,19 @@ const PianoKeys = memo(({
               >
                 {isPaused ? <Play size={12} fill="currentColor" /> : <Pause size={12} fill="currentColor" />}
                 {isPaused ? '繼續' : '暫停'}
+              </button>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  void onRestart?.();
+                }}
+                className="inline-flex h-7 items-center gap-1.5 rounded-full border border-sky-300/35 bg-sky-400/12 px-3 text-[10px] font-black tracking-[0.16em] text-sky-50 transition-colors hover:bg-sky-400/22"
+                title="從頭開始播放"
+              >
+                <RotateCcw size={12} />
+                從頭
               </button>
               <span>{formatTimeLabel(displayTime)} / {formatTimeLabel(maxTime)}</span>
             </div>

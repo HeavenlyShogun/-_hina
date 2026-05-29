@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { DEFAULT_SCORE, DEFAULT_SCORE_PARAMS } from '../constants/music';
+import { DEFAULT_SCORE_PARAMS } from '../constants/music';
 import { DEFAULT_SCORE_NAME } from '../config/branding';
 import { createScoreDocument, SCORE_SOURCE_TYPES } from '../utils/scoreDocument';
 import { applyScoreRecommendation } from '../utils/scoreRecommendations';
@@ -13,10 +13,34 @@ const DEFAULT_SCORE_TITLE = surgesScore?.meta?.displayTitle ?? surgesScore?.meta
 
 function createDefaultState() {
   if (!surgesScore) {
+    const fallbackScore = {
+      version: '3.2-ultra-slim',
+      meta: {
+        title: DEFAULT_SCORE_TITLE,
+        displayTitle: DEFAULT_SCORE_TITLE,
+        sourceType: 'json',
+        storageFormat: 'hina-slim-score@3.2',
+      },
+      transport: {
+        bpm: DEFAULT_SCORE_PARAMS.bpm,
+        timeSigNum: DEFAULT_SCORE_PARAMS.timeSigNum,
+        timeSigDen: DEFAULT_SCORE_PARAMS.timeSigDen,
+        resolution: 480,
+      },
+      playback: {
+        tone: DEFAULT_SCORE_PARAMS.tone,
+        globalKeyOffset: DEFAULT_SCORE_PARAMS.globalKeyOffset,
+        scaleMode: DEFAULT_SCORE_PARAMS.scaleMode,
+        reverb: DEFAULT_SCORE_PARAMS.reverb,
+      },
+      tracks: [],
+      notes: [],
+    };
+
     return createScoreDocument({
       title: DEFAULT_SCORE_TITLE,
-      rawText: DEFAULT_SCORE,
-      sourceType: SCORE_SOURCE_TYPES.TEXT,
+      content: fallbackScore,
+      sourceType: SCORE_SOURCE_TYPES.JSON,
     });
   }
 
@@ -167,8 +191,6 @@ export function useScoreState() {
     vol: scoreDocument.vol,
     reverb: scoreDocument.reverb,
     sourceType: scoreDocument.sourceType,
-    legacyTimingMode: scoreDocument.legacyTimingMode,
-    textNotation: scoreDocument.textNotation,
   }), [scoreDocument]);
 
   return {

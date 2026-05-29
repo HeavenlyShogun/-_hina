@@ -7,7 +7,6 @@ import { usePlayheadSync } from '../hooks/usePlayheadSync';
 import { SCORE_NAME_PRESETS, SCORE_TITLE_DATALIST_ID } from '../config/branding';
 import playbackController from '../services/playbackController';
 import {
-  analyzeLegacyScoreText,
   findActiveTokenLine,
   findActiveTokens,
   normalizeScoreSource,
@@ -19,22 +18,6 @@ const MUSICXML_HELP_URL = 'https://acestudio.ai/pdf-to-musicxml?step=1';
 
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
-}
-
-function buildLegacySectionSegments(scoreText, maxTick) {
-  const analysis = analyzeLegacyScoreText(scoreText);
-  if (!analysis.lines.length) {
-    return [];
-  }
-
-  const resolvedMaxTick = Math.max(Number(maxTick) || 0, analysis.contentEndTick);
-
-  return analysis.lines
-    .map((segment, index) => ({
-      ...segment,
-      endTick: index < analysis.lines.length - 1 ? analysis.lines[index + 1].startTick : resolvedMaxTick,
-    }))
-    .filter((segment) => segment.endTick > segment.startTick);
 }
 
 function buildJsonSectionSegments(scoreJson, maxTick) {
@@ -224,8 +207,6 @@ const SheetDisplay = memo(({
     timeSigNum,
     timeSigDen,
     charResolution,
-    textNotation,
-    legacyTimingMode,
     playbackState,
     onScrubToTick,
   } = usePlayback();
@@ -254,7 +235,7 @@ const SheetDisplay = memo(({
   const scoreEditorValue = useMemo(
     () => {
       if (typeof score === 'string') {
-        return score;
+        return '目前版本只讀取 JSON/Slim JSON。請在轉換區匯入 MIDI、MusicXML 或 MXL 後載入。';
       }
 
       if (shouldSummarizeJsonEditor) {
@@ -269,7 +250,7 @@ const SheetDisplay = memo(({
           `事件數：${jsonScoreEventCount}`,
           `BPM: ${scoreBpm}`,
           '',
-          '可使用上方工具列匯出 JSON 或 MIDI。',
+          '可使用工具列匯出 JSON 或 MIDI。',
         ].join('\n');
       }
 
@@ -286,8 +267,6 @@ const SheetDisplay = memo(({
         charResolution,
         globalKeyOffset: audioConfig?.globalKeyOffset,
         scaleMode: audioConfig?.scaleMode,
-        textNotation,
-        legacyTimingMode,
       });
       const maxTick = nextScore.events.reduce(
         (currentMax, event) => Math.max(
@@ -322,9 +301,7 @@ const SheetDisplay = memo(({
     audioConfig?.scaleMode,
     bpm,
     charResolution,
-    legacyTimingMode,
     score,
-    textNotation,
     timeSigDen,
     timeSigNum,
   ]);
@@ -357,7 +334,7 @@ const SheetDisplay = memo(({
   }, [effectiveMaxTick, timelineBeatTick, timelineMeasureTick]);
   const sectionSegments = useMemo(() => {
     if (typeof score === 'string') {
-      return buildLegacySectionSegments(score, effectiveMaxTick);
+      return [];
     }
 
     if (score && typeof score === 'object') {
@@ -577,31 +554,31 @@ const SheetDisplay = memo(({
           <button onClick={() => setShowGuide((visible) => !visible)} className="flex w-full items-center justify-between px-5 py-4 text-emerald-400 outline-none transition-colors hover:bg-white/[0.02]">
             <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest">
               <BookOpen size={14} />
-              譜面格式與轉換流程
+              譜面格式
             </div>
             <ChevronRight size={16} className={`transition-transform duration-300 ${showGuide ? 'rotate-90' : ''}`} />
           </button>
           {showGuide && (
             <div className="grid grid-cols-1 gap-6 border-t border-white/5 bg-black/20 p-6 text-[11px] text-white/60 animate-in fade-in slide-in-from-top-2 md:grid-cols-2">
               <div className="space-y-3 border-l-2 border-emerald-500 pl-4 leading-relaxed text-emerald-100/80 md:col-span-2">
-                <p><b className="text-emerald-300">手寫鍵盤譜</b> 請直接輸入琴鍵字母，例如 `Q W E R / T Y U`；括號代表同時按下的和弦。</p>
-                <p><b className="text-emerald-300">轉檔譜面</b> MIDI、MusicXML、MXL 會先轉成 JSON/Slim JSON，再載入這個編輯區；大型 JSON 會以摘要顯示並保持唯讀。</p>
-                <p><b className="text-emerald-300">播放定位</b> 上方播放時間軸可拖曳定位；下方譜面預覽或段落按鈕可直接跳到指定 tick。</p>
+                <p><b className="text-emerald-300">目前格式</b> 只讀取 MIDI 轉出的 JSON/Slim JSON。舊版鍵盤譜與數字譜不再作為載入格式。</p>
+                <p><b className="text-emerald-300">匯入流程</b> JSON/Slim JSON 可在編輯區直接匯入；MIDI、MusicXML、MXL 請先到轉換區轉成 JSON。</p>
+                <p><b className="text-emerald-300">檢查方式</b> 使用時間軸、譜面預覽與軌道摘要確認 BPM、拍號、tick 與事件數。</p>
               </div>
               <div>
-                <h4 className="mb-3 border-b border-white/10 pb-1 font-bold text-emerald-300">輸入方式</h4>
+                <h4 className="mb-3 border-b border-white/10 pb-1 font-bold text-emerald-300">資料結構</h4>
                 <ul className="space-y-4">
                   <li className="flex items-start gap-2">
-                    <span className="shrink-0 rounded bg-black/40 px-1.5 py-0.5 font-mono text-emerald-400">Q W E</span>
-                    <div><b className="text-emerald-200">鍵盤譜</b><br />使用實際鍵位字母，例如 `Q W E R / T Y U`。斜線可用來分段或換句。</div>
+                    <span className="shrink-0 rounded bg-black/40 px-1.5 py-0.5 font-mono text-emerald-400">transport</span>
+                    <div><b className="text-emerald-200">節奏</b><br />保存 BPM、拍號與 tick 解析度。</div>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="shrink-0 rounded bg-black/40 px-1.5 py-0.5 font-mono text-emerald-400">( )</span>
-                    <div><b className="text-emerald-200">和弦</b><br />例如 `(Q E T)`，括號內的音會同時播放；`-` 可作為延音或空拍標記。</div>
+                    <span className="shrink-0 rounded bg-black/40 px-1.5 py-0.5 font-mono text-emerald-400">playback</span>
+                    <div><b className="text-emerald-200">播放</b><br />保存音色、主音、調式、殘響與固定音高設定。</div>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="shrink-0 rounded bg-black/40 px-1.5 py-0.5 font-mono text-emerald-400">JSON</span>
-                    <div><b className="text-emerald-200">結構化譜面</b><br />匯入含 `transport / playback / tracks / events` 的 JSON 可保留完整時間軸。</div>
+                    <span className="shrink-0 rounded bg-black/40 px-1.5 py-0.5 font-mono text-emerald-400">tracks</span>
+                    <div><b className="text-emerald-200">事件</b><br />保存 MIDI 音高、startTick、durationTicks、velocity 與軌道資訊。</div>
                   </li>
                 </ul>
               </div>
@@ -610,7 +587,7 @@ const SheetDisplay = memo(({
                 <ol className="space-y-3 leading-relaxed">
                   <li>1. 若來源是 PDF 或圖片，先用 ACE Studio 將 PDF/JPG/PNG 轉為 MusicXML。</li>
                   <li>2. 下載 MusicXML 檔案後，在本頁使用匯入按鈕載入 `.musicxml`、`.xml` 或 `.mxl`。</li>
-                  <li>3. 檢查轉換後的節奏、音高與軌道；必要時在控制面板調整 BPM、拍號與音色。</li>
+                  <li>3. 轉換區會輸出 JSON/Slim JSON，載入後再檢查節奏、音高與軌道。</li>
                   <li>4. 確認可播放後，可下載 JSON/MIDI，或使用「存入雲端」保存目前譜面。</li>
                 </ol>
                 <a href={MUSICXML_HELP_URL} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-2 rounded-full border border-sky-300/20 bg-sky-500/10 px-3 py-2 text-[11px] font-bold text-sky-100 transition-colors hover:bg-sky-500/18">
@@ -865,32 +842,32 @@ const SheetDisplay = memo(({
           <div className="rounded-[24px] border border-emerald-400/12 bg-emerald-500/[0.045] p-4">
             <div className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.24em] text-emerald-200/60">
               <BookOpen size={14} />
-              新手編輯演示
+              譜面摘要
             </div>
             <div className="grid gap-3 text-xs text-emerald-50/72 md:grid-cols-[1fr_1.1fr_1fr]">
               <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
                 <div className="mb-2 flex items-center gap-2 font-bold text-emerald-100">
                   <Edit3 size={14} />
-                  1. 寫入音符
+                  讀取格式
                 </div>
-                <p className="leading-relaxed">手寫譜請輸入實際琴鍵字母；斜線分段，括號表示同時按下的和弦。</p>
+                <p className="leading-relaxed">目前只讀取壓縮 JSON/Slim JSON。MIDI、MusicXML、MXL 需先經轉換區產生 JSON。</p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-black/20 p-3 font-mono text-[11px] leading-6 text-emerald-50/80">
-                <div>Q W E R / T Y U -</div>
-                <div>(Q E T) - W - / R T Y U</div>
-                <div>Z X C / A S D / Q W E</div>
+                <div>transport: bpm / timeSig / resolution</div>
+                <div>playback: tone / key / mode / reverb</div>
+                <div>tracks: startTick / durationTicks / midi</div>
               </div>
               <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
                 <div className="mb-2 flex items-center gap-2 font-bold text-emerald-100">
                   <Music2 size={14} />
-                  2. 播放檢查
+                  播放檢查
                 </div>
-                <p className="leading-relaxed">輸入或匯入後用播放控制試聽；可拖曳播放時間軸定位，再從摘要檢查拍速與軌道。</p>
+                <p className="leading-relaxed">大型 JSON 以摘要顯示並保持唯讀；使用鍵盤區播放、暫停、從頭開始與拖曳時間軸檢查結果。</p>
               </div>
             </div>
           </div>
 
-          <textarea value={scoreEditorValue} onChange={(event) => setScore(event.target.value)} readOnly={isJsonScore} spellCheck={false} className="custom-scrollbar flex-1 min-h-[320px] rounded-3xl border border-white/5 bg-black/55 p-5 font-mono text-[13px] leading-7 text-emerald-50/78 shadow-inner outline-none focus:border-emerald-500/20 md:min-h-[380px] md:p-6" />
+          <textarea value={scoreEditorValue} onChange={(event) => setScore(event.target.value)} readOnly spellCheck={false} className="custom-scrollbar flex-1 min-h-[320px] rounded-3xl border border-white/5 bg-black/55 p-5 font-mono text-[13px] leading-7 text-emerald-50/78 shadow-inner outline-none focus:border-emerald-500/20 md:min-h-[380px] md:p-6" />
         </div>
       ) : null}
     </div>

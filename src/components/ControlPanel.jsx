@@ -57,6 +57,7 @@ const ControlPanel = memo(({
   const [bpmDraft, setBpmDraft] = useState(() => formatBpm(bpm));
   const [panelModes, setPanelModes] = useState({});
   const lastValidBpmRef = useRef(Number(bpm) || 90);
+  const resolvedScaleMode = SCALE_MODE_OPTIONS.some((option) => option.value === scaleMode) ? scaleMode : 'major';
 
   const togglePanelMode = useCallback((panelId) => {
     setPanelModes((prev) => ({
@@ -106,7 +107,7 @@ const ControlPanel = memo(({
               </div>
               <div className="min-w-0">
                 <div className="truncate text-[10px] font-black uppercase tracking-[0.35em] text-amber-700/70">節奏</div>
-                <div className="truncate text-sm font-semibold text-slate-800">速度、拍號與節拍解析度</div>
+                <div className="truncate text-sm font-semibold text-slate-800">BPM、拍號與譜面格線</div>
               </div>
             </div>
 
@@ -153,16 +154,16 @@ const ControlPanel = memo(({
                     <Clock size={15} className="shrink-0 text-teal-600" />
                     <span className="truncate text-[10px] font-black tracking-[0.24em] text-slate-700">拍號</span>
                   </div>
-                  <div className="flex min-w-0 items-center gap-1 overflow-hidden rounded-xl border border-slate-200/45 bg-white/25 px-2 py-1">
-                    <select value={timeSigNum} onChange={(event) => setTimeSigNum(Number(event.target.value))} className="min-w-0 flex-1 bg-transparent px-1 py-1 text-center text-sm font-black text-slate-800 outline-none">
+                  <div className="flex min-w-0 items-center gap-1 overflow-hidden rounded-xl border border-slate-200/45 bg-slate-950/75 px-2 py-1">
+                    <select value={timeSigNum} onChange={(event) => setTimeSigNum(Number(event.target.value))} className="min-w-0 flex-1 rounded-lg bg-slate-950 px-1 py-1 text-center text-sm font-black text-slate-50 outline-none">
                       {[2, 3, 4, 5, 6, 7, 8, 9, 12].map((value) => (
-                        <option key={value} value={value} className="bg-white text-slate-900">{value}</option>
+                        <option key={value} value={value} className="bg-slate-950 text-slate-50">{value}</option>
                       ))}
                     </select>
-                    <span className="shrink-0 font-bold text-slate-700">/</span>
-                    <select value={timeSigDen} onChange={(event) => setTimeSigDen(Number(event.target.value))} className="min-w-0 flex-1 bg-transparent px-1 py-1 text-center text-sm font-black text-slate-800 outline-none">
+                    <span className="shrink-0 font-bold text-slate-100">/</span>
+                    <select value={timeSigDen} onChange={(event) => setTimeSigDen(Number(event.target.value))} className="min-w-0 flex-1 rounded-lg bg-slate-950 px-1 py-1 text-center text-sm font-black text-slate-50 outline-none">
                       {[2, 4, 8, 16].map((value) => (
-                        <option key={value} value={value} className="bg-white text-slate-900">{value}</option>
+                        <option key={value} value={value} className="bg-slate-950 text-slate-50">{value}</option>
                       ))}
                     </select>
                   </div>
@@ -170,9 +171,9 @@ const ControlPanel = memo(({
 
                 <div className="min-w-0 overflow-hidden rounded-[22px] border border-slate-200/45 bg-slate-50/30 px-3 py-3 shadow-sm backdrop-blur-md sm:col-span-2 lg:col-span-1">
                   <div className="mb-2 truncate text-[10px] font-black tracking-[0.24em] text-slate-700">節拍格線</div>
-                  <select value={charResolution} onChange={(event) => setCharResolution(Number(event.target.value))} className="block h-10 w-full min-w-0 truncate rounded-xl border border-slate-200/45 bg-white/25 px-3 text-xs font-black text-slate-800 outline-none">
+                  <select value={charResolution} onChange={(event) => setCharResolution(Number(event.target.value))} className="block h-10 w-full min-w-0 truncate rounded-xl border border-slate-200/45 bg-slate-950 px-3 text-xs font-black text-slate-50 outline-none">
                     {RESOLUTION_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value} className="bg-white text-slate-900">{option.label}</option>
+                      <option key={option.value} value={option.value} className="bg-slate-950 text-slate-50">{option.label}</option>
                     ))}
                   </select>
                 </div>
@@ -190,7 +191,7 @@ const ControlPanel = memo(({
               </div>
               <div className="min-w-0">
                 <div className="truncate text-[10px] font-black uppercase tracking-[0.35em] text-teal-700/70">音色</div>
-                <div className="truncate text-sm font-semibold text-slate-800">音量、殘響與調性設定</div>
+                <div className="truncate text-sm font-semibold text-slate-800">音量、殘響、主音與調式</div>
               </div>
             </div>
 
@@ -206,24 +207,30 @@ const ControlPanel = memo(({
               </button>
 
               <div className="grid min-w-0 gap-3 sm:grid-cols-2">
-                <div className="flex min-w-0 items-center gap-3 rounded-[22px] border border-slate-200/45 bg-slate-50/30 px-4 py-3 shadow-sm backdrop-blur-md">
-                  <Globe size={15} className="shrink-0 text-indigo-600" />
-                  <select value={globalKeyOffset} onChange={(event) => setGlobalKeyOffset(Number(event.target.value))} className="w-full min-w-0 bg-transparent text-[11px] font-black uppercase text-slate-800 outline-none">
-                    {KEY_OPTIONS.map((option) => (
-                      <option key={option.offset} value={option.offset} className="bg-white text-slate-900">
-                        {option.displayName ?? option.name} 調
-                      </option>
-                    ))}
-                  </select>
+                <div className="min-w-0 rounded-[22px] border border-slate-200/45 bg-slate-50/30 px-4 py-3 shadow-sm backdrop-blur-md">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <Globe size={15} className="shrink-0 text-indigo-600" />
+                    <select value={globalKeyOffset} onChange={(event) => setGlobalKeyOffset(Number(event.target.value))} className="w-full min-w-0 rounded-xl bg-slate-950 px-2 py-2 text-[11px] font-black uppercase text-slate-50 outline-none">
+                      {KEY_OPTIONS.map((option) => (
+                        <option key={option.offset} value={option.offset} className="bg-slate-950 text-slate-50">
+                          {option.displayName ?? option.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="mt-2 truncate text-[10px] font-semibold text-slate-600">十二平均律主音</div>
                 </div>
 
-                <div className="flex min-w-0 items-center gap-3 rounded-[22px] border border-slate-200/45 bg-slate-50/30 px-4 py-3 shadow-sm backdrop-blur-md">
-                  <Globe size={15} className="shrink-0 text-teal-700" />
-                  <select value={scaleMode} onChange={(event) => setScaleMode(event.target.value)} className="w-full min-w-0 bg-transparent text-[11px] font-black uppercase text-slate-800 outline-none">
-                    {SCALE_MODE_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value} className="bg-white text-slate-900">{option.label}</option>
-                    ))}
-                  </select>
+                <div className="min-w-0 rounded-[22px] border border-slate-200/45 bg-slate-50/30 px-4 py-3 shadow-sm backdrop-blur-md">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <Globe size={15} className="shrink-0 text-teal-700" />
+                    <select value={resolvedScaleMode} onChange={(event) => setScaleMode(event.target.value)} className="w-full min-w-0 rounded-xl bg-slate-950 px-2 py-2 text-[11px] font-black uppercase text-slate-50 outline-none">
+                      {SCALE_MODE_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value} className="bg-slate-950 text-slate-50">{option.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="mt-2 truncate text-[10px] font-semibold text-slate-600">大調 Ionian / 自然小調 Aeolian</div>
                 </div>
               </div>
             </div>

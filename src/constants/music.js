@@ -60,9 +60,8 @@ export const KEY_OPTIONS = [
 ];
 
 export const SCALE_MODE_OPTIONS = [
-  { value: 'major', label: '大調' },
-  { value: 'minor', label: '小調' },
-  { value: 'custom', label: '自訂' },
+  { value: 'major', label: '大調（Ionian）' },
+  { value: 'minor', label: '自然小調（Aeolian）' },
 ];
 
 export const CHAR_TO_KEY_MAP = {
