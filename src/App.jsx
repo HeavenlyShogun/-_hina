@@ -2,9 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle, CheckCircle, FolderOpen, Trash2 } from 'lucide-react';
 import ScoreConverter from './components/ScoreConverter';
 import ScoreEditor from './components/ScoreEditor';
-import GalaxyBackground from './components/GalaxyBackground';
 import PianoRoom from './pages/PianoRoom';
-import galaxyBackgroundUrl from './assets/galaxy.jpg';
+import galaxyBackgroundUrl from './assets/galaxy-background.jpg';
 import { AudioConfigProvider, useAudioConfig } from './contexts/AudioConfigContext';
 import { PlaybackProvider } from './contexts/PlaybackContext';
 import { IMPORTABLE_SCORE_FILES, IMPORTABLE_SCORE_GROUPS } from './data/importableScoreFiles';
@@ -430,6 +429,7 @@ function AppContent({
     { id: 'rhythm-controls', label: '\u7bc0\u594f\u8207\u8abf\u6027\u8abf\u6574', shortLabel: '\u7bc0\u594f\u8abf\u6027', caption: 'BPM\u3001\u62cd\u865f\u3001\u97f3\u8272\u8207\u8abf\u6027' },
     { id: 'editor', label: '\u8b5c\u9762\u7de8\u8f2f', shortLabel: '\u8b5c\u9762\u7de8\u8f2f', caption: 'Score Editor' },
     { id: 'converter', label: '\u8b5c\u9762\u8f49\u63db', shortLabel: '\u8b5c\u9762\u8f49\u63db', caption: 'MusicXML / MIDI Converter' },
+    { id: 'background-board', label: '\u80cc\u666f', shortLabel: '\u80cc\u666f', caption: '\u5e03\u544a\u6b04\u8207\u80cc\u666f\u6b23\u8cde' },
   ]), []);
 
   const playbackScore = useMemo(() => {
@@ -914,10 +914,11 @@ function AppContent({
         onContextMenu={(event) => event.preventDefault()}
         style={{
           backgroundImage: `linear-gradient(135deg, rgba(2, 3, 15, 0.38), rgba(24, 18, 54, 0.34) 44%, rgba(3, 12, 32, 0.58)), url(${galaxyBackgroundUrl})`,
+          backgroundPosition: 'center center',
+          backgroundRepeat: 'no-repeat',
+          backgroundSize: 'cover',
         }}
       >
-        <GalaxyBackground />
-
         {toast ? (
           <div className={`fixed right-6 top-6 z-50 flex items-center gap-3 rounded-2xl border px-6 py-3.5 shadow-[0_10px_40px_rgba(0,0,0,0.5)] backdrop-blur-md animate-in slide-in-from-top-5 fade-in duration-300 ${toast.type === 'error' ? 'border-rose-500/50 bg-rose-500/20 text-rose-100' : 'border-emerald-500/50 bg-emerald-500/20 text-emerald-100'}`}>
             {toast.type === 'error' ? <AlertCircle size={18} /> : <CheckCircle size={18} />}
@@ -1108,11 +1109,45 @@ function AppContent({
           </div>
         </section>
 
+        <section id="background-board" className="z-20 mt-12 w-full max-w-6xl scroll-mt-6 px-4">
+          <div data-ui-panel="true" data-panel-mode={getPanelMode('background-board')} onPointerDown={handlePanelPointerDown} className="relative min-h-[64vh] overflow-hidden rounded-[36px] border border-white/12 bg-slate-950/24 p-5 shadow-[0_24px_90px_rgba(0,0,0,0.22)] backdrop-blur-[2px] transition-colors duration-300 md:min-h-[68vh] md:rounded-[44px] md:p-8">
+            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.22),rgba(2,6,23,0.08)_42%,rgba(2,6,23,0.26)),radial-gradient(circle_at_18%_18%,rgba(56,189,248,0.12),transparent_32%),radial-gradient(circle_at_82%_26%,rgba(253,224,171,0.10),transparent_28%)]" />
+            <div className="relative flex min-h-[calc(64vh-2.5rem)] flex-col justify-between gap-10 md:min-h-[calc(68vh-4rem)]">
+              <div className="max-w-3xl">
+                <div className="text-[10px] font-black uppercase tracking-[0.38em] text-sky-100/75">
+                  Background Board
+                </div>
+                <h2 className="mt-4 text-3xl font-black leading-tight text-white sm:text-4xl md:text-5xl">
+                  {APP_NAME}
+                </h2>
+                <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-sky-50/82 sm:text-base">
+                  {APP_TAGLINE} 是一個把譜面編輯、即時演奏、MIDI / MusicXML 轉換與雲端曲庫整合在同一個畫面的音樂工作台。這個區域保留給公告、演出提示與背景欣賞，播放時也能把介面視線放回星空。
+                </p>
+              </div>
+
+              <div className="grid gap-3 text-sm text-slate-50/82 md:grid-cols-3">
+                <div className="rounded-2xl border border-white/10 bg-black/18 px-4 py-4 backdrop-blur-sm">
+                  <div className="text-[10px] font-black uppercase tracking-[0.24em] text-amber-100/70">Play</div>
+                  <div className="mt-2 font-semibold leading-6">用鍵盤或畫面琴鍵即時演奏，並跟隨播放進度練習。</div>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/18 px-4 py-4 backdrop-blur-sm">
+                  <div className="text-[10px] font-black uppercase tracking-[0.24em] text-sky-100/70">Convert</div>
+                  <div className="mt-2 font-semibold leading-6">匯入 MIDI、MusicXML、MXL，轉成可播放與可保存的譜面資料。</div>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-black/18 px-4 py-4 backdrop-blur-sm">
+                  <div className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-100/70">Archive</div>
+                  <div className="mt-2 font-semibold leading-6">把完成的曲目存入雲端曲庫，保留節奏、調性、音色與參考資料。</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <footer className="z-20 mt-16 text-[10px] uppercase tracking-[0.6em] text-slate-200">
           {APP_NAME} / {APP_TAGLINE}
         </footer>
 
-        <div className="h-[65vh] w-full pointer-events-none" aria-hidden="true" />
+        <div className="h-[24vh] w-full pointer-events-none" aria-hidden="true" />
 
         <div className="fixed bottom-4 right-4 z-30 rounded-full border border-white/10 bg-slate-950/80 px-3 py-1.5 text-[10px] font-black tracking-[0.22em] text-slate-200 shadow-[0_14px_30px_rgba(0,0,0,0.32)] backdrop-blur-md">
           v{APP_VERSION}

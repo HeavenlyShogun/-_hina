@@ -87,19 +87,33 @@ const TONE_PRESETS = {
     tone: 'electric-guitar-clean',
     engine: 'sampler',
     sampleSet: 'electric-guitar-clean',
-    layerGain: 0.82,
+    nonBlockingSampleLoad: true,
+    layerGain: 1.08,
     type: 'sawtooth',
-    dur: 3.2,
-    atk: 0.004,
-    dec: 0.24,
-    sus: 0.48,
-    pk: 0.72,
+    dur: 2.8,
+    atk: 0.002,
+    dec: 0.16,
+    sus: 0.34,
+    pk: 0.92,
     flt: true,
-    fltEndMult: 2.4,
-    samplerFilterFrequency: 3600,
-    samplerFilterQ: 0.16,
-    release: 0.34,
-    velocity: 0.86,
+    fltStartMult: 9,
+    fltEndMult: 2.8,
+    fltDec: 0.22,
+    samplerFilterFrequency: 5200,
+    samplerFilterQ: 0.22,
+    harmonics: [
+      { ratio: 2, gain: 0.18, type: 'triangle', detune: -7 },
+      { ratio: 3, gain: 0.075, type: 'square', detune: 5 },
+      { ratio: 4, gain: 0.035, type: 'sawtooth', detune: -3 },
+    ],
+    nBufKey: 'shortNoise',
+    nDur: 0.018,
+    nVol: 0.045,
+    vibratoDepth: 2.2,
+    vibratoRate: 5.8,
+    vibratoDelay: 0.22,
+    release: 0.22,
+    velocity: 0.95,
   },
   'tongue-drum': {
     tone: 'tongue-drum',
@@ -285,6 +299,14 @@ class SampledInstrumentAdapter extends BaseInstrumentAdapter {
   async prepare(presets = TONE_PRESETS) {
     const preset = this.getRenderPreset(presets);
     if (!preset?.sampleSet) {
+      return null;
+    }
+
+    if (preset.nonBlockingSampleLoad) {
+      this.engine.loadSampleSet(preset.sampleSet).catch((error) => {
+        console.warn(`Sampler "${preset.sampleSet}" is unavailable. Using synth fallback.`, error);
+        return null;
+      });
       return null;
     }
 
