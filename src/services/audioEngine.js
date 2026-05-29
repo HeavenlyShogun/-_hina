@@ -3,11 +3,12 @@ import { getInstrumentDefinition } from '../constants/instruments.js';
 const DEFAULT_RENDER_CONFIG = {
   tone: 'piano',
   velocity: 0.85,
-  outputGain: 0.65,
-  reverbAmount: 0.45,
+  outputGain: 0.58,
+  reverbAmount: 0.34,
 };
 const LIVE_NOTE_RELEASE_SEC = 0.16;
 const SAMPLE_LOAD_TIMEOUT_MS = 8000;
+const SOUNDFONT_LOAD_TIMEOUT_MS = 6000;
 const MIDI_JS_SOUNDFONT_BASE_URL = 'https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM';
 const MIDI_JS_SAMPLE_NOTES = ['C2', 'E2', 'G2', 'B2', 'D3', 'F3', 'A3', 'C4', 'E4', 'G4', 'B4', 'D5', 'F5', 'A5', 'C6', 'E6', 'G6'];
 const PIANO_TONE_SHAPING = {
@@ -85,20 +86,20 @@ const TONE_PRESETS = {
   'electric-guitar-clean': {
     tone: 'electric-guitar-clean',
     engine: 'sampler',
-    sampleSet: 'gm:electric_guitar_clean',
-    layerGain: 0.58,
+    sampleSet: 'electric-guitar-clean',
+    layerGain: 0.82,
     type: 'sawtooth',
     dur: 3.2,
     atk: 0.004,
     dec: 0.24,
     sus: 0.48,
-    pk: 0.46,
+    pk: 0.72,
     flt: true,
     fltEndMult: 2.4,
     samplerFilterFrequency: 3600,
     samplerFilterQ: 0.16,
     release: 0.34,
-    velocity: 0.68,
+    velocity: 0.86,
   },
   'tongue-drum': {
     tone: 'tongue-drum',
@@ -220,6 +221,11 @@ const SAMPLE_LIBRARY_CONFIG = {
     source: 'midi-js',
     instrument: 'steel_drums',
     samples: ['C4', 'E4', 'G4', 'B4', 'D5', 'F5', 'A5', 'C6'],
+  },
+  'electric-guitar-clean': {
+    source: 'midi-js',
+    instrument: 'electric_guitar_clean',
+    samples: ['C2', 'E2', 'G2', 'B2', 'D3', 'F3', 'A3', 'C4', 'E4', 'G4', 'B4', 'D5', 'F5', 'A5'],
   },
 };
 
@@ -453,6 +459,42 @@ function connectNodeChain(sourceNode, nodes, destinationNode) {
   });
 }
 
+async function fetchWithTimeout(url, options = {}, timeoutMs = SAMPLE_LOAD_TIMEOUT_MS) {
+  const controller = typeof AbortController === 'function' ? new AbortController() : null;
+  const timeoutId = controller
+    ? window.setTimeout(() => controller.abort(), timeoutMs)
+    : null;
+
+  try {
+    return await fetch(url, {
+      ...options,
+      ...(controller ? { signal: controller.signal } : {}),
+    });
+  } finally {
+    if (timeoutId !== null) {
+      window.clearTimeout(timeoutId);
+    }
+  }
+}
+
+function rampAudioParamToSilence(param, releaseStartTime, stopAtTime, fallbackValue = 0.0001) {
+  if (!param) return;
+
+  const safeStart = Math.max(Number(releaseStartTime) || 0, 0);
+  const safeEnd = Math.max(Number(stopAtTime) || 0, safeStart + 0.005);
+  const floor = 0.0001;
+
+  if (typeof param.cancelAndHoldAtTime === 'function') {
+    param.cancelAndHoldAtTime(safeStart);
+  } else {
+    param.cancelScheduledValues(safeStart);
+    param.setValueAtTime(Math.max(Number(param.value) || fallbackValue, floor), safeStart);
+  }
+
+  param.setTargetAtTime(floor, safeStart, Math.max((safeEnd - safeStart) / 4, 0.004));
+  param.exponentialRampToValueAtTime(floor, safeEnd);
+}
+
 function normalizeMidiJsNoteName(noteName) {
   return String(noteName || '').replace('s', '#');
 }
@@ -477,6 +519,7 @@ class AudioEngine {
   constructor() {
     this.audioContext = null;
     this.compressor = null;
+    this.masterOutput = null;
     this.reverbConvolver = null;
     this.reverbBus = null;
     this.reverbWetGain = null;
@@ -500,11 +543,11 @@ class AudioEngine {
     const context = new AudioContextClass();
 
     const compressor = context.createDynamicsCompressor();
-    compressor.threshold.value = -6;
-    compressor.knee.value = 5;
-    compressor.ratio.value = 20;
-    compressor.attack.value = 0.005;
-    compressor.release.value = 0.1;
+    compressor.threshold.value = -10;
+    compressor.knee.value = 8;
+    compressor.ratio.value = 12;
+    compressor.attack.value = 0.003;
+    compressor.release.value = 0.16;
 
     const reverbBus = context.createGain();
     reverbBus.gain.value = 1;
@@ -523,11 +566,16 @@ class AudioEngine {
     reverbBus.connect(convolver);
     convolver.connect(reverbTone);
     reverbTone.connect(reverbWetGain);
+    const masterOutput = context.createGain();
+    masterOutput.gain.value = 0.86;
+
     reverbWetGain.connect(compressor);
-    compressor.connect(context.destination);
+    compressor.connect(masterOutput);
+    masterOutput.connect(context.destination);
 
     this.audioContext = context;
     this.compressor = compressor;
+    this.masterOutput = masterOutput;
     this.reverbConvolver = convolver;
     this.reverbBus = reverbBus;
     this.reverbWetGain = reverbWetGain;
@@ -1133,12 +1181,9 @@ class AudioEngine {
     voice.endTime = Math.min(voice.endTime ?? safeStopAt, safeStopAt);
 
     try {
-      voice.envelopeGain.gain.cancelScheduledValues(safeReleaseStart);
-      const currentValue = safeReleaseStart > now + 0.001
-        ? 0.0001
-        : Math.max(voice.envelopeGain.gain.value, 0.0001);
-      voice.envelopeGain.gain.setValueAtTime(currentValue, safeReleaseStart);
-      voice.envelopeGain.gain.exponentialRampToValueAtTime(0.0001, safeStopAt);
+      rampAudioParamToSilence(voice.envelopeGain.gain, safeReleaseStart, safeStopAt);
+      rampAudioParamToSilence(voice.noiseGain?.gain, safeReleaseStart, safeStopAt);
+      rampAudioParamToSilence(voice.hammerGain?.gain, safeReleaseStart, safeStopAt);
     } catch {}
 
     const sourceNodes = Array.isArray(voice.sourceNodes)
@@ -1319,56 +1364,47 @@ class AudioEngine {
       : Promise.resolve(null);
 
     const loadPromise = soundfontEntriesPromise.then((soundfontEntries) => (
-      Promise.all(resolvedSampleConfig.samples.map(async (sampleEntry) => {
-      const noteName = typeof sampleEntry === 'string' ? sampleEntry : sampleEntry?.noteName;
-      const midi = Number(sampleEntry?.midi) || noteNameToMidi(noteName);
-      if (!Number.isFinite(midi)) {
-        return null;
-      }
-
-      const normalizedNoteName = normalizeMidiJsNoteName(noteName);
-      const url = resolvedSampleConfig.source === 'midi-js'
-        ? soundfontEntries?.[normalizedNoteName] ?? soundfontEntries?.[noteName]
-        : sampleEntry?.url ?? `${resolvedSampleConfig.baseUrl}/${noteName}.mp3`;
-
-      if (!url) {
-        return null;
-      }
-
-      const controller = typeof AbortController === 'function' ? new AbortController() : null;
-      const timeoutId = controller
-        ? window.setTimeout(() => controller.abort(), SAMPLE_LOAD_TIMEOUT_MS)
-        : null;
-      let response = null;
-
-      try {
-        response = await fetch(url, {
-          mode: 'cors',
-          ...(controller ? { signal: controller.signal } : {}),
-        });
-      } finally {
-        if (timeoutId !== null) {
-          window.clearTimeout(timeoutId);
+      Promise.allSettled(resolvedSampleConfig.samples.map(async (sampleEntry) => {
+        const noteName = typeof sampleEntry === 'string' ? sampleEntry : sampleEntry?.noteName;
+        const midi = Number(sampleEntry?.midi) || noteNameToMidi(noteName);
+        if (!Number.isFinite(midi)) {
+          return null;
         }
-      }
 
-      if (!response.ok) {
-        throw new Error(`Failed to load sample: ${url}`);
-      }
+        const normalizedNoteName = normalizeMidiJsNoteName(noteName);
+        const url = resolvedSampleConfig.source === 'midi-js'
+          ? soundfontEntries?.[normalizedNoteName] ?? soundfontEntries?.[noteName]
+          : sampleEntry?.url ?? `${resolvedSampleConfig.baseUrl}/${noteName}.mp3`;
 
-      const arrayBuffer = await response.arrayBuffer();
-      const buffer = await context.decodeAudioData(arrayBuffer.slice(0));
+        if (!url) {
+          return null;
+        }
 
-      return {
-        id: normalizedNoteName,
-        midi,
-        frequency: midiToFrequency(midi),
-        buffer,
-      };
-    })))
-    )
-      .then((samples) => {
-        const loadedSet = samples.filter(Boolean).sort((left, right) => left.midi - right.midi);
+        const response = await fetchWithTimeout(url, { mode: 'cors' }, SAMPLE_LOAD_TIMEOUT_MS);
+
+        if (!response.ok) {
+          throw new Error(`Failed to load sample: ${url}`);
+        }
+
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = await context.decodeAudioData(arrayBuffer.slice(0));
+
+        return {
+          id: normalizedNoteName,
+          midi,
+          frequency: midiToFrequency(midi),
+          buffer,
+        };
+      }))
+    ))
+      .then((results) => {
+        const loadedSet = results
+          .filter((result) => result.status === 'fulfilled' && result.value)
+          .map((result) => result.value)
+          .sort((left, right) => left.midi - right.midi);
+        if (!loadedSet.length) {
+          throw new Error(`No usable samples loaded for "${sampleSetId}".`);
+        }
         this.sampleSets.set(sampleSetId, loadedSet);
         this.sampleSetLoads.delete(sampleSetId);
         return loadedSet;
@@ -1398,7 +1434,7 @@ class AudioEngine {
     }
 
     const url = `${MIDI_JS_SOUNDFONT_BASE_URL}/${instrument}-mp3.js`;
-    const loadPromise = fetch(url, { mode: 'cors' })
+    const loadPromise = fetchWithTimeout(url, { mode: 'cors' }, SOUNDFONT_LOAD_TIMEOUT_MS)
       .then((response) => {
         if (!response.ok) {
           throw new Error(`Failed to load soundfont: ${url}`);

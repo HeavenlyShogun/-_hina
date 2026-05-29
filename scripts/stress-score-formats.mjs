@@ -51,6 +51,10 @@ function parseMetaAndContent(rawText, filename) {
   }
 }
 
+function parseJsonText(rawText) {
+  return JSON.parse(String(rawText ?? '').replace(/^\uFEFF/u, ''));
+}
+
 function createPlaybackConfig(meta = {}) {
   return {
     bpm: Number(meta.bpm) || 125,
@@ -162,7 +166,7 @@ async function loadSlimScores() {
 
   return Promise.all(targets.map(async (entry) => {
     const rawText = await readFile(path.join(SLIM_SCORE_DIR, entry.name), 'utf8');
-    const content = JSON.parse(rawText);
+    const content = parseJsonText(rawText);
     const transport = content.transport ?? {};
     const playback = content.playback ?? {};
 

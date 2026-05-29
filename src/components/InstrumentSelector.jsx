@@ -6,7 +6,7 @@ import { SUPPORTED_TONES, listAvailableInstruments } from '../constants/instrume
 const LEGACY_INSTRUMENTS = [
   { id: 'piano', label: '真鋼琴', Icon: Piano, sub: 'Salamander grand piano samples' },
   { id: 'tongue-drum', label: '空靈鼓', Icon: Drum, sub: 'FluidR3 steel drums samples' },
-  { id: 'tongue-drum-electronic', label: '電子空靈鼓', Icon: AudioLines, sub: 'Synthesized tongue drum layer' },
+  { id: 'tongue-drum-electronic', label: '星鈴鼓', Icon: AudioLines, sub: 'Synthesized tongue drum layer' },
 ];
 
 const ICONS = {

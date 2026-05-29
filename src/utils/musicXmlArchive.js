@@ -84,8 +84,19 @@ async function inflateRaw(bytes) {
     throw new Error('此瀏覽器不支援直接解壓縮 .mxl，請改匯入 .musicxml / .xml。');
   }
 
-  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
-  return new Uint8Array(await new Response(stream).arrayBuffer());
+  const formats = ['deflate-raw', 'deflate'];
+  let lastError = null;
+
+  for (const format of formats) {
+    try {
+      const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream(format));
+      return new Uint8Array(await new Response(stream).arrayBuffer());
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw new Error(`MXL 解壓縮失敗：${lastError?.message || '不支援此壓縮資料'}`);
 }
 
 async function readZipEntry(arrayBuffer, entry) {
@@ -111,10 +122,14 @@ async function readZipEntry(arrayBuffer, entry) {
 }
 
 function readContainerRootPath(containerXml) {
-  const document = new DOMParser().parseFromString(containerXml, 'application/xml');
+  const document = new DOMParser().parseFromString(String(containerXml ?? '').replace(/^\uFEFF/u, ''), 'application/xml');
   const rootFile = Array.from(document.getElementsByTagName('*'))
     .find((element) => element.localName === 'rootfile' && element.hasAttribute('full-path'));
   return rootFile?.getAttribute('full-path') || '';
+}
+
+function decodeUtf8(bytes) {
+  return new TextDecoder('utf-8').decode(bytes).replace(/^\uFEFF/u, '');
 }
 
 export async function readMusicXmlFile(file) {
@@ -122,7 +137,7 @@ export async function readMusicXmlFile(file) {
 
   if (name.endsWith('.musicxml') || name.endsWith('.xml')) {
     return {
-      xmlText: await file.text(),
+      xmlText: String(await file.text()).replace(/^\uFEFF/u, ''),
       extractedFileName: file.name,
       sourceType: 'MusicXML',
     };
@@ -134,12 +149,11 @@ export async function readMusicXmlFile(file) {
 
   const arrayBuffer = await file.arrayBuffer();
   const entries = readZipEntries(arrayBuffer).filter((entry) => !entry.name.endsWith('/'));
-  const decoder = new TextDecoder('utf-8');
   const containerEntry = entries.find((entry) => entry.name.toLowerCase() === 'meta-inf/container.xml');
   let musicXmlEntry = null;
 
   if (containerEntry) {
-    const containerXml = decoder.decode(await readZipEntry(arrayBuffer, containerEntry));
+    const containerXml = decodeUtf8(await readZipEntry(arrayBuffer, containerEntry));
     const rootPath = readContainerRootPath(containerXml);
     musicXmlEntry = entries.find((entry) => entry.name === rootPath);
   }
@@ -151,7 +165,7 @@ export async function readMusicXmlFile(file) {
   }
 
   return {
-    xmlText: decoder.decode(await readZipEntry(arrayBuffer, musicXmlEntry)),
+    xmlText: decodeUtf8(await readZipEntry(arrayBuffer, musicXmlEntry)),
     extractedFileName: musicXmlEntry.name.split('/').pop() || file.name.replace(/\.mxl$/iu, '.musicxml'),
     sourceType: 'MXL',
   };

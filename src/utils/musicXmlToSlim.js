@@ -16,26 +16,65 @@ function stripExtension(filename) {
   return String(filename || 'MusicXML score').replace(/\.[^.]+$/u, '') || 'MusicXML score';
 }
 
+function getLocalName(element) {
+  return element?.localName || element?.tagName || '';
+}
+
+function childElements(parent, localName = null) {
+  return Array.from(parent?.children ?? [])
+    .filter((entry) => !localName || getLocalName(entry) === localName);
+}
+
+function descendantElements(parent, localName) {
+  return Array.from(parent?.getElementsByTagName?.('*') ?? [])
+    .filter((entry) => getLocalName(entry) === localName);
+}
+
+function firstDescendant(parent, localName) {
+  return descendantElements(parent, localName)[0] ?? null;
+}
+
+function hasDescendant(parent, localName) {
+  return Boolean(firstDescendant(parent, localName));
+}
+
+function findByPath(parent, selector) {
+  const parts = String(selector || '').trim().split(/\s+/u).filter(Boolean);
+  if (!parts.length) return null;
+
+  return parts.reduce((current, part, index) => {
+    if (!current) return null;
+    return index === 0
+      ? firstDescendant(current, part)
+      : childElements(current, part)[0] ?? null;
+  }, parent);
+}
+
 function readFirstText(parent, selector) {
-  return parent?.querySelector(selector)?.textContent?.trim() ?? '';
+  return findByPath(parent, selector)?.textContent?.trim() ?? '';
 }
 
 function readDirectText(parent, tagName) {
   if (!parent) return '';
 
-  const child = Array.from(parent.children).find((entry) => entry.tagName === tagName);
+  const child = childElements(parent, tagName)[0];
   return child?.textContent?.trim() ?? '';
 }
 
 function parseXmlDocument(xmlText) {
-  const document = new DOMParser().parseFromString(xmlText, 'application/xml');
-  const parserError = document.querySelector('parsererror');
+  if (typeof DOMParser !== 'function') {
+    throw new Error('此環境不支援 MusicXML 解析，請在瀏覽器內匯入。');
+  }
+
+  const document = new DOMParser().parseFromString(String(xmlText ?? '').replace(/^\uFEFF/u, ''), 'application/xml');
+  const parserError = firstDescendant(document, 'parsererror');
 
   if (parserError) {
     throw new Error(parserError.textContent?.trim() || 'Invalid MusicXML document.');
   }
 
-  if (!document.querySelector('score-partwise, score-timewise')) {
+  const rootName = getLocalName(document.documentElement);
+  if (rootName !== 'score-partwise' && rootName !== 'score-timewise') {
     throw new Error('This does not look like a MusicXML score.');
   }
 
@@ -65,7 +104,7 @@ function pitchToMidi(pitchElement) {
 
 function getPartNames(document) {
   return Object.fromEntries(
-    Array.from(document.querySelectorAll('part-list score-part')).map((part, index) => {
+    descendantElements(document, 'score-part').map((part, index) => {
       const id = part.getAttribute('id') || `P${index + 1}`;
       const name = readFirstText(part, 'part-name') || readFirstText(part, 'part-abbreviation') || `Track ${index + 1}`;
       return [id, name];
@@ -82,7 +121,7 @@ function getTitle(document, fallbackTitle) {
 }
 
 function getInitialTempo(document, fallbackBpm) {
-  const soundTempo = Array.from(document.querySelectorAll('sound'))
+  const soundTempo = descendantElements(document, 'sound')
     .map((sound) => Number(sound.getAttribute('tempo')))
     .find((tempo) => Number.isFinite(tempo) && tempo > 0);
 
@@ -95,7 +134,7 @@ function getInitialTempo(document, fallbackBpm) {
 }
 
 function getInitialTimeSignature(document, options) {
-  const time = document.querySelector('attributes time');
+  const time = findByPath(document, 'attributes time');
   const beats = Number(readDirectText(time, 'beats'));
   const beatType = Number(readDirectText(time, 'beat-type'));
 
@@ -129,7 +168,7 @@ function getSlimScoreEndTick(score) {
 }
 
 function getDynamicsVelocity(noteElement) {
-  const velocity = Number(noteElement.querySelector('sound')?.getAttribute('dynamics'));
+  const velocity = Number(firstDescendant(noteElement, 'sound')?.getAttribute('dynamics'));
   if (!Number.isFinite(velocity)) {
     return DEFAULT_VELOCITY;
   }
@@ -143,8 +182,7 @@ function parsePart(part, trackIndex, resolution) {
   let lastNoteStartTick = 0;
   const notes = [];
 
-  Array.from(part.children)
-    .filter((entry) => entry.tagName === 'measure')
+  childElements(part, 'measure')
     .forEach((measure) => {
       const nextDivisions = Number(readFirstText(measure, 'attributes divisions'));
       if (Number.isFinite(nextDivisions) && nextDivisions > 0) {
@@ -152,33 +190,35 @@ function parsePart(part, trackIndex, resolution) {
       }
 
       Array.from(measure.children).forEach((element) => {
-        if (element.tagName === 'backup') {
+        const elementName = getLocalName(element);
+
+        if (elementName === 'backup') {
           const durationTicks = getDurationTicks(element, divisions, resolution);
           currentTick = Math.max(0, currentTick - durationTicks);
           return;
         }
 
-        if (element.tagName === 'forward') {
+        if (elementName === 'forward') {
           currentTick += getDurationTicks(element, divisions, resolution);
           return;
         }
 
-        if (element.tagName !== 'note' || element.querySelector('grace')) {
+        if (elementName !== 'note' || hasDescendant(element, 'grace')) {
           return;
         }
 
         const durationTicks = getDurationTicks(element, divisions, resolution);
-        const isChordTone = Boolean(element.querySelector('chord'));
+        const isChordTone = hasDescendant(element, 'chord');
         const noteStartTick = isChordTone ? lastNoteStartTick : currentTick;
 
-        if (element.querySelector('rest')) {
+        if (hasDescendant(element, 'rest')) {
           if (!isChordTone) {
             currentTick += durationTicks;
           }
           return;
         }
 
-        const pitch = element.querySelector('pitch');
+        const pitch = firstDescendant(element, 'pitch');
         const midi = pitchToMidi(pitch);
 
         if (midi !== null && durationTicks > 0) {
@@ -206,6 +246,7 @@ export function convertMusicXmlToSlim(xmlText, options = {}) {
   const fileName = options.fileName || 'score.musicxml';
   const fallbackTitle = options.title || stripExtension(fileName);
   const title = getTitle(document, fallbackTitle);
+  const originalFormat = String(options.originalFormat || 'musicxml').toLowerCase();
   const resolution = Math.max(Number(options.resolution) || DEFAULT_RESOLUTION, 1);
   const bpm = getInitialTempo(document, options.bpm || DEFAULT_SCORE_PARAMS.bpm);
   const { timeSigNum, timeSigDen } = getInitialTimeSignature(document, {
@@ -213,10 +254,13 @@ export function convertMusicXmlToSlim(xmlText, options = {}) {
     timeSigDen: options.timeSigDen || DEFAULT_SCORE_PARAMS.timeSigDen,
   });
   const partNames = getPartNames(document);
-  const parts = Array.from(document.querySelectorAll(':scope > part, score-partwise > part'));
+  const root = document.documentElement;
+  const parts = getLocalName(root) === 'score-partwise'
+    ? childElements(root, 'part')
+    : [];
 
   if (!parts.length) {
-    throw new Error('No MusicXML parts were found.');
+    throw new Error('No MusicXML parts were found. score-timewise conversion is not supported yet.');
   }
 
   const tracks = parts.map((part, index) => {
@@ -250,8 +294,8 @@ export function convertMusicXmlToSlim(xmlText, options = {}) {
       id: `${slugifyFilename(title)}-${Date.now()}`,
       title,
       displayTitle: title,
-      sourceType: 'musicxml',
-      originalFormat: 'musicxml',
+      sourceType: originalFormat,
+      originalFormat,
       storageFormat: 'hina-slim-score@3.2',
       fileName,
       convertedAt: new Date().toISOString(),
@@ -286,6 +330,11 @@ export function mergeSlimScores(scores, options = {}) {
   const bpm = Number(options.bpm) || Number(sourceScores[0]?.transport?.bpm) || DEFAULT_SCORE_PARAMS.bpm;
   const title = String(options.title || `combined_${sourceScores.length}_musicxml`).trim();
   const fileName = String(options.fileName || `${slugifyFilename(title)}.json`).trim();
+  const sourceFormats = [...new Set(sourceScores
+    .map((score) => score?.meta?.originalFormat || score?.meta?.sourceType)
+    .filter(Boolean)
+    .map((format) => String(format).toLowerCase()))];
+  const originalFormat = sourceFormats.includes('mxl') ? 'mxl' : 'musicxml';
   const notes = [];
   const tracks = [];
   let currentOffset = 0;
@@ -331,12 +380,13 @@ export function mergeSlimScores(scores, options = {}) {
       id: `${slugifyFilename(title)}-${Date.now()}`,
       title,
       displayTitle: title,
-      sourceType: 'musicxml',
-      originalFormat: 'musicxml',
+      sourceType: originalFormat,
+      originalFormat,
       storageFormat: 'hina-slim-score@3.2',
       fileName,
       convertedAt: new Date().toISOString(),
       sourceFileCount: sourceScores.length,
+      sourceFormats,
     },
     transport: {
       bpm,

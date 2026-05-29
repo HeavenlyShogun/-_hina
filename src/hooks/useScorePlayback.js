@@ -456,8 +456,10 @@ export function useScorePlayback({
       }
 
       if (info && frequency && !activeLiveVoicesRef.current.has(keyK)) {
-        await audioEngine.prepareTone(current.audioConfig?.tone);
         await audioEngine.resume();
+        audioEngine.prepareTone(current.audioConfig?.tone).catch((error) => {
+          console.warn(`Failed to preload tone "${current.audioConfig?.tone}".`, error);
+        });
         const voice = audioEngine.playLiveNote(frequency, {
           tone: current.audioConfig?.tone,
           outputGain: current.audioConfig?.vol,

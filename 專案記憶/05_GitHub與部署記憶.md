@@ -1,66 +1,60 @@
 # GitHub 與部署記憶
 
-最後更新：2026-05-22
+最後更新：2026-05-29
 
-## Git 倉庫資訊
+本檔記錄 Git remote、GitHub Pages、Firebase Hosting 與常用部署指令。
+
+## GitHub
 
 - remote name：`origin`
 - fetch URL：`git@github.com:HeavenlyShogun/-_hina.git`
 - push URL：`git@github.com:HeavenlyShogun/-_hina.git`
+- GitHub Pages URL：`https://heavenlyshogun.github.io/-_hina/`
 
 ## GitHub Pages
 
-- 預設網址：
-  - `https://heavenlyshogun.github.io/-_hina/`
-- build 指令：
-  - `npm.cmd run build:pages`
-- base path：
-  - `/-_hina/`
-- 自動部署：
-  - push 到 `main` 後由 GitHub Actions 處理
+- build 指令：`npm.cmd run build:pages`
+- 輸出目錄：`dist-gh`
+- base path：`/-_hina/`
+- 預覽指令：`npm.cmd run preview:pages`
+- 注意：Pages build 不可使用 Firebase Hosting 的 `/` base path。
 
 ## Firebase Hosting
 
-- build 指令：
-  - `npm.cmd run build`
-  - 或 `npm.cmd run build:firebase`（若 package script 仍保留）
-- deploy 指令：
-  - `firebase deploy --only hosting --project guilty-corn`
-- staging deploy：
-  - `firebase hosting:channel:deploy staging --project guilty-corn --expires 7d`
-- base path：
-  - `/`
-- Hosting 輸出目錄：
-  - `dist-fb`
-- 2026-05-22 狀態：
-  - `npm run build:firebase` 可成功產生 `dist-fb`。
-  - 本機 Firebase CLI 帳號顯示為 `u308008@gmail.com`，但 credentials 已過期；正式 deploy 需先在互動式終端執行 `firebase login --reauth` 或提供 CI token。
+- build 指令：`npm.cmd run build:firebase`
+- 輸出目錄：`dist-fb`
+- base path：`/`
+- production deploy：`firebase deploy --only hosting --project guilty-corn`
+- staging deploy：`firebase hosting:channel:deploy staging --project guilty-corn --expires 7d`
+- 預覽指令：`npm.cmd run preview:firebase`
 
-## 部署時的重要規則
+## 雙部署規則
 
-- 不要把 GitHub Pages build 結果直接拿去 Firebase。
-- 不要把 Firebase Hosting build 結果直接拿去 GitHub Pages。
-- `dist` / `dist-fb` 內容依最後一次 build 目標而定，發佈前要確認目標正確。
+- Pages 與 Firebase 的 build 產物不可互換，因為 asset URL base path 不同。
+- 部署前至少跑一次對應 build；同時改到 routing、public assets、Vite config 時，兩種 build 都要跑。
+- `firebase.json` 的 public dir 應指向 `dist-fb`；GitHub Pages 發佈應取 `dist-gh`。
+- `.env` / `.env.local` 可供本機使用，但 GitHub Actions 或 Firebase 部署環境需另行配置 secrets/env。
 
-## 本機常用指令
+## 常用檢查指令
 
 ```powershell
 git status --short --branch
-npm.cmd run dev
-npm.cmd run build
+npm.cmd run build:firebase
 npm.cmd run build:pages
-firebase deploy --only hosting --project guilty-corn
-firebase hosting:channel:deploy staging --project guilty-corn --expires 7d
-git push origin main
+npm.cmd run preview:firebase
+npm.cmd run preview:pages
 ```
 
-## PowerShell 注意事項
+## 2026-05-29 驗證結果
 
-- 若 PowerShell 擋下 `npm.ps1`，改用：
-  - `npm.cmd run <script>`
+- `npm.cmd run build:firebase`：成功產生 `dist-fb`。
+- `npm.cmd run build:pages`：成功產生 `dist-gh`。
+- 兩者皆有 Vite 警告：`surges-slim.json` 同時被靜態與動態 import。
+- 在目前沙盒環境直接跑 build 會出現 `commonjs--resolver spawn EPERM`；需用允許的本機權限重跑，不視為程式碼錯誤。
 
-## 修改部署流程時要同步更新的記憶
+## 除錯規則
 
-- 本檔：build、deploy、remote、網址、base path
-- `04_Firebase與雲端曲庫記憶.md`：若 Firebase project / hosting / env 需求改動
-- `01_目前系統總覽.md`：若部署型態影響產品定位
+- PowerShell 可能擋 `npm.ps1`，優先使用 `npm.cmd run <script>`。
+- Pages 路徑錯誤時先檢查 `vite.config.js` 與 `scripts/build-github-pages.mjs`。
+- Firebase 路徑錯誤時先檢查 `scripts/build-firebase-hosting.mjs` 與 `firebase.json`。
+- deploy 失敗時先確認 Firebase CLI 登入狀態與目前 project。

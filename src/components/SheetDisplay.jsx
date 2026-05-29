@@ -218,6 +218,7 @@ const SheetDisplay = memo(({
   const playheadRef = useRef(null);
   const [showGuide, setShowGuide] = useState(false);
   const [referenceSearch, setReferenceSearch] = useState('');
+  const [timelinePreviewTick, setTimelinePreviewTick] = useState(null);
   const {
     bpm,
     timeSigNum,
@@ -226,6 +227,7 @@ const SheetDisplay = memo(({
     textNotation,
     legacyTimingMode,
     playbackState,
+    onScrubToTick,
   } = usePlayback();
   const audioConfig = useAudioConfig();
   const livePlaybackState = useLivePlaybackFrame();
@@ -381,6 +383,7 @@ const SheetDisplay = memo(({
     [playbackState.currentTick, sectionSegments],
   );
   const activeTokenTick = livePlaybackState.currentTick;
+  const displayTimelineTick = timelinePreviewTick ?? playbackState.currentTick;
   const activeTokenIds = useMemo(() => new Set(
     findActiveTokens(normalizedScore?.structure?.tokenLines, activeTokenTick).map((token) => token.id),
   ), [activeTokenTick, normalizedScore?.structure?.tokenLines]);
@@ -435,6 +438,37 @@ const SheetDisplay = memo(({
     syncPlayheadPosition,
   ]);
 
+  const handleTimelineSliderChange = useCallback((event) => {
+    const targetMaxTick = Math.max(Number(playbackState.maxTick) || 0, normalizedScore.maxTick || 0);
+    const targetTick = clamp(Math.round(Number(event.target.value) || 0), 0, targetMaxTick);
+    if (targetMaxTick <= 0) {
+      return;
+    }
+
+    if (!playbackState.eventsCount && normalizedScore.events.length) {
+      playbackController.load(normalizedScore.events, normalizedScore.maxTime, normalizedScore.playback);
+    }
+
+    setTimelinePreviewTick(targetTick);
+    syncPlayheadPosition(targetTick);
+    onScrubToTick?.(targetTick);
+  }, [
+    normalizedScore.events,
+    normalizedScore.maxTick,
+    normalizedScore.maxTime,
+    normalizedScore.playback,
+    onScrubToTick,
+    playbackState.eventsCount,
+    playbackState.maxTick,
+    syncPlayheadPosition,
+  ]);
+
+  const handleTimelineSliderCommit = useCallback((event) => {
+    const targetTick = Number(event.currentTarget.value);
+    setTimelinePreviewTick(null);
+    void handleSeek(targetTick);
+  }, [handleSeek]);
+
   const handleTimelineClick = useCallback((event) => {
     const targetMaxTick = Math.max(Number(playbackState.maxTick) || 0, normalizedScore.maxTick || 0);
     const trackWidth = event.currentTarget.clientWidth;
@@ -477,6 +511,10 @@ const SheetDisplay = memo(({
   }, [setReferences]);
 
   usePlayheadSync(playheadRef);
+
+  useEffect(() => {
+    setTimelinePreviewTick(null);
+  }, [playbackState.generation, playbackState.status]);
 
   useEffect(() => {
     if (normalizedScore && playbackController) {
@@ -546,20 +584,20 @@ const SheetDisplay = memo(({
           {showGuide && (
             <div className="grid grid-cols-1 gap-6 border-t border-white/5 bg-black/20 p-6 text-[11px] text-white/60 animate-in fade-in slide-in-from-top-2 md:grid-cols-2">
               <div className="space-y-3 border-l-2 border-emerald-500 pl-4 leading-relaxed text-emerald-100/80 md:col-span-2">
-                <p><b className="text-emerald-300">鍵盤文字譜</b> 可直接貼上鍵盤譜，例如 `Q~U / A~J / Z~M`，括號代表同時按下的和弦。</p>
-                <p><b className="text-emerald-300">JSON 譜面</b> 適合大型譜面與 MIDI/MusicXML 轉換結果，會保存 `transport`、`playback`、`tracks` 和事件資料。</p>
-                <p><b className="text-emerald-300">數字節拍格線</b> 可使用 `@grid 1/8`、`@grid 1/12`、`@grid 1/16`、`@grid 1/24` 或 `@grid 1/32` 指定節拍格線；其中 `1/12`、`1/24` 適合三連音與 Swing。</p>
+                <p><b className="text-emerald-300">手寫鍵盤譜</b> 請直接輸入琴鍵字母，例如 `Q W E R / T Y U`；括號代表同時按下的和弦。</p>
+                <p><b className="text-emerald-300">轉檔譜面</b> MIDI、MusicXML、MXL 會先轉成 JSON/Slim JSON，再載入這個編輯區；大型 JSON 會以摘要顯示並保持唯讀。</p>
+                <p><b className="text-emerald-300">播放定位</b> 上方播放時間軸可拖曳定位；下方譜面預覽或段落按鈕可直接跳到指定 tick。</p>
               </div>
               <div>
                 <h4 className="mb-3 border-b border-white/10 pb-1 font-bold text-emerald-300">輸入方式</h4>
                 <ul className="space-y-4">
                   <li className="flex items-start gap-2">
-                    <span className="shrink-0 rounded bg-black/40 px-1.5 py-0.5 font-mono text-emerald-400">A~Z</span>
-                    <div><b className="text-emerald-200">鍵盤譜</b><br />輸入 `Q~U / A~J / Z~M`，系統會對應三排琴鍵。</div>
+                    <span className="shrink-0 rounded bg-black/40 px-1.5 py-0.5 font-mono text-emerald-400">Q W E</span>
+                    <div><b className="text-emerald-200">鍵盤譜</b><br />使用實際鍵位字母，例如 `Q W E R / T Y U`。斜線可用來分段或換句。</div>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="shrink-0 rounded bg-black/40 px-1.5 py-0.5 font-mono text-emerald-400">( )</span>
-                    <div><b className="text-emerald-200">和弦</b><br />例如 `(QWE)` 或 `(135)`，括號內的音會同時播放。</div>
+                    <div><b className="text-emerald-200">和弦</b><br />例如 `(Q E T)`，括號內的音會同時播放；`-` 可作為延音或空拍標記。</div>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="shrink-0 rounded bg-black/40 px-1.5 py-0.5 font-mono text-emerald-400">JSON</span>
@@ -571,9 +609,9 @@ const SheetDisplay = memo(({
                 <h4 className="mb-3 border-b border-white/10 pb-1 font-bold text-emerald-300">MusicXML 轉換流程</h4>
                 <ol className="space-y-3 leading-relaxed">
                   <li>1. 若來源是 PDF 或圖片，先用 ACE Studio 將 PDF/JPG/PNG 轉為 MusicXML。</li>
-                  <li>2. 下載 MusicXML 檔案後，在本頁使用匯入按鈕載入 `.musicxml` 或 `.xml`。</li>
-                  <li>3. 檢查轉換後的節奏與調性，必要時在控制面板調整 BPM、拍號與調性。</li>
-                  <li>4. 按「寫入目前節奏與調性」或直接存檔/匯出，系統會把調整值寫入譜面。</li>
+                  <li>2. 下載 MusicXML 檔案後，在本頁使用匯入按鈕載入 `.musicxml`、`.xml` 或 `.mxl`。</li>
+                  <li>3. 檢查轉換後的節奏、音高與軌道；必要時在控制面板調整 BPM、拍號與音色。</li>
+                  <li>4. 確認可播放後，可下載 JSON/MIDI，或使用「存入雲端」保存目前譜面。</li>
                 </ol>
                 <a href={MUSICXML_HELP_URL} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-2 rounded-full border border-sky-300/20 bg-sky-500/10 px-3 py-2 text-[11px] font-bold text-sky-100 transition-colors hover:bg-sky-500/18">
                   <Link2 size={13} />
@@ -589,9 +627,9 @@ const SheetDisplay = memo(({
         <div className="mb-4 rounded-[22px] border border-white/8 bg-black/30 px-4 py-3">
           <div className="mb-2 flex items-center justify-between text-[10px] font-black uppercase tracking-[0.24em] text-emerald-100/40">
             <span>播放時間軸</span>
-            <span>{Math.round(playbackState.currentTick || 0)} / {Math.round(effectiveMaxTick || 0)} tick</span>
+            <span>{Math.round(displayTimelineTick || 0)} / {Math.round(effectiveMaxTick || 0)} tick</span>
           </div>
-          <div className="relative h-12 cursor-pointer overflow-hidden rounded-2xl" onClick={handleTimelineClick}>
+          <div className="relative h-12 overflow-hidden rounded-2xl">
             <div className="absolute inset-0" style={timelineBackgroundStyle} />
             <div className="absolute inset-x-1 bottom-4 top-1">
               {sectionSegments.map((segment) => {
@@ -617,10 +655,28 @@ const SheetDisplay = memo(({
             </div>
             <div className="pointer-events-none absolute inset-x-0 bottom-1 h-2 rounded-full bg-black/30" />
             <div ref={playheadRef} className="pointer-events-none absolute inset-y-0 z-20 w-1.5 -translate-x-1/2 rounded-full bg-amber-300 shadow-[0_0_14px_rgba(252,211,77,0.85)] transition-none will-change-[left]" style={{ left: '0%' }} />
+            <input
+              type="range"
+              min="0"
+              max={Math.max(Math.round(effectiveMaxTick || 0), 1)}
+              step="1"
+              value={Math.min(Math.round(displayTimelineTick || 0), Math.max(Math.round(effectiveMaxTick || 0), 1))}
+              onChange={handleTimelineSliderChange}
+              onMouseUp={handleTimelineSliderCommit}
+              onTouchEnd={handleTimelineSliderCommit}
+              onKeyUp={(event) => {
+                if (['ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'].includes(event.key)) {
+                  handleTimelineSliderCommit(event);
+                }
+              }}
+              disabled={effectiveMaxTick <= 0}
+              className="absolute inset-0 z-30 h-full w-full cursor-ew-resize opacity-0 disabled:cursor-default"
+              aria-label="拖曳播放時間軸"
+            />
           </div>
           <div className="mt-3 flex items-center justify-between gap-3 text-[11px] text-white/55">
             <span className="uppercase tracking-[0.24em] text-emerald-100/35">Tick 預覽</span>
-            <span className="text-right text-white/35">點擊段落或時間軸可跳到指定位置。</span>
+            <span className="text-right text-white/35">拖曳時間軸滑桿可定位；點擊段落可跳到指定位置。</span>
           </div>
         </div>
       ) : null}
@@ -817,19 +873,19 @@ const SheetDisplay = memo(({
                   <Edit3 size={14} />
                   1. 寫入音符
                 </div>
-                <p className="leading-relaxed">文字譜可直接輸入鍵位；一行代表一段，括號表示同時按下的和弦。</p>
+                <p className="leading-relaxed">手寫譜請輸入實際琴鍵字母；斜線分段，括號表示同時按下的和弦。</p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-black/20 p-3 font-mono text-[11px] leading-6 text-emerald-50/80">
-                <div>@grid 1/8</div>
-                <div>Q W E R | T Y U -</div>
-                <div>(Q E T) - W - | R T Y U</div>
+                <div>Q W E R / T Y U -</div>
+                <div>(Q E T) - W - / R T Y U</div>
+                <div>Z X C / A S D / Q W E</div>
               </div>
               <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
                 <div className="mb-2 flex items-center gap-2 font-bold text-emerald-100">
                   <Music2 size={14} />
                   2. 播放檢查
                 </div>
-                <p className="leading-relaxed">輸入後用上方播放控制試聽；若是 JSON 譜面，先用轉換器載入再從摘要檢查拍速與軌道。</p>
+                <p className="leading-relaxed">輸入或匯入後用播放控制試聽；可拖曳播放時間軸定位，再從摘要檢查拍速與軌道。</p>
               </div>
             </div>
           </div>

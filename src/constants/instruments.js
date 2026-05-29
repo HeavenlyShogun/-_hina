@@ -4,6 +4,7 @@ export const AVAILABLE_INSTRUMENTS = {
     label: 'MIDI 原始指示',
     type: 'sampled',
     icon: 'music',
+    selectable: false,
     description: '依照譜面每個 MIDI 音軌的原始樂器指示播放',
   },
   piano: {
@@ -18,6 +19,7 @@ export const AVAILABLE_INSTRUMENTS = {
     label: '亮音鋼琴',
     type: 'sampled',
     icon: 'piano',
+    selectable: false,
     description: 'FluidR3 bright acoustic piano SoundFont',
   },
   'electric-guitar-clean': {
@@ -25,35 +27,35 @@ export const AVAILABLE_INSTRUMENTS = {
     label: '電吉他',
     type: 'sampled',
     icon: 'guitar',
-    description: 'FluidR3 clean electric guitar SoundFont',
+    description: 'Real clean electric guitar SoundFont samples',
   },
   'tongue-drum': {
     id: 'tongue-drum',
     label: '空靈鼓',
     type: 'sampled',
     icon: 'drum',
-    description: 'FluidR3 steel drums samples',
+    description: 'Real steel tongue drum SoundFont samples',
   },
   'tongue-drum-electronic': {
     id: 'tongue-drum-electronic',
-    label: '電子空靈鼓',
+    label: '星鈴鼓',
     type: 'synthesized',
     icon: 'audio-lines',
     description: 'Synthesized tongue drum layer',
   },
   'retro-saw-synth': {
     id: 'retro-saw-synth',
-    label: '復古鋸齒波',
+    label: '霓光主奏',
     type: 'synthesized',
     icon: 'waves',
-    description: 'Bright sawtooth lead with a lowpass envelope',
+    description: 'Bright electronic lead with a lowpass envelope',
   },
   'cozy-triangle-lead': {
     id: 'cozy-triangle-lead',
-    label: '柔和三角波',
+    label: '暖星主奏',
     type: 'synthesized',
     icon: 'audio-lines',
-    description: 'Warm triangle lead with soft attack and release',
+    description: 'Warm electronic lead with soft attack and release',
   },
 };
 
@@ -64,5 +66,5 @@ export function getInstrumentDefinition(id) {
 }
 
 export function listAvailableInstruments() {
-  return Object.values(AVAILABLE_INSTRUMENTS);
+  return Object.values(AVAILABLE_INSTRUMENTS).filter((instrument) => instrument.selectable !== false);
 }

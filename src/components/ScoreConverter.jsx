@@ -35,6 +35,10 @@ function isMusicXmlFile(file) {
   return name.endsWith('.musicxml') || name.endsWith('.xml') || name.endsWith('.mxl');
 }
 
+function safeTrim(value) {
+  return String(value ?? '').trim();
+}
+
 function getPayloadSummary(payload) {
   if (Array.isArray(payload?.tracks)) {
     const eventCount = payload.tracks.reduce(
@@ -165,7 +169,7 @@ const ScoreConverter = memo(({
       };
     } catch (error) {
       console.error(error);
-      showToast?.('MIDI 匯入失敗', 'error');
+      showToast?.(error?.message || 'MIDI 匯入失敗', 'error');
       return null;
     } finally {
       setIsImportingMidi(false);
@@ -202,7 +206,8 @@ const ScoreConverter = memo(({
       const { xmlText, extractedFileName, sourceType } = await readMusicXmlFile(file);
       const payload = convertMusicXmlToSlim(xmlText, {
         fileName: extractedFileName || file.name,
-        title: scoreTitle.trim() || undefined,
+        title: safeTrim(scoreTitle) || undefined,
+        originalFormat: sourceType,
         bpm,
         timeSigNum,
         timeSigDen,
@@ -262,10 +267,11 @@ const ScoreConverter = memo(({
       const convertedScores = [];
 
       for (const file of orderedFiles) {
-        const { xmlText, extractedFileName } = await readMusicXmlFile(file);
+        const { xmlText, extractedFileName, sourceType } = await readMusicXmlFile(file);
         convertedScores.push(convertMusicXmlToSlim(xmlText, {
           fileName: extractedFileName || file.name,
           title: undefined,
+          originalFormat: sourceType,
           bpm,
           timeSigNum,
           timeSigDen,
@@ -278,7 +284,7 @@ const ScoreConverter = memo(({
         }));
       }
 
-      const title = scoreTitle.trim() || `combined_${orderedFiles.length}_musicxml`;
+      const title = safeTrim(scoreTitle) || `combined_${orderedFiles.length}_musicxml`;
       const payload = mergeSlimScores(convertedScores, {
         title,
         fileName: `${title.replace(/[^\w\-]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'combined'}-musicxml-slim.json`,
