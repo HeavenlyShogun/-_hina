@@ -57,6 +57,27 @@ export const AVAILABLE_INSTRUMENTS = {
     icon: 'audio-lines',
     description: 'Warm electronic lead with soft attack and release',
   },
+  'breath-flute': {
+    id: 'breath-flute',
+    label: 'Breath Flute',
+    type: 'synthesized',
+    icon: 'waves',
+    description: 'Soft sine flute with slow breath noise',
+  },
+  'wind-lyre-long': {
+    id: 'wind-lyre-long',
+    label: 'Wind Lyre',
+    type: 'synthesized',
+    icon: 'guitar',
+    description: 'Plucked saw lyre with long ringing decay',
+  },
+  'wind-lyre-short': {
+    id: 'wind-lyre-short',
+    label: 'Muted Lyre',
+    type: 'synthesized',
+    icon: 'guitar',
+    description: 'Short muted lyre for dense fast passages',
+  },
 };
 
 export const SUPPORTED_TONES = Object.keys(AVAILABLE_INSTRUMENTS);

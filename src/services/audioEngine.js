@@ -202,6 +202,66 @@ const TONE_PRESETS = {
     release: 0.52,
     velocity: 0.8,
   },
+  'breath-flute': {
+    tone: 'breath-flute',
+    instrumentType: 'synthesized',
+    layerGain: 0.78,
+    type: 'sine',
+    dur: 2.6,
+    atk: 0.08,
+    dec: 0.28,
+    sus: 0.8,
+    pk: 0.36,
+    flt: false,
+    nBufKey: 'breathNoise',
+    nDur: 0.8,
+    nVol: 0.034,
+    vibratoDepth: 3.2,
+    vibratoRate: 5.4,
+    vibratoDelay: 0.18,
+    release: 0.34,
+    velocity: 0.78,
+  },
+  'wind-lyre-long': {
+    tone: 'wind-lyre-long',
+    instrumentType: 'synthesized',
+    layerGain: 0.72,
+    type: 'sawtooth',
+    dur: 4,
+    atk: 0.015,
+    dec: 0.6,
+    sus: 0.12,
+    pk: 0.44,
+    flt: true,
+    fltStartMult: 6,
+    fltEndMult: 1.2,
+    fltDec: 0.6,
+    nBufKey: 'shortNoise',
+    nDur: 0.05,
+    nVol: 0.095,
+    release: 0.9,
+    velocity: 0.84,
+  },
+  'wind-lyre-short': {
+    tone: 'wind-lyre-short',
+    instrumentType: 'synthesized',
+    layerGain: 0.72,
+    type: 'sawtooth',
+    dur: 0.7,
+    atk: 0.015,
+    dec: 0.1,
+    sus: 0.001,
+    pk: 0.42,
+    flt: true,
+    fltStartMult: 6,
+    fltEndMult: 1.2,
+    fltDec: 0.6,
+    nBufKey: 'shortNoise',
+    nDur: 0.05,
+    nVol: 0.095,
+    release: 0.07,
+    velocity: 0.86,
+  },
   classic: {
     tone: 'classic',
     layerGain: 0.85,
@@ -547,6 +607,7 @@ class AudioEngine {
     this.reverbWetGain = null;
     this.noiseBuffer = null;
     this.shortNoiseBuffer = null;
+    this.breathNoiseBuffer = null;
     this.activeVoices = new Set();
     this.activeLiveVoices = new Map();
     this.sampleSets = new Map();
@@ -603,6 +664,7 @@ class AudioEngine {
     this.reverbWetGain = reverbWetGain;
     this.noiseBuffer = this.createNoiseBuffer(context, 0.06, true);
     this.shortNoiseBuffer = this.createNoiseBuffer(context, 0.015, false);
+    this.breathNoiseBuffer = this.createNoiseBuffer(context, 0.8, false);
 
     return this.audioContext;
   }
@@ -1341,6 +1403,7 @@ class AudioEngine {
   resolveNoiseBuffer(bufferKey) {
     if (bufferKey === 'noise') return this.noiseBuffer;
     if (bufferKey === 'shortNoise') return this.shortNoiseBuffer;
+    if (bufferKey === 'breathNoise') return this.breathNoiseBuffer;
     return null;
   }
 
