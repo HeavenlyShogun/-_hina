@@ -1,6 +1,6 @@
 # GitHub 與部署記憶
 
-最後更新：2026-05-29
+最後更新：2026-06-03
 
 本檔記錄 Git remote、GitHub Pages、Firebase Hosting 與常用部署指令。
 
@@ -51,6 +51,15 @@ npm.cmd run preview:pages
 - `npm.cmd run build:pages`：成功產生 `dist-gh`。
 - 兩者皆有 Vite 警告：`surges-slim.json` 同時被靜態與動態 import。
 - 在目前沙盒環境直接跑 build 會出現 `commonjs--resolver spawn EPERM`；需用允許的本機權限重跑，不視為程式碼錯誤。
+
+## 2026-06-03 驗證結果
+
+- 最新音訊引擎修正後，`npm.cmd run build:vite` 已通過。
+- `npm.cmd run build:firebase` 與 `npm.cmd run build:pages` 已通過；兩者仍只有既有的空 `firebase-vendor` chunk、`surges-slim.json` 分包與 chunk size 警告。
+- `firebase.cmd deploy --only hosting --project guilty-corn` 已成功部署 Firebase Hosting。
+- Hosting URL：`https://guilty-corn.web.app`
+- PowerShell 內仍建議使用 `npm.cmd`，避免 `npm.ps1` execution policy 問題。
+- Firebase Hosting deploy 前仍由 `firebase.json` predeploy 自動重跑 `npm run build:firebase`。
 
 ## 除錯規則
 
