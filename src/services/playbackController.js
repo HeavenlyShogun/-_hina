@@ -209,7 +209,7 @@ function normalizeEvents(events, timing, articulationRatio = 1) {
 
   const safeArticulationRatio = normalizeArticulationRatio(articulationRatio, 1);
 
-  return [...events]
+  const normalizedEvents = [...events]
     .map((event, index) => {
       const tick = roundTick(event?.startTick ?? event?.tick);
       const time = ticksToSeconds(tick, timing);
@@ -260,6 +260,20 @@ function normalizeEvents(events, timing, articulationRatio = 1) {
 
       return String(left.k ?? '').localeCompare(String(right.k ?? ''));
     });
+
+  const simultaneousCounts = new Map();
+  normalizedEvents.forEach((event) => {
+    if (event.isRest) {
+      return;
+    }
+
+    simultaneousCounts.set(event.tick, (simultaneousCounts.get(event.tick) ?? 0) + 1);
+  });
+
+  return normalizedEvents.map((event) => ({
+    ...event,
+    simultaneousNotes: simultaneousCounts.get(event.tick) ?? 1,
+  }));
 }
 
 function normalizeArticulationRatio(value, fallback = 1) {
@@ -826,6 +840,7 @@ class PlaybackController {
       outputGain: this.snapshot.vol,
       reverb: this.snapshot.reverb,
       velocity: Number.isFinite(Number(event.v)) ? Number(event.v) : 0.85,
+      simultaneousNotes: event.simultaneousNotes ?? 1,
     });
   }
 

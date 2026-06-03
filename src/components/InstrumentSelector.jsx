@@ -3,12 +3,6 @@ import { AudioLines, Drum, Guitar, Music2, Piano, Waves } from 'lucide-react';
 import { useAudioConfig } from '../contexts/AudioConfigContext';
 import { SUPPORTED_TONES, listAvailableInstruments } from '../constants/instruments';
 
-const LEGACY_INSTRUMENTS = [
-  { id: 'piano', label: '真鋼琴', Icon: Piano, sub: 'Salamander grand piano samples' },
-  { id: 'tongue-drum', label: '空靈鼓', Icon: Drum, sub: 'FluidR3 steel drums samples' },
-  { id: 'tongue-drum-electronic', label: '星鈴鼓', Icon: AudioLines, sub: 'Synthesized tongue drum layer' },
-];
-
 const ICONS = {
   'audio-lines': AudioLines,
   drum: Drum,
@@ -24,33 +18,20 @@ const INSTRUMENTS = listAvailableInstruments().map((instrument) => ({
   sub: `${instrument.type} / ${instrument.description}`,
 }));
 
-function normalizeToneList(tone) {
+function normalizeTone(tone) {
   const entries = Array.isArray(tone) ? tone : [tone || 'piano'];
   const allowed = new Set(SUPPORTED_TONES);
-  const normalized = [...new Set(entries.filter((entry) => allowed.has(entry)))];
-  return normalized.length > 0 ? normalized : ['piano'];
+  return entries.find((entry) => allowed.has(entry)) ?? 'piano';
 }
 
 const InstrumentSelector = memo(({ disabled = false }) => {
   const { tone, setTone } = useAudioConfig();
-  const selectedTones = normalizeToneList(tone);
-
-  const toggleTone = (id) => {
-    setTone((currentTone) => {
-      const current = normalizeToneList(currentTone);
-      if (current.includes(id)) {
-        const next = current.filter((entry) => entry !== id);
-        return next.length > 0 ? next : current;
-      }
-
-      return [...current, id];
-    });
-  };
+  const selectedTone = normalizeTone(tone);
 
   return (
     <div className="instrument-selector">
       {INSTRUMENTS.map(({ id, label, Icon, sub }) => {
-        const active = selectedTones.includes(id);
+        const active = selectedTone === id;
 
         return (
           <button
@@ -58,7 +39,7 @@ const InstrumentSelector = memo(({ disabled = false }) => {
             type="button"
             disabled={disabled}
             className={`instrument-btn ${active ? 'active' : ''}`}
-            onClick={() => toggleTone(id)}
+            onClick={() => setTone(id)}
             aria-pressed={active}
             title={sub}
           >

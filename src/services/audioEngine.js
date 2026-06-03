@@ -1,4 +1,5 @@
 import { getInstrumentDefinition } from '../constants/instruments.js';
+import * as Tone from 'tone';
 
 const DEFAULT_RENDER_CONFIG = {
   tone: 'piano',
@@ -10,7 +11,11 @@ const LIVE_NOTE_RELEASE_SEC = 0.16;
 const SAMPLE_LOAD_TIMEOUT_MS = 8000;
 const SOUNDFONT_LOAD_TIMEOUT_MS = 6000;
 const MIDI_JS_SOUNDFONT_BASE_URL = 'https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM';
+const TONEJS_INSTRUMENTS_BASE_URL = 'https://nbrosowsky.github.io/tonejs-instruments/samples';
 const MIDI_JS_SAMPLE_NOTES = ['C2', 'E2', 'G2', 'B2', 'D3', 'F3', 'A3', 'C4', 'E4', 'G4', 'B4', 'D5', 'F5', 'A5', 'C6', 'E6', 'G6'];
+const DENSE_NOTE_GAIN_FLOOR = 0.16;
+const TONE_SAMPLER_SOURCE = 'tone-sampler';
+const TONE_POLYSYNTH_SOURCE = 'tone-polysynth';
 const PIANO_TONE_SHAPING = {
   highShelfFrequency: 3000,
   highShelfMinGain: -6,
@@ -39,13 +44,13 @@ const TONE_PRESETS = {
     engine: 'sampler',
     sampleSet: 'piano',
     pianoTimbre: true,
-    layerGain: 1.22,
+    layerGain: 0.92,
     type: 'triangle',
     dur: 5.8,
     atk: 0.002,
     dec: 0.34,
     sus: 0.7,
-    pk: 1.08,
+    pk: 0.86,
     flt: true,
     fltStartMult: 10,
     fltEndMult: 2.8,
@@ -61,9 +66,9 @@ const TONE_PRESETS = {
     nVol: 0.028,
     hammerNoise: true,
     hammerDur: 0.018,
-    hammerVol: 0.095,
+    hammerVol: 0.06,
     release: 0.64,
-    velocity: 0.92,
+    velocity: 0.82,
   },
   'bright-acoustic-piano': {
     tone: 'bright-acoustic-piano',
@@ -86,15 +91,14 @@ const TONE_PRESETS = {
   'electric-guitar-clean': {
     tone: 'electric-guitar-clean',
     engine: 'sampler',
-    sampleSet: 'electric-guitar-clean',
-    nonBlockingSampleLoad: true,
-    layerGain: 1.08,
+    sampleSet: 'acoustic-guitar',
+    layerGain: 0.82,
     type: 'sawtooth',
     dur: 2.8,
     atk: 0.002,
     dec: 0.16,
     sus: 0.34,
-    pk: 0.92,
+    pk: 0.72,
     flt: true,
     fltStartMult: 9,
     fltEndMult: 2.8,
@@ -113,7 +117,60 @@ const TONE_PRESETS = {
     vibratoRate: 5.8,
     vibratoDelay: 0.22,
     release: 0.22,
-    velocity: 0.95,
+    velocity: 0.82,
+  },
+  'orchestral-harp': {
+    tone: 'orchestral-harp',
+    engine: 'sampler',
+    sampleSet: 'harp',
+    layerGain: 0.76,
+    type: 'triangle',
+    dur: 3.4,
+    atk: 0.004,
+    dec: 0.2,
+    sus: 0.48,
+    pk: 0.72,
+    flt: true,
+    fltEndMult: 3.5,
+    samplerFilterFrequency: 6200,
+    samplerFilterQ: 0.22,
+    release: 0.36,
+    velocity: 0.82,
+  },
+  'concert-flute': {
+    tone: 'concert-flute',
+    engine: 'sampler',
+    sampleSet: 'flute',
+    layerGain: 0.7,
+    type: 'sine',
+    dur: 2.8,
+    atk: 0.025,
+    dec: 0.2,
+    sus: 0.78,
+    pk: 0.52,
+    samplerFilterFrequency: 7600,
+    samplerFilterQ: 0.18,
+    vibratoDepth: 2.2,
+    vibratoRate: 5.2,
+    vibratoDelay: 0.12,
+    release: 0.42,
+    velocity: 0.78,
+  },
+  'acoustic-drums': {
+    tone: 'acoustic-drums',
+    engine: 'sampler',
+    sampleSet: 'pearl-acoustic-drums',
+    layerGain: 0.58,
+    type: 'triangle',
+    dur: 0.9,
+    atk: 0.001,
+    dec: 0.12,
+    sus: 0.2,
+    pk: 0.54,
+    samplerFilterFrequency: 7800,
+    samplerFilterQ: 0.2,
+    release: 0.16,
+    velocity: 0.72,
   },
   'tongue-drum': {
     tone: 'tongue-drum',
@@ -138,6 +195,7 @@ const TONE_PRESETS = {
   },
   'tongue-drum-electronic': {
     tone: 'tongue-drum-electronic',
+    engine: 'polysynth',
     layerGain: 0.78,
     type: 'sine',
     dur: 4.2,
@@ -159,6 +217,7 @@ const TONE_PRESETS = {
   },
   'retro-saw-synth': {
     tone: 'retro-saw-synth',
+    engine: 'polysynth',
     instrumentType: 'synthesized',
     layerGain: 0.72,
     type: 'sawtooth',
@@ -183,6 +242,7 @@ const TONE_PRESETS = {
   },
   'cozy-triangle-lead': {
     tone: 'cozy-triangle-lead',
+    engine: 'polysynth',
     instrumentType: 'synthesized',
     layerGain: 0.82,
     type: 'triangle',
@@ -288,8 +348,68 @@ const DYNAMIC_TONE_OVERRIDES = {
 const VALID_OSCILLATOR_TYPES = new Set(['sine', 'square', 'sawtooth', 'triangle']);
 const SAMPLE_LIBRARY_CONFIG = {
   piano: {
-    baseUrl: 'https://tonejs.github.io/audio/salamander',
-    samples: ['A2', 'C3', 'Ds3', 'Fs3', 'A3', 'C4', 'Ds4', 'Fs4', 'A4', 'C5', 'Ds5', 'Fs5', 'A5'],
+    source: 'direct',
+    baseUrl: `${TONEJS_INSTRUMENTS_BASE_URL}/piano/`,
+    samples: [
+      { noteName: 'C2', url: 'C2.wav' },
+      { noteName: 'F2', url: 'F2.wav' },
+      { noteName: 'A2', url: 'A2.wav' },
+      { noteName: 'C3', url: 'C3.wav' },
+      { noteName: 'F3', url: 'F3.wav' },
+      { noteName: 'A3', url: 'A3.wav' },
+      { noteName: 'C4', url: 'C4.wav' },
+      { noteName: 'F4', url: 'F4.wav' },
+      { noteName: 'A4', url: 'A4.wav' },
+      { noteName: 'C5', url: 'C5.wav' },
+      { noteName: 'F5', url: 'F5.wav' },
+      { noteName: 'A5', url: 'A5.wav' },
+      { noteName: 'C6', url: 'C6.wav' },
+    ],
+  },
+  'acoustic-guitar': {
+    source: 'direct',
+    baseUrl: `${TONEJS_INSTRUMENTS_BASE_URL}/guitar-acoustic/`,
+    samples: [
+      { noteName: 'E2', url: 'E2.wav' },
+      { noteName: 'A2', url: 'A2.wav' },
+      { noteName: 'D3', url: 'D3.wav' },
+      { noteName: 'G3', url: 'G3.wav' },
+      { noteName: 'B3', url: 'B3.wav' },
+      { noteName: 'E4', url: 'E4.wav' },
+      { noteName: 'A4', url: 'A4.wav' },
+      { noteName: 'C5', url: 'C5.wav' },
+    ],
+  },
+  harp: {
+    source: 'direct',
+    baseUrl: `${TONEJS_INSTRUMENTS_BASE_URL}/harp/`,
+    samples: [
+      { noteName: 'E3', url: 'E3.wav' },
+      { noteName: 'G3', url: 'G3.wav' },
+      { noteName: 'B3', url: 'B3.wav' },
+      { noteName: 'D4', url: 'D4.wav' },
+      { noteName: 'F4', url: 'F4.wav' },
+      { noteName: 'A4', url: 'A4.wav' },
+      { noteName: 'C5', url: 'C5.wav' },
+      { noteName: 'E5', url: 'E5.wav' },
+      { noteName: 'G5', url: 'G5.wav' },
+      { noteName: 'B5', url: 'B5.wav' },
+    ],
+  },
+  flute: {
+    source: 'direct',
+    baseUrl: `${TONEJS_INSTRUMENTS_BASE_URL}/flute/`,
+    samples: [
+      { noteName: 'C4', url: 'C4.wav' },
+      { noteName: 'E4', url: 'E4.wav' },
+      { noteName: 'A4', url: 'A4.wav' },
+      { noteName: 'C5', url: 'C5.wav' },
+      { noteName: 'E5', url: 'E5.wav' },
+      { noteName: 'A5', url: 'A5.wav' },
+      { noteName: 'C6', url: 'C6.wav' },
+      { noteName: 'E6', url: 'E6.wav' },
+      { noteName: 'A6', url: 'A6.wav' },
+    ],
   },
   'steel-drums': {
     source: 'midi-js',
@@ -300,6 +420,21 @@ const SAMPLE_LIBRARY_CONFIG = {
     source: 'midi-js',
     instrument: 'electric_guitar_clean',
     samples: ['C2', 'E2', 'G2', 'B2', 'D3', 'F3', 'A3', 'C4', 'E4', 'G4', 'B4', 'D5', 'F5', 'A5'],
+  },
+  'pearl-acoustic-drums': {
+    source: 'direct',
+    baseUrl: 'https://oramics.github.io/sampled/DRUMS/pearl-master-studio/samples/',
+    samples: [
+      { noteName: 'C2', url: 'kick-01.wav' },
+      { noteName: 'D2', url: 'snare-01.wav' },
+      { noteName: 'E2', url: 'hihat-closed.wav' },
+      { noteName: 'F2', url: 'hihat-open.wav' },
+      { noteName: 'G2', url: 'tom-01.wav' },
+      { noteName: 'A2', url: 'tom-02.wav' },
+      { noteName: 'B2', url: 'tom-03.wav' },
+      { noteName: 'C3', url: 'ride-01.wav' },
+      { noteName: 'D3', url: 'crash-01.wav' },
+    ],
   },
 };
 
@@ -450,6 +585,14 @@ function frequencyToMidi(frequency) {
   return 69 + (12 * Math.log2(frequency / 440));
 }
 
+function midiToNoteName(midi) {
+  const safeMidi = Math.max(0, Math.min(127, Math.round(Number(midi) || 0)));
+  const octave = Math.floor(safeMidi / 12) - 1;
+  const pitchClass = ((safeMidi % 12) + 12) % 12;
+  const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  return `${names[pitchClass] ?? 'C'}${octave}`;
+}
+
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
@@ -581,6 +724,22 @@ function normalizeMidiJsNoteName(noteName) {
   return String(noteName || '').replace('s', '#');
 }
 
+function resolveSampleUrl(baseUrl, url) {
+  if (!url) {
+    return null;
+  }
+
+  if (/^(?:https?:)?\/\//iu.test(url) || String(url).startsWith('data:')) {
+    return url;
+  }
+
+  if (!baseUrl) {
+    return url;
+  }
+
+  return `${String(baseUrl).replace(/\/?$/u, '/')}${String(url).replace(/^\/+/u, '')}`;
+}
+
 function parseMidiJsSoundfont(text) {
   const match = /=\s*(\{[\s\S]*\})\s*;?\s*$/u.exec(String(text || '').trim());
   if (!match) {
@@ -612,6 +771,10 @@ class AudioEngine {
     this.activeLiveVoices = new Map();
     this.sampleSets = new Map();
     this.sampleSetLoads = new Map();
+    this.toneSamplers = new Map();
+    this.toneSamplerLoads = new Map();
+    this.tonePolySynths = new Map();
+    this.toneContext = null;
     this.instrumentAdapters = new Map();
   }
 
@@ -657,6 +820,7 @@ class AudioEngine {
     masterOutput.connect(context.destination);
 
     this.audioContext = context;
+    this.bindToneContext(context);
     this.compressor = compressor;
     this.masterOutput = masterOutput;
     this.reverbConvolver = convolver;
@@ -667,6 +831,15 @@ class AudioEngine {
     this.breathNoiseBuffer = this.createNoiseBuffer(context, 0.8, false);
 
     return this.audioContext;
+  }
+
+  bindToneContext(context) {
+    if (!context || this.toneContext === context) {
+      return;
+    }
+
+    Tone.setContext(context);
+    this.toneContext = context;
   }
 
   async resume() {
@@ -702,8 +875,25 @@ class AudioEngine {
           return null;
         });
       }),
+      ...toneNames.map((toneName) => {
+        const config = this.resolveRenderConfig({ tone: toneName }, 1);
+        if (config.engine === 'sampler' && config.sampleSet) {
+          return this.loadToneSampler(config.sampleSet, config).catch((error) => {
+            console.warn(`Tone.Sampler "${config.sampleSet}" is unavailable.`, error);
+            return null;
+          });
+        }
+        if (config.engine === 'polysynth') {
+          return this.getTonePolySynth(toneName, config);
+        }
+        return null;
+      }),
       ...midiOriginalSampleSets.map((sampleSet) => this.loadSampleSet(sampleSet).catch((error) => {
         console.warn(`MIDI original sampler "${sampleSet}" is unavailable.`, error);
+        return null;
+      })),
+      ...midiOriginalSampleSets.map((sampleSet) => this.loadToneSampler(sampleSet, { sampleSet }).catch((error) => {
+        console.warn(`MIDI original Tone.Sampler "${sampleSet}" is unavailable.`, error);
         return null;
       })),
     ]);
@@ -851,6 +1041,18 @@ class AudioEngine {
 
   buildVoice(context, safeFrequency, startTime, noteDuration, config, voiceMeta = {}) {
     if (config.engine === 'sampler') {
+      const toneVoice = this._buildToneSamplerVoice(
+        context,
+        safeFrequency,
+        startTime,
+        noteDuration,
+        config,
+        voiceMeta,
+      );
+      if (toneVoice) {
+        return toneVoice;
+      }
+
       const sampledVoice = this._buildSamplerVoice(
         context,
         safeFrequency,
@@ -861,6 +1063,20 @@ class AudioEngine {
       );
       if (sampledVoice) {
         return sampledVoice;
+      }
+    }
+
+    if (config.engine === 'polysynth') {
+      const toneVoice = this._buildTonePolySynthVoice(
+        context,
+        safeFrequency,
+        startTime,
+        noteDuration,
+        config,
+        voiceMeta,
+      );
+      if (toneVoice) {
+        return toneVoice;
       }
     }
 
@@ -902,13 +1118,220 @@ class AudioEngine {
     };
   }
 
+  getToneSampleUrls(sampleConfig, soundfontEntries = null) {
+    const urls = {};
+
+    (sampleConfig.samples ?? []).forEach((sampleEntry) => {
+      const noteName = typeof sampleEntry === 'string' ? sampleEntry : sampleEntry?.noteName;
+      const toneNoteName = normalizeMidiJsNoteName(noteName);
+      if (!toneNoteName) {
+        return;
+      }
+
+      if (sampleConfig.source === 'midi-js') {
+        const sourceUrl = soundfontEntries?.[toneNoteName] ?? soundfontEntries?.[noteName];
+        if (sourceUrl) {
+          urls[toneNoteName] = sourceUrl;
+        }
+        return;
+      }
+
+      urls[toneNoteName] = sampleEntry?.url ?? `${noteName}.mp3`;
+    });
+
+    return urls;
+  }
+
+  async loadToneSampler(sampleSetId, config = {}) {
+    if (!sampleSetId) {
+      return null;
+    }
+
+    if (this.toneSamplers.has(sampleSetId)) {
+      return this.toneSamplers.get(sampleSetId);
+    }
+
+    if (this.toneSamplerLoads.has(sampleSetId)) {
+      return this.toneSamplerLoads.get(sampleSetId);
+    }
+
+    this.init();
+    const sampleConfig = SAMPLE_LIBRARY_CONFIG[sampleSetId];
+    const resolvedSampleConfig = sampleConfig ?? (
+      String(sampleSetId).startsWith('gm:')
+        ? {
+          source: 'midi-js',
+          instrument: String(sampleSetId).slice(3) || 'acoustic_grand_piano',
+          samples: MIDI_JS_SAMPLE_NOTES,
+        }
+        : null
+    );
+
+    if (!resolvedSampleConfig) {
+      return null;
+    }
+
+    const loadPromise = (async () => {
+      const soundfontEntries = resolvedSampleConfig.source === 'midi-js'
+        ? await this.loadMidiJsSoundfont(resolvedSampleConfig.instrument)
+        : null;
+      const urls = this.getToneSampleUrls(resolvedSampleConfig, soundfontEntries);
+
+      if (!Object.keys(urls).length) {
+        throw new Error(`No Tone.Sampler URLs for "${sampleSetId}".`);
+      }
+
+      const sampler = await new Promise((resolve, reject) => {
+        const instance = new Tone.Sampler({
+          urls,
+          baseUrl: resolvedSampleConfig.baseUrl ?? '',
+          attack: Math.max(Number(config.atk) || 0.003, 0),
+          release: Math.max(Number(config.release) || 0.28, 0.02),
+          curve: 'exponential',
+          onload: () => resolve(instance),
+          onerror: reject,
+        });
+        instance.connect(this.compressor);
+      });
+
+      this.toneSamplers.set(sampleSetId, sampler);
+      this.toneSamplerLoads.delete(sampleSetId);
+      return sampler;
+    })().catch((error) => {
+      this.toneSamplerLoads.delete(sampleSetId);
+      throw error;
+    });
+
+    this.toneSamplerLoads.set(sampleSetId, loadPromise);
+    return loadPromise;
+  }
+
+  getTonePolySynth(toneName, config = {}) {
+    this.init();
+
+    if (this.tonePolySynths.has(toneName)) {
+      return this.tonePolySynths.get(toneName);
+    }
+
+    const synth = new Tone.PolySynth({
+      voice: Tone.Synth,
+      maxPolyphony: Math.min(AudioEngine.MAX_VOICES, 48),
+      options: {
+        oscillator: {
+          type: normalizeOscillatorType(config.type, 'triangle'),
+        },
+        envelope: {
+          attack: Math.max(Number(config.atk) || 0.01, 0.001),
+          decay: Math.max(Number(config.dec) || 0.2, 0.001),
+          sustain: clamp(Number(config.sus) || 0.45, 0.001, 1),
+          release: Math.max(Number(config.release) || 0.35, 0.02),
+        },
+      },
+    });
+
+    synth.connect(this.compressor);
+    this.tonePolySynths.set(toneName, synth);
+    return synth;
+  }
+
+  scheduleToneVoiceCleanup(voice, stopTime) {
+    if (!voice || voice.cleaned) {
+      return;
+    }
+
+    const now = this.audioContext?.currentTime ?? 0;
+    const delayMs = Math.max((stopTime - now) * 1000, 0) + 80;
+    if (voice.cleanupTimer) {
+      window.clearTimeout(voice.cleanupTimer);
+    }
+
+    voice.cleanupTimer = window.setTimeout(() => this.cleanupVoice(voice), delayMs);
+  }
+
+  _buildToneSamplerVoice(context, safeFrequency, startTime, noteDuration, config, voiceMeta = {}) {
+    const sampler = this.toneSamplers.get(config.sampleSet);
+    if (!sampler?.loaded) {
+      return null;
+    }
+
+    const noteVelocity = clamp(Number(config.velocity ?? DEFAULT_RENDER_CONFIG.velocity) || 0, 0.001, 1);
+    const outputGain = clamp(Number(config.outputGain) || 0, 0, 1.4);
+    const denseGain = Math.max(Number(config.denseGainScale) || 1, DENSE_NOTE_GAIN_FLOOR);
+    const instrumentGain = Math.max(Number(config.layerGain) || 1, 0);
+    const velocity = clamp(noteVelocity * outputGain * denseGain * instrumentGain, 0.001, 1);
+    const releaseDuration = Math.max(Number(config.release) || 0.28, 0.02);
+    const stopTime = startTime + Math.max(noteDuration, 0.02) + releaseDuration;
+    const noteName = midiToNoteName(frequencyToMidi(safeFrequency));
+
+    sampler.triggerAttackRelease(noteName, Math.max(noteDuration, 0.02), startTime, velocity);
+
+    const voice = {
+      sourceType: TONE_SAMPLER_SOURCE,
+      mode: voiceMeta.mode ?? 'scheduled',
+      importance: voiceMeta.importance ?? 0,
+      liveVoiceKey: voiceMeta.liveVoiceKey ?? null,
+      startTime,
+      endTime: voiceMeta.endTime ?? stopTime,
+      stopTime,
+      releaseAt: null,
+      isReleased: false,
+      cleaned: false,
+      toneInstrument: sampler,
+      noteName,
+      cleanupTimer: null,
+    };
+
+    this.activeVoices.add(voice);
+    this.scheduleToneVoiceCleanup(voice, stopTime);
+    return voice;
+  }
+
+  _buildTonePolySynthVoice(context, safeFrequency, startTime, noteDuration, config, voiceMeta = {}) {
+    const synth = this.getTonePolySynth(config.tone, config);
+    if (!synth) {
+      return null;
+    }
+
+    const noteVelocity = clamp(Number(config.velocity ?? DEFAULT_RENDER_CONFIG.velocity) || 0, 0.001, 1);
+    const outputGain = clamp(Number(config.outputGain) || 0, 0, 1.4);
+    const denseGain = Math.max(Number(config.denseGainScale) || 1, DENSE_NOTE_GAIN_FLOOR);
+    const instrumentGain = Math.max(Number(config.layerGain) || 1, 0);
+    const velocity = clamp(noteVelocity * outputGain * denseGain * instrumentGain, 0.001, 1);
+    const releaseDuration = Math.max(Number(config.release) || 0.35, 0.02);
+    const stopTime = startTime + Math.max(noteDuration, 0.02) + releaseDuration;
+    const noteName = midiToNoteName(frequencyToMidi(safeFrequency));
+
+    synth.triggerAttackRelease(noteName, Math.max(noteDuration, 0.02), startTime, velocity);
+
+    const voice = {
+      sourceType: TONE_POLYSYNTH_SOURCE,
+      mode: voiceMeta.mode ?? 'scheduled',
+      importance: voiceMeta.importance ?? 0,
+      liveVoiceKey: voiceMeta.liveVoiceKey ?? null,
+      startTime,
+      endTime: voiceMeta.endTime ?? stopTime,
+      stopTime,
+      releaseAt: null,
+      isReleased: false,
+      cleaned: false,
+      toneInstrument: synth,
+      noteName,
+      cleanupTimer: null,
+    };
+
+    this.activeVoices.add(voice);
+    this.scheduleToneVoiceCleanup(voice, stopTime);
+    return voice;
+  }
+
   _buildSynthVoice(context, safeFrequency, startTime, noteDuration, config, voiceMeta = {}) {
     const noteVelocity = Math.max(Number(config.velocity ?? DEFAULT_RENDER_CONFIG.velocity) || 0, 0);
     const timbreCurve = config.pianoTimbre ? getPianoTimbreCurve(safeFrequency, noteVelocity) : null;
     const keyGainMod = timbreCurve?.gain ?? Math.min(1, 800 / (safeFrequency + 200));
     const outputGain = Math.max(Number(config.outputGain) || 0, 0);
     const reverbAmount = Math.max(Number(config.reverbAmount) || 0, 0);
-    const peak = Math.max(0.0001, noteVelocity * config.pk * keyGainMod * outputGain);
+    const denseGain = Math.max(Number(config.denseGainScale) || 1, DENSE_NOTE_GAIN_FLOOR);
+    const peak = Math.max(0.0001, noteVelocity * config.pk * keyGainMod * outputGain * denseGain);
     const sustainLevel = Math.max(peak * config.sus, 0.0001);
     const sustainUntil = Math.max(startTime + noteDuration, startTime + config.dec + 0.01);
     const releaseDuration = Math.max(
@@ -1074,9 +1497,10 @@ class AudioEngine {
     const playbackRate = Math.max(safeFrequency / sample.frequency, 0.125);
     const noteVelocity = Math.max(Number(config.velocity ?? DEFAULT_RENDER_CONFIG.velocity) || 0, 0);
     const timbreCurve = config.pianoTimbre ? getPianoTimbreCurve(safeFrequency, noteVelocity) : null;
+    const denseGain = Math.max(Number(config.denseGainScale) || 1, DENSE_NOTE_GAIN_FLOOR);
     const peak = Math.max(
       0.0001,
-      noteVelocity * (config.pk ?? 1) * outputGain * (timbreCurve?.gain ?? 1),
+      noteVelocity * (config.pk ?? 1) * outputGain * denseGain * (timbreCurve?.gain ?? 1),
     );
     const sustainUntil = Math.max(startTime + noteDuration, startTime + 0.04);
     const releaseDuration = Math.max((config.release ?? 0.28) * (timbreCurve?.releaseScale ?? 1), 0.05);
@@ -1264,6 +1688,14 @@ class AudioEngine {
     voice.releaseAt = safeReleaseStart;
     voice.endTime = Math.min(voice.endTime ?? safeStopAt, safeStopAt);
 
+    if (voice.sourceType === TONE_SAMPLER_SOURCE || voice.sourceType === TONE_POLYSYNTH_SOURCE) {
+      try {
+        voice.toneInstrument?.triggerRelease?.(voice.noteName, safeReleaseStart);
+      } catch {}
+      this.scheduleToneVoiceCleanup(voice, safeStopAt);
+      return;
+    }
+
     try {
       rampAudioParamToSilence(voice.envelopeGain.gain, safeReleaseStart, safeStopAt);
       rampAudioParamToSilence(voice.noiseGain?.gain, safeReleaseStart, safeStopAt);
@@ -1287,6 +1719,15 @@ class AudioEngine {
     if (!voice || voice.cleaned) return;
     voice.cleaned = true;
     this.activeVoices.delete(voice);
+
+    if (voice.cleanupTimer) {
+      window.clearTimeout(voice.cleanupTimer);
+      voice.cleanupTimer = null;
+    }
+
+    if (voice.sourceType === TONE_SAMPLER_SOURCE || voice.sourceType === TONE_POLYSYNTH_SOURCE) {
+      return;
+    }
 
     try { voice.oscillator.onended = null; } catch {}
     const sourceNodes = Array.isArray(voice.sourceNodes)
@@ -1334,6 +1775,9 @@ class AudioEngine {
       ...normalized,
       tone: toneName,
     };
+
+    const density = Math.max(Number(normalized.density ?? normalized.simultaneousNotes) || 1, 1);
+    resolved.denseGainScale = Math.max(1 / Math.sqrt(density), DENSE_NOTE_GAIN_FLOOR);
 
     if (typeof resolved.reverb === 'boolean') {
       resolved.reverbAmount = resolved.reverb ? DEFAULT_RENDER_CONFIG.reverbAmount : 0;
@@ -1459,7 +1903,10 @@ class AudioEngine {
         const normalizedNoteName = normalizeMidiJsNoteName(noteName);
         const url = resolvedSampleConfig.source === 'midi-js'
           ? soundfontEntries?.[normalizedNoteName] ?? soundfontEntries?.[noteName]
-          : sampleEntry?.url ?? `${resolvedSampleConfig.baseUrl}/${noteName}.mp3`;
+          : resolveSampleUrl(
+            resolvedSampleConfig.baseUrl,
+            sampleEntry?.url ?? `${noteName}.mp3`,
+          );
 
         if (!url) {
           return null;
