@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useCallback, useMemo, useState } from 'react';
 import { AudioLines, Drum, Guitar, Music2, Piano, Waves } from 'lucide-react';
 import { useAudioConfig } from '../contexts/AudioConfigContext';
 import { SUPPORTED_TONES, listAvailableInstruments } from '../constants/instruments';
@@ -18,39 +18,143 @@ const INSTRUMENTS = listAvailableInstruments().map((instrument) => ({
   sub: `${instrument.type} / ${instrument.description}`,
 }));
 
-function normalizeTone(tone) {
+function normalizeToneList(tone) {
   const entries = Array.isArray(tone) ? tone : [tone || 'piano'];
   const allowed = new Set(SUPPORTED_TONES);
-  return entries.find((entry) => allowed.has(entry)) ?? 'piano';
+  const normalized = entries.filter((entry, index) => allowed.has(entry) && entries.indexOf(entry) === index);
+  return normalized.length ? normalized : ['piano'];
 }
 
 const InstrumentSelector = memo(({ disabled = false }) => {
   const { tone, setTone } = useAudioConfig();
-  const selectedTone = normalizeTone(tone);
+  const selectedTones = useMemo(() => normalizeToneList(tone), [tone]);
+  const [isBlendMode, setIsBlendMode] = useState(Array.isArray(tone) && tone.length > 1);
+
+  const handleSelectTone = useCallback((id) => {
+    if (!isBlendMode) {
+      setTone(id);
+      return;
+    }
+
+    setTone((currentTone) => {
+      const current = normalizeToneList(currentTone);
+      const exists = current.includes(id);
+      const next = exists
+        ? current.filter((entry) => entry !== id)
+        : [...current, id];
+
+      return next.length ? next : id;
+    });
+  }, [isBlendMode, setTone]);
+
+  const handleToggleBlendMode = useCallback((event) => {
+    const enabled = event.target.checked;
+    setIsBlendMode(enabled);
+    if (!enabled) {
+      setTone((currentTone) => normalizeToneList(currentTone)[0] ?? 'piano');
+    } else {
+      setTone((currentTone) => normalizeToneList(currentTone));
+    }
+  }, [setTone]);
 
   return (
-    <div className="instrument-selector">
-      {INSTRUMENTS.map(({ id, label, Icon, sub }) => {
-        const active = selectedTone === id;
-
-        return (
-          <button
-            key={id}
-            type="button"
+    <div className="instrument-selector-wrap">
+      <div className="instrument-toolbar">
+        <label className="blend-toggle">
+          <input
+            type="checkbox"
+            checked={isBlendMode}
             disabled={disabled}
-            className={`instrument-btn ${active ? 'active' : ''}`}
-            onClick={() => setTone(id)}
-            aria-pressed={active}
-            title={sub}
-          >
-            <span className="instrument-icon">
-              <Icon size={18} strokeWidth={2.2} />
-            </span>
-            <span className="instrument-label">{label}</span>
-          </button>
-        );
-      })}
+            onChange={handleToggleBlendMode}
+          />
+          <span className="blend-toggle-track" aria-hidden="true" />
+          <span className="blend-toggle-label">Blend</span>
+        </label>
+      </div>
+      <div className="instrument-selector">
+        {INSTRUMENTS.map(({ id, label, Icon, sub }) => {
+          const active = selectedTones.includes(id);
+
+          return (
+            <button
+              key={id}
+              type="button"
+              disabled={disabled}
+              className={`instrument-btn ${active ? 'active' : ''}`}
+              onClick={() => handleSelectTone(id)}
+              aria-pressed={active}
+              title={sub}
+            >
+              <span className="instrument-icon">
+                <Icon size={18} strokeWidth={2.2} />
+              </span>
+              <span className="instrument-label">{label}</span>
+            </button>
+          );
+        })}
+      </div>
       <style>{`
+        .instrument-selector-wrap {
+          position: relative;
+          z-index: 30;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 8px;
+        }
+        .instrument-toolbar {
+          display: flex;
+          width: min(100%, 980px);
+          justify-content: flex-end;
+          padding: 0 16px;
+        }
+        .blend-toggle {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          min-height: 34px;
+          border: 1px solid rgba(219,234,254,0.18);
+          border-radius: 999px;
+          background: rgba(5, 8, 28, 0.7);
+          padding: 5px 10px;
+          color: rgba(219,234,254,0.82);
+          font-size: 10px;
+          font-weight: 900;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
+          cursor: pointer;
+        }
+        .blend-toggle input {
+          position: absolute;
+          opacity: 0;
+          pointer-events: none;
+        }
+        .blend-toggle-track {
+          position: relative;
+          width: 34px;
+          height: 18px;
+          border-radius: 999px;
+          background: rgba(15,23,42,0.86);
+          box-shadow: inset 0 0 0 1px rgba(219,234,254,0.2);
+        }
+        .blend-toggle-track::after {
+          content: '';
+          position: absolute;
+          left: 3px;
+          top: 3px;
+          width: 12px;
+          height: 12px;
+          border-radius: 999px;
+          background: rgba(226,232,240,0.92);
+          transition: transform 160ms ease, background 160ms ease;
+        }
+        .blend-toggle input:checked + .blend-toggle-track {
+          background: rgba(45, 212, 191, 0.32);
+        }
+        .blend-toggle input:checked + .blend-toggle-track::after {
+          transform: translateX(16px);
+          background: #fef3c7;
+        }
         .instrument-selector {
           display: flex;
           gap: 10px;
@@ -58,7 +162,6 @@ const InstrumentSelector = memo(({ disabled = false }) => {
           padding: 4px 16px 0;
           flex-wrap: wrap;
           position: relative;
-          z-index: 30;
         }
         .instrument-btn {
           position: relative;

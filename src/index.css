@@ -48,6 +48,19 @@ body {
 @media (max-width: 768px), (pointer: coarse) {
   .app-shell {
     background-attachment: scroll;
+    background-position: center top !important;
+  }
+}
+
+@media (orientation: portrait) {
+  .app-shell {
+    background-size: auto 100% !important;
+  }
+}
+
+@media (orientation: landscape) {
+  .app-shell {
+    background-size: cover !important;
   }
 }
 
@@ -88,6 +101,16 @@ body {
 
 .app-shell .ui-panel[data-panel-mode='clear'] {
   background: linear-gradient(145deg, rgba(8, 12, 32, 0.18), rgba(42, 35, 88, 0.1));
+}
+
+.app-shell [data-panel-kind='background-board'][data-panel-mode='clear'] {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.app-shell [data-panel-kind='background-board'][data-panel-mode='clear'] > .pointer-events-none {
+  opacity: 0;
 }
 
 .app-shell .ui-panel-light[data-panel-mode='normal'] {

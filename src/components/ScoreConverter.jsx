@@ -105,6 +105,7 @@ const ScoreConverter = memo(({
 }) => {
   const midiInputRef = useRef(null);
   const musicXmlInputRef = useRef(null);
+  const scoreInputRef = useRef(null);
   const [isImportingMidi, setIsImportingMidi] = useState(false);
   const [isImportingMusicXml, setIsImportingMusicXml] = useState(false);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
@@ -590,7 +591,7 @@ const ScoreConverter = memo(({
             <div className="flex flex-wrap justify-center gap-2">
               <button
                 type="button"
-                onClick={() => midiInputRef.current?.click()}
+                onClick={() => scoreInputRef.current?.click()}
                 disabled={isImporting}
                 className="inline-flex items-center gap-2 rounded-2xl border border-amber-300/25 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-50 transition hover:bg-amber-500/20 disabled:opacity-50"
               >
@@ -601,7 +602,7 @@ const ScoreConverter = memo(({
                 type="button"
                 onClick={() => musicXmlInputRef.current?.click()}
                 disabled={isImporting}
-                className="inline-flex items-center gap-2 rounded-2xl border border-sky-300/25 bg-sky-500/10 px-4 py-2 text-sm font-semibold text-sky-50 transition hover:bg-sky-500/20 disabled:opacity-50"
+                className="hidden"
               >
                 <Files size={15} />
                 選擇 MusicXML / MXL
@@ -703,6 +704,14 @@ const ScoreConverter = memo(({
           </div>
         </div>
 
+        <input
+          ref={scoreInputRef}
+          type="file"
+          multiple
+          accept=".mid,.midi,.musicxml,.xml,.mxl,audio/midi,application/vnd.recordare.musicxml,application/vnd.recordare.musicxml+xml"
+          className="hidden"
+          onChange={handleMidiFileChange}
+        />
         <input
           ref={midiInputRef}
           type="file"

@@ -246,10 +246,10 @@ const PianoKeys = memo(({
     <main id="lyre-keyboard" className="relative z-20 mt-6 w-full max-w-6xl scroll-mt-6 px-1 sm:mt-10 sm:px-4">
       <div data-ui-panel="true" data-panel-mode={uiMode} onPointerDown={onPanelPointerDown} className="ui-panel group relative overflow-hidden rounded-[24px] border border-sky-200/25 p-2 text-slate-100 shadow-[0_35px_120px_rgba(2,6,23,0.42)] transition-colors duration-300 sm:rounded-[36px] sm:p-6 md:rounded-[60px] md:p-14">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.08),transparent_30%),radial-gradient(circle_at_80%_22%,rgba(250,204,21,0.05),transparent_24%),linear-gradient(180deg,rgba(2,6,23,0.24),rgba(15,23,42,0.32))]" />
-        <div className="absolute inset-x-0 top-0 px-4 pt-4 sm:px-6 md:px-8">
+        <div className="absolute inset-x-0 top-0 px-3 pt-3 sm:px-6 sm:pt-4 md:px-8">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-slate-100">
             <span>{isScrubbing ? 'Scrubbing' : 'Playback Timeline'}</span>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={(event) => {
@@ -257,7 +257,7 @@ const PianoKeys = memo(({
                   event.stopPropagation();
                   void onTogglePlay?.();
                 }}
-                className="inline-flex h-7 items-center gap-1.5 rounded-full border border-emerald-300/35 bg-emerald-400/12 px-3 text-[10px] font-black tracking-[0.16em] text-emerald-50 transition-colors hover:bg-emerald-400/22"
+                className="inline-flex min-h-10 items-center gap-1.5 rounded-full border border-emerald-300/35 bg-emerald-400/12 px-3 text-[10px] font-black tracking-[0.16em] text-emerald-50 transition-colors hover:bg-emerald-400/22 sm:min-h-8"
                 title={isPlaying ? '停止目前播放' : '播放目前譜面'}
               >
                 <Play size={12} fill="currentColor" />
@@ -267,7 +267,7 @@ const PianoKeys = memo(({
                 type="button"
                 onClick={handlePauseToggle}
                 disabled={!isPlaying && !isPaused}
-                className={`inline-flex h-7 items-center gap-1.5 rounded-full border px-3 text-[10px] font-black tracking-[0.16em] transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
+                className={`inline-flex min-h-10 items-center gap-1.5 rounded-full border px-3 text-[10px] font-black tracking-[0.16em] transition-colors disabled:cursor-not-allowed disabled:opacity-45 sm:min-h-8 ${
                   isPaused
                     ? 'border-emerald-300/40 bg-emerald-400/15 text-emerald-50 hover:bg-emerald-400/25'
                     : 'border-amber-300/35 bg-amber-400/12 text-amber-50 hover:bg-amber-400/20'
@@ -284,7 +284,7 @@ const PianoKeys = memo(({
                   event.stopPropagation();
                   void onRestart?.();
                 }}
-                className="inline-flex h-7 items-center gap-1.5 rounded-full border border-sky-300/35 bg-sky-400/12 px-3 text-[10px] font-black tracking-[0.16em] text-sky-50 transition-colors hover:bg-sky-400/22"
+                className="inline-flex min-h-10 items-center gap-1.5 rounded-full border border-sky-300/35 bg-sky-400/12 px-3 text-[10px] font-black tracking-[0.16em] text-sky-50 transition-colors hover:bg-sky-400/22 sm:min-h-8"
                 title="從頭開始播放"
               >
                 <RotateCcw size={12} />
@@ -306,7 +306,7 @@ const PianoKeys = memo(({
             onPointerUp={handleTimelinePointerUp}
             onPointerCancel={handleTimelinePointerCancel}
             onLostPointerCapture={handleTimelinePointerCancel}
-            className={`relative h-4 overflow-hidden rounded-full border border-slate-700 bg-slate-900/90 ${maxTime > 0 ? 'cursor-ew-resize' : 'cursor-default'}`}
+            className={`relative h-8 touch-none overflow-hidden rounded-full border border-slate-700 bg-slate-900/90 sm:h-5 ${maxTime > 0 ? 'cursor-ew-resize' : 'cursor-default'}`}
           >
             <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))]" />
             <div
@@ -315,12 +315,12 @@ const PianoKeys = memo(({
               style={{ width: `${displayRatio * 100}%`, transition: isScrubbing ? 'none' : 'width 16ms linear' }}
             />
             <div
-              className="pointer-events-none absolute top-1/2 h-6 w-6 -translate-y-1/2 -translate-x-1/2 rounded-full border border-sky-200/70 bg-sky-100/90 shadow-[0_0_18px_rgba(56,189,248,0.45)]"
+              className="pointer-events-none absolute top-1/2 h-7 w-7 -translate-y-1/2 -translate-x-1/2 rounded-full border border-sky-200/70 bg-sky-100/90 shadow-[0_0_18px_rgba(56,189,248,0.45)] sm:h-6 sm:w-6"
               style={{ left: `${displayRatio * 100}%` }}
             />
           </div>
         </div>
-        <div className="mobile-keyboard-grid relative pt-24 sm:pt-14 md:pt-16">
+        <div className="mobile-keyboard-grid relative pt-36 sm:pt-16 md:pt-16">
           {NOTES_MAP.map((row, rowIndex) => (
             <div key={rowIndex} className="relative mb-3 grid grid-cols-1 gap-1.5 last:mb-0 sm:mb-8 sm:gap-4 md:mb-10 md:gap-8 lg:grid-cols-[104px_1fr] lg:items-center">
               <div className="flex w-full items-center justify-between px-1 text-center lg:flex-col lg:items-end lg:justify-center lg:px-0 lg:text-right">

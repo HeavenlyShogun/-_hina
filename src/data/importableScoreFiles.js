@@ -28,8 +28,6 @@ const IMPORTABLE_SCORE_ORDER = [
   'haruhikage-slim.json',
   'wrong-world-slim.json',
   'nameless-voice-slim.json',
-  'seiza-ni-naretara-slim.json',
-  'guitar-loneliness-blue-planet-slim.json',
   'unravel-midi-slim.json',
   'lilas-slim.json',
   'combined_22_mxl-slim.json',

@@ -10,9 +10,53 @@ const DEFAULT_AUDIO_CONFIG = {
   globalKeyOffset: DEFAULT_SCORE_PARAMS.globalKeyOffset,
   scaleMode: DEFAULT_SCORE_PARAMS.scaleMode,
 };
+const AUDIO_CONFIG_STORAGE_KEY = 'hina-audio-config@2';
+const LEGACY_AUDIO_CONFIG_KEYS = [
+  'hina-audio-config',
+  'hina-audio-settings',
+  'universal-rhythm-recorder-audio',
+];
 
 function resolveNextValue(nextValue, currentValue) {
   return typeof nextValue === 'function' ? nextValue(currentValue) : nextValue;
+}
+
+function readStoredAudioConfig() {
+  if (typeof window === 'undefined') {
+    return {};
+  }
+
+  try {
+    LEGACY_AUDIO_CONFIG_KEYS.forEach((key) => window.localStorage.removeItem(key));
+    const stored = JSON.parse(window.localStorage.getItem(AUDIO_CONFIG_STORAGE_KEY) || '{}');
+    return stored && typeof stored === 'object'
+      ? {
+        ...(stored.vol === undefined ? {} : { vol: stored.vol }),
+        ...(stored.tone === undefined ? {} : { tone: normalizeToneSelection(stored.tone) }),
+        ...(stored.reverb === undefined ? {} : { reverb: stored.reverb }),
+        ...(stored.globalKeyOffset === undefined ? {} : { globalKeyOffset: stored.globalKeyOffset }),
+        ...(stored.scaleMode === undefined ? {} : { scaleMode: stored.scaleMode }),
+      }
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeStoredAudioConfig(config) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(AUDIO_CONFIG_STORAGE_KEY, JSON.stringify({
+      vol: config.vol,
+      tone: config.tone,
+      reverb: config.reverb,
+      globalKeyOffset: config.globalKeyOffset,
+      scaleMode: config.scaleMode,
+    }));
+  } catch {}
 }
 
 export function AudioConfigProvider({
@@ -21,11 +65,16 @@ export function AudioConfigProvider({
   children,
 }) {
   const onConfigChangeRef = useRef(onConfigChange);
-  const [config, setConfig] = useState(() => ({
-    ...DEFAULT_AUDIO_CONFIG,
-    ...initialConfig,
-    tone: normalizeToneSelection(initialConfig.tone ?? DEFAULT_AUDIO_CONFIG.tone),
-  }));
+  const [config, setConfig] = useState(() => {
+    const storedConfig = readStoredAudioConfig();
+
+    return {
+      ...DEFAULT_AUDIO_CONFIG,
+      ...initialConfig,
+      ...storedConfig,
+      tone: normalizeToneSelection(storedConfig.tone ?? initialConfig.tone ?? DEFAULT_AUDIO_CONFIG.tone),
+    };
+  });
 
   useEffect(() => {
     onConfigChangeRef.current = onConfigChange;
@@ -35,7 +84,6 @@ export function AudioConfigProvider({
     setConfig((prev) => ({
       ...prev,
       ...(initialConfig.vol === undefined ? {} : { vol: initialConfig.vol }),
-      ...(initialConfig.tone === undefined ? {} : { tone: normalizeToneSelection(initialConfig.tone) }),
       ...(initialConfig.reverb === undefined ? {} : { reverb: initialConfig.reverb }),
       ...(initialConfig.globalKeyOffset === undefined ? {} : { globalKeyOffset: initialConfig.globalKeyOffset }),
       ...(initialConfig.scaleMode === undefined ? {} : { scaleMode: initialConfig.scaleMode }),
@@ -44,9 +92,12 @@ export function AudioConfigProvider({
     initialConfig.globalKeyOffset,
     initialConfig.reverb,
     initialConfig.scaleMode,
-    initialConfig.tone,
     initialConfig.vol,
   ]);
+
+  useEffect(() => {
+    writeStoredAudioConfig(config);
+  }, [config]);
 
   const updateConfig = useCallback((updater, options = {}) => {
     setConfig((prev) => {

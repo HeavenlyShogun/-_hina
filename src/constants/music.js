@@ -237,8 +237,14 @@ export const DEFAULT_SCORE_PARAMS = {
 export function normalizeToneSelection(tone) {
   const entries = Array.isArray(tone) ? tone : [tone ?? DEFAULT_SCORE_PARAMS.tone];
   const allowed = new Set(SUPPORTED_TONES);
-  const normalized = entries.find((entry) => allowed.has(entry));
-  return normalized ?? DEFAULT_SCORE_PARAMS.tone;
+  const normalized = entries
+    .filter((entry, index) => allowed.has(entry) && entries.indexOf(entry) === index);
+
+  if (Array.isArray(tone)) {
+    return normalized.length ? normalized : DEFAULT_SCORE_PARAMS.tone;
+  }
+
+  return normalized[0] ?? DEFAULT_SCORE_PARAMS.tone;
 }
 
 export const ALL_KEYS_FLAT = NOTES_MAP.flatMap((row) => row.keys);

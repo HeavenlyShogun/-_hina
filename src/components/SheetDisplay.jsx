@@ -202,6 +202,7 @@ const SheetDisplay = memo(({
   const [showGuide, setShowGuide] = useState(false);
   const [referenceSearch, setReferenceSearch] = useState('');
   const [timelinePreviewTick, setTimelinePreviewTick] = useState(null);
+  const [exportFormat, setExportFormat] = useState('json');
   const {
     bpm,
     timeSigNum,
@@ -529,13 +530,28 @@ const SheetDisplay = memo(({
                 JSON 範例
               </button>
             ) : null}
-            <button onClick={() => onExport?.('json')} className="flex items-center justify-center rounded-2xl border border-white/5 bg-white/5 p-3 text-emerald-400 transition-all hover:bg-white/10" title="下載 JSON">
+            <div className="flex min-w-[9.5rem] flex-1 overflow-hidden rounded-2xl border border-white/5 bg-white/5 sm:flex-none">
+              <select
+                value={exportFormat}
+                onChange={(event) => setExportFormat(event.target.value)}
+                className="min-w-0 flex-1 bg-slate-950/70 px-3 text-[11px] font-black uppercase tracking-[0.14em] text-emerald-50 outline-none"
+                title="Export file type"
+              >
+                <option value="json">JSON</option>
+                <option value="midi">MIDI</option>
+                <option value="source">Source</option>
+              </select>
+              <button onClick={() => onExport?.(exportFormat)} className="flex items-center justify-center border-l border-white/10 px-3 py-3 text-emerald-400 transition-all hover:bg-white/10" title="Export score">
+                {exportFormat === 'midi' ? <Music2 size={18} /> : exportFormat === 'json' ? <FileJson size={18} /> : <Download size={18} />}
+              </button>
+            </div>
+            <button onClick={() => onExport?.('json')} className="hidden" title="下載 JSON">
               <FileJson size={18} />
             </button>
-            <button onClick={() => onExport?.('midi')} className="flex items-center justify-center rounded-2xl border border-white/5 bg-white/5 p-3 text-sky-300 transition-all hover:bg-white/10" title="下載 MIDI">
+            <button onClick={() => onExport?.('midi')} className="hidden" title="下載 MIDI">
               <Music2 size={18} />
             </button>
-            <button onClick={() => onExport?.('source')} className="flex items-center justify-center rounded-2xl border border-white/5 bg-white/5 p-3 text-emerald-400 transition-all hover:bg-white/10" title="下載原始譜面">
+            <button onClick={() => onExport?.('source')} className="hidden" title="下載原始譜面">
               <Download size={18} />
             </button>
             <button onClick={cloudStatus === 'ready' ? onSave : onConnectCloud} disabled={isSaving || cloudStatus === 'loading'} className="ml-1 flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600/80 px-6 py-3 text-xs font-black text-white shadow-lg transition-all hover:bg-emerald-600 disabled:opacity-60 sm:ml-2 sm:flex-none">

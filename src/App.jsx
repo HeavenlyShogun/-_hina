@@ -744,7 +744,7 @@ function AppContent({
       globalKeyOffset: nextScore.globalKeyOffset,
       scaleMode: nextScore.scaleMode,
       reverb: nextScore.reverb,
-      tone: nextScore.tone,
+      tone: audioConfig.tone,
       accidentals: nextScore.accidentals,
     };
 
@@ -761,7 +761,7 @@ function AppContent({
         setFeaturedLoadState({ isLoading: false, message: '' });
       }
     }
-  }, [loadScoreSource, showToast, stopAll]);
+  }, [audioConfig.tone, loadScoreSource, showToast, stopAll]);
 
   const handleLoadLocalConvertedScore = useCallback((payload, options = {}) => {
     const { mode = 'replace' } = options;
@@ -788,9 +788,10 @@ function AppContent({
       sourceType: SCORE_SOURCE_TYPES.JSON,
       ...nextPayload?.transport,
       ...nextPayload?.playback,
+      tone: audioConfig.tone,
     });
     stopAll();
-  }, [loadScoreSource, scoreDocument.content, scoreDocument.rawText, scoreDocument.sourceType, stopAll]);
+  }, [audioConfig.tone, loadScoreSource, scoreDocument.content, scoreDocument.rawText, scoreDocument.sourceType, stopAll]);
 
   const handleRemovePendingConvertedScore = useCallback((indexToRemove) => {
     setPendingConvertedScores((prev) => prev.filter((_, index) => index !== indexToRemove));
@@ -868,7 +869,7 @@ function AppContent({
         onContextMenu={(event) => event.preventDefault()}
         style={{
           backgroundImage: `linear-gradient(135deg, rgba(2, 3, 15, 0.38), rgba(24, 18, 54, 0.34) 44%, rgba(3, 12, 32, 0.58)), url(${galaxyBackgroundUrl})`,
-          backgroundPosition: 'center center',
+          backgroundPosition: 'center top',
           backgroundRepeat: 'no-repeat',
           backgroundSize: 'cover',
         }}
@@ -1064,7 +1065,7 @@ function AppContent({
         </section>
 
         <section id="background-board" className="z-10 mt-12 w-full max-w-6xl scroll-mt-6 px-4">
-          <div data-ui-panel="true" data-panel-mode={getPanelMode('background-board')} onPointerDown={handlePanelPointerDown} className="relative min-h-[64vh] overflow-hidden rounded-[36px] border border-white/12 bg-slate-950/16 p-5 shadow-[0_24px_90px_rgba(0,0,0,0.18)] transition-colors duration-300 md:min-h-[68vh] md:rounded-[44px] md:p-8">
+          <div data-ui-panel="true" data-panel-kind="background-board" data-panel-mode={getPanelMode('background-board')} onPointerDown={handlePanelPointerDown} className="relative min-h-[64vh] overflow-hidden rounded-[36px] border border-white/12 bg-slate-950/16 p-5 shadow-[0_24px_90px_rgba(0,0,0,0.18)] transition-colors duration-300 md:min-h-[68vh] md:rounded-[44px] md:p-8">
             <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.22),rgba(2,6,23,0.08)_42%,rgba(2,6,23,0.26)),radial-gradient(circle_at_18%_18%,rgba(56,189,248,0.12),transparent_32%),radial-gradient(circle_at_82%_26%,rgba(253,224,171,0.10),transparent_28%)]" />
             <button
               type="button"
