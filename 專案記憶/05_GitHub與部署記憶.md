@@ -67,3 +67,6 @@ npm.cmd run preview:pages
 - Pages 路徑錯誤時先檢查 `vite.config.js` 與 `scripts/build-github-pages.mjs`。
 - Firebase 路徑錯誤時先檢查 `scripts/build-firebase-hosting.mjs` 與 `firebase.json`。
 - deploy 失敗時先確認 Firebase CLI 登入狀態與目前 project。
+# 2026-06-05 最新覆蓋記憶
+
+本次 Firebase build 使用 `npm run build` 成功輸出 `dist-fb`。本機 preview 已在 `http://127.0.0.1:4173/` 回應 HTTP 200。Vite 在此沙盒環境執行 build/preview 可能遇到 Windows `spawn EPERM`，需用允許子程序的升權方式執行。`tone@15.1.22` 必須存在於 `node_modules`，否則 production build 會無法解析 `src/services/audioEngine.js` 的 `tone` import。

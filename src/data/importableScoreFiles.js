@@ -19,6 +19,7 @@ const IMPORTABLE_SCORE_ORDER = [
   'crossing-field-slim.json',
   'unravel-slim.json',
   'lemon-slim.json',
+  'tada-koe-hitotsu-slim.json',
   'loser-slim.json',
   'secret-base-slim.json',
   'senbonzakura-slim.json',
