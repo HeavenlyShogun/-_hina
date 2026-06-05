@@ -10,11 +10,16 @@ const scoreModules = import.meta.glob('../../風物之琴譜/縮小版可匯入�
 
 const SLIM_STORAGE_FORMAT = 'hina-slim-score@3.2';
 const IMPORTABLE_SCORE_TITLE_OVERRIDES = {
+  'avid-slim.json': 'Avid',
   'combined_22_mxl-slim.json': 'unravel',
   'haruhikage-slim.json': '\u6625\u65e5\u5f71',
+  'i-really-want-to-stay-at-your-house-slim.json': 'I really want to stay at your house',
   'my-dearest-slim.json': 'my dearest',
   'nameless-voice-slim.json': 'NAMONAKI',
+  'qing-tian-slim.json': '晴天',
+  'sora-no-hako-slim.json': '空の箱',
   'tada-koe-hitotsu-slim.json': 'ONE VOICE',
+  'tenkyu-musica-slim.json': '天球 Música',
 };
 const IMPORTABLE_SCORE_PLAYBACK_OVERRIDES = {
   'haruhikage-slim.json': {
@@ -37,6 +42,11 @@ const IMPORTABLE_SCORE_ORDER = [
   'gurenge-slim.json',
   'romeo-cinderella-slim.json',
   'haruhikage-slim.json',
+  'avid-slim.json',
+  'i-really-want-to-stay-at-your-house-slim.json',
+  'tenkyu-musica-slim.json',
+  'qing-tian-slim.json',
+  'sora-no-hako-slim.json',
   'wrong-world-slim.json',
   'nameless-voice-slim.json',
   'unravel-midi-slim.json',

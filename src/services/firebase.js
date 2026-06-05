@@ -109,20 +109,38 @@ export async function connectFirebaseAuth(onUserChange) {
   const ctx = await getFirebaseContext();
   if (!ctx) return null;
 
-  const unsubscribe = ctx.onAuthStateChanged(ctx.auth, onUserChange);
+  let resolvedUser = ctx.auth.currentUser ?? null;
+  let authUnsubscribe = null;
+  const waitForUser = new Promise((resolve) => {
+    const unsubscribe = ctx.onAuthStateChanged(ctx.auth, (nextUser) => {
+      resolvedUser = nextUser;
+      onUserChange?.(nextUser);
+      if (nextUser) {
+        resolve(nextUser);
+      }
+    });
+
+    authUnsubscribe = unsubscribe;
+  });
 
   try {
     if (initialAuthToken) {
-      await ctx.signInWithCustomToken(ctx.auth, initialAuthToken);
+      const credential = await ctx.signInWithCustomToken(ctx.auth, initialAuthToken);
+      resolvedUser = credential.user ?? resolvedUser;
     } else {
-      await ctx.signInAnonymously(ctx.auth);
+      const credential = await ctx.signInAnonymously(ctx.auth);
+      resolvedUser = credential.user ?? resolvedUser;
     }
+
+    const user = resolvedUser ?? ctx.auth.currentUser ?? await waitForUser;
+    onUserChange?.(user);
   } catch (error) {
     console.warn('Firebase Auth Error', error);
+    authUnsubscribe?.();
     throw error;
   }
 
-  return { ctx, unsubscribe };
+  return { ctx, user: resolvedUser ?? ctx.auth.currentUser, unsubscribe: authUnsubscribe };
 }
 
 function scoreCollection(ctx, uid) {

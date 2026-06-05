@@ -63,7 +63,9 @@ export function useCloudScores() {
 
         authUnsubscribeRef.current?.();
         authUnsubscribeRef.current = result.unsubscribe;
+        userRef.current = result.user ?? userRef.current;
         firebaseCtxRef.current = result.ctx;
+        setUser(result.user ?? userRef.current);
         setFirebaseCtx(result.ctx);
         setCloudStatus('ready');
         return result.ctx;
@@ -132,8 +134,12 @@ export function useCloudScores() {
 
   const getConnectedUser = useCallback(async () => {
     const ctx = await ensureCloudConnection();
-    const currentUser = userRef.current;
+    const currentUser = userRef.current ?? ctx?.auth?.currentUser;
     if (!ctx || !currentUser) return null;
+    if (!userRef.current) {
+      userRef.current = currentUser;
+      setUser(currentUser);
+    }
     return { ctx, uid: currentUser.uid };
   }, [ensureCloudConnection]);
 

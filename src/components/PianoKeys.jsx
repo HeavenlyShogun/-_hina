@@ -246,7 +246,7 @@ const PianoKeys = memo(({
     <main id="lyre-keyboard" className="relative z-20 mt-6 w-full max-w-6xl scroll-mt-6 px-1 sm:mt-10 sm:px-4">
       <div data-ui-panel="true" data-panel-mode={uiMode} onPointerDown={onPanelPointerDown} className="ui-panel group relative overflow-hidden rounded-[24px] border border-sky-200/25 p-2 text-slate-100 shadow-[0_35px_120px_rgba(2,6,23,0.42)] transition-colors duration-300 sm:rounded-[36px] sm:p-6 md:rounded-[60px] md:p-14">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.08),transparent_30%),radial-gradient(circle_at_80%_22%,rgba(250,204,21,0.05),transparent_24%),linear-gradient(180deg,rgba(2,6,23,0.24),rgba(15,23,42,0.32))]" />
-        <div className="absolute inset-x-0 top-0 px-3 pt-3 sm:px-6 sm:pt-4 md:px-8">
+        <div className="playback-timeline-layer absolute inset-x-0 top-0 z-20 px-3 pt-3 sm:px-6 sm:pt-4 md:px-8">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-slate-100">
             <span>{isScrubbing ? 'Scrubbing' : 'Playback Timeline'}</span>
             <div className="flex flex-wrap items-center justify-end gap-2">
@@ -320,7 +320,7 @@ const PianoKeys = memo(({
             />
           </div>
         </div>
-        <div className="mobile-keyboard-grid relative pt-36 sm:pt-16 md:pt-16">
+        <div className="mobile-keyboard-grid relative z-10 pt-36 sm:pt-16 md:pt-16">
           {NOTES_MAP.map((row, rowIndex) => (
             <div key={rowIndex} className="relative mb-3 grid grid-cols-1 gap-1.5 last:mb-0 sm:mb-8 sm:gap-4 md:mb-10 md:gap-8 lg:grid-cols-[104px_1fr] lg:items-center">
               <div className="flex w-full items-center justify-between px-1 text-center lg:flex-col lg:items-end lg:justify-center lg:px-0 lg:text-right">
