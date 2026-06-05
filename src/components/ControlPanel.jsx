@@ -101,6 +101,8 @@ const ControlPanel = memo(({
   const [panelModes, setPanelModes] = useState({});
   const lastValidBpmRef = useRef(Number(bpm) || 90);
   const lastValidMetronomeRef = useRef(normalizeMetronomeBpm(bpm));
+  const pendingBpmFrameRef = useRef(null);
+  const pendingBpmValueRef = useRef(null);
   const metronomeContextRef = useRef(null);
   const metronomeTimerRef = useRef(null);
   const beatIndexRef = useRef(0);
@@ -159,6 +161,10 @@ const ControlPanel = memo(({
   }, [metronomeBpm, metronomeEnabled, stopMetronomeTimer, timeSigNum]);
 
   useEffect(() => () => {
+    if (pendingBpmFrameRef.current !== null) {
+      window.cancelAnimationFrame(pendingBpmFrameRef.current);
+      pendingBpmFrameRef.current = null;
+    }
     stopMetronomeTimer();
     metronomeContextRef.current?.close?.().catch(() => {});
   }, [stopMetronomeTimer]);
@@ -167,7 +173,16 @@ const ControlPanel = memo(({
     const numericBpm = normalizeBpm(nextBpm, lastValidBpmRef.current);
     lastValidBpmRef.current = numericBpm;
     setBpmDraft(formatDecimal(numericBpm));
-    setBpm(numericBpm);
+    pendingBpmValueRef.current = numericBpm;
+
+    if (pendingBpmFrameRef.current !== null) {
+      return;
+    }
+
+    pendingBpmFrameRef.current = window.requestAnimationFrame(() => {
+      pendingBpmFrameRef.current = null;
+      setBpm(pendingBpmValueRef.current);
+    });
   }, [setBpm]);
 
   const commitBpmDraft = useCallback(() => {

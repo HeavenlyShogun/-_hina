@@ -1,5 +1,6 @@
 import { DEFAULT_SCORE_PARAMS } from '../constants/music.js';
 import { DEFAULT_SCORE_NAME } from '../config/branding.js';
+import { DEFAULT_MIDI_SOURCE_PATH, DEFAULT_SLIM_SCORE_PATH } from '../config/scoreLibraryPaths.js';
 import { SCORE_SOURCE_TYPES } from '../utils/scoreDocument.js';
 
 const scoreModules = import.meta.glob('../../風物之琴譜/縮小版可匯入譜面/slim-json/*-slim.json', {
@@ -96,6 +97,8 @@ function createSlimMetadata(score = {}, filename) {
     versionLabel: 'Slim JSON',
     groupLabel: 'Slim MIDI',
     sourceType: SCORE_SOURCE_TYPES.JSON,
+    libraryPath: DEFAULT_SLIM_SCORE_PATH,
+    defaultMidiPath: DEFAULT_MIDI_SOURCE_PATH,
     bpm: roundBpm(transport.bpm ?? DEFAULT_SCORE_PARAMS.bpm),
     timeSigNum: transport.timeSigNum ?? DEFAULT_SCORE_PARAMS.timeSigNum,
     timeSigDen: transport.timeSigDen ?? DEFAULT_SCORE_PARAMS.timeSigDen,

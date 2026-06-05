@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { DEFAULT_SCORE_PARAMS } from '../constants/music';
 import { DEFAULT_SCORE_NAME } from '../config/branding';
+import { DEFAULT_SLIM_SCORE_FILENAME, getDefaultSlimScorePath } from '../config/scoreLibraryPaths';
 import { createScoreDocument, SCORE_SOURCE_TYPES } from '../utils/scoreDocument';
 import { applyScoreRecommendation } from '../utils/scoreRecommendations';
 
@@ -10,6 +11,7 @@ const defaultSlimScoreModules = import.meta.glob('../../風物之琴譜/縮小�
 });
 const surgesScore = Object.values(defaultSlimScoreModules)[0] ?? null;
 const DEFAULT_SCORE_TITLE = surgesScore?.meta?.displayTitle ?? surgesScore?.meta?.title ?? DEFAULT_SCORE_NAME;
+const DEFAULT_SCORE_SOURCE_PATH = getDefaultSlimScorePath(DEFAULT_SLIM_SCORE_FILENAME);
 
 function createDefaultState() {
   if (!surgesScore) {
@@ -41,6 +43,7 @@ function createDefaultState() {
       title: DEFAULT_SCORE_TITLE,
       content: fallbackScore,
       sourceType: SCORE_SOURCE_TYPES.JSON,
+      sourcePath: DEFAULT_SCORE_SOURCE_PATH,
     });
   }
 
@@ -48,6 +51,7 @@ function createDefaultState() {
     title: DEFAULT_SCORE_TITLE,
     content: surgesScore,
     sourceType: SCORE_SOURCE_TYPES.JSON,
+    sourcePath: DEFAULT_SCORE_SOURCE_PATH,
     ...surgesScore?.transport,
     ...surgesScore?.playback,
     tone: DEFAULT_SCORE_PARAMS.tone,

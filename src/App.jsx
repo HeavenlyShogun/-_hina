@@ -905,6 +905,7 @@ function AppContent({
           workspaceSections={workspaceSections}
           isBusy={isUiBusy}
           busyMessage={uiBusyMessage}
+          isPlaybackActive={isPlaying}
           uiMode={uiMode}
           onPanelPointerDown={handlePanelPointerDown}
         />

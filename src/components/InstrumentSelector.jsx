@@ -129,6 +129,10 @@ const InstrumentSelector = memo(({ disabled = false }) => {
           opacity: 0;
           pointer-events: none;
         }
+        .blend-toggle:has(input:disabled) {
+          cursor: wait;
+          opacity: 0.55;
+        }
         .blend-toggle-track {
           position: relative;
           width: 34px;

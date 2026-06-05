@@ -21,6 +21,7 @@ const PianoRoom = memo(({
   workspaceSections,
   isBusy,
   busyMessage,
+  isPlaybackActive = false,
   uiMode = 'normal',
   onPanelPointerDown,
 }) => (
@@ -50,7 +51,7 @@ const PianoRoom = memo(({
       onPanelPointerDown={onPanelPointerDown}
     />
     <div id="rhythm-controls" className="relative z-20 mt-4 flex w-full max-w-6xl scroll-mt-6 flex-col gap-4 px-3 sm:mt-5 sm:px-4">
-      <InstrumentSelector disabled={isBusy} />
+      <InstrumentSelector disabled={isBusy || isPlaybackActive} />
       <ControlPanel embedded compact uiMode={uiMode} onPanelPointerDown={onPanelPointerDown} />
     </div>
   </div>
