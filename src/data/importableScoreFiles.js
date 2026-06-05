@@ -10,7 +10,16 @@ const scoreModules = import.meta.glob('../../風物之琴譜/縮小版可匯入�
 const SLIM_STORAGE_FORMAT = 'hina-slim-score@3.2';
 const IMPORTABLE_SCORE_TITLE_OVERRIDES = {
   'combined_22_mxl-slim.json': 'unravel',
+  'haruhikage-slim.json': '春日影',
   'my-dearest-slim.json': 'my dearest',
+  'nameless-voice-slim.json': 'NAMONAKI',
+  'tada-koe-hitotsu-slim.json': 'ONE VOICE',
+};
+const IMPORTABLE_SCORE_PLAYBACK_OVERRIDES = {
+  'haruhikage-slim.json': {
+    globalKeyOffset: 11,
+    scaleMode: 'major',
+  },
 };
 const IMPORTABLE_SCORE_ORDER = [
   'surges-slim.json',
@@ -54,7 +63,13 @@ function filenameFromPath(filePath) {
 }
 
 function titleFromFilename(filename) {
-  return filename.replace(/\.json$/iu, '').trim() || DEFAULT_SCORE_NAME;
+  const cleanTitle = filename
+    .replace(/\.json$/iu, '')
+    .replace(/-slim$/iu, '')
+    .replace(/-/g, ' ')
+    .trim();
+
+  return cleanTitle || DEFAULT_SCORE_NAME;
 }
 
 function idFromFilename(filename) {
@@ -67,13 +82,14 @@ function createSlimMetadata(score = {}, filename) {
   const meta = score?.meta ?? {};
   const transport = score?.transport ?? {};
   const playback = score?.playback ?? {};
+  const playbackOverride = IMPORTABLE_SCORE_PLAYBACK_OVERRIDES[filename] ?? {};
   const fallbackTitle = IMPORTABLE_SCORE_TITLE_OVERRIDES[filename] ?? titleFromFilename(filename);
 
   return {
     id: meta.id ?? idFromFilename(filename),
     filename,
-    title: meta.title ?? fallbackTitle,
-    displayTitle: meta.displayTitle ?? meta.title ?? fallbackTitle,
+    title: fallbackTitle,
+    displayTitle: fallbackTitle,
     subtitle: 'Slim JSON import',
     storageFormat: meta.storageFormat ?? SLIM_STORAGE_FORMAT,
     version: 'slim',
@@ -84,8 +100,8 @@ function createSlimMetadata(score = {}, filename) {
     timeSigNum: transport.timeSigNum ?? DEFAULT_SCORE_PARAMS.timeSigNum,
     timeSigDen: transport.timeSigDen ?? DEFAULT_SCORE_PARAMS.timeSigDen,
     charResolution: transport.resolution ?? DEFAULT_SCORE_PARAMS.charResolution,
-    globalKeyOffset: playback.globalKeyOffset ?? DEFAULT_SCORE_PARAMS.globalKeyOffset,
-    scaleMode: playback.scaleMode ?? DEFAULT_SCORE_PARAMS.scaleMode,
+    globalKeyOffset: playbackOverride.globalKeyOffset ?? playback.globalKeyOffset ?? DEFAULT_SCORE_PARAMS.globalKeyOffset,
+    scaleMode: playbackOverride.scaleMode ?? playback.scaleMode ?? DEFAULT_SCORE_PARAMS.scaleMode,
     tone: playback.tone ?? DEFAULT_SCORE_PARAMS.tone,
     reverb: playback.reverb ?? DEFAULT_SCORE_PARAMS.reverb,
     accidentals: playback.accidentals ?? {},

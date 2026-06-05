@@ -10,8 +10,9 @@ const DEFAULT_AUDIO_CONFIG = {
   globalKeyOffset: DEFAULT_SCORE_PARAMS.globalKeyOffset,
   scaleMode: DEFAULT_SCORE_PARAMS.scaleMode,
 };
-const AUDIO_CONFIG_STORAGE_KEY = 'hina-audio-config@2';
+const AUDIO_CONFIG_STORAGE_KEY = 'universe-rhythm-recorder-audio@2';
 const LEGACY_AUDIO_CONFIG_KEYS = [
+  'hina-audio-config@2',
   'hina-audio-config',
   'hina-audio-settings',
   'universal-rhythm-recorder-audio',

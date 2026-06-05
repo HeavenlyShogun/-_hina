@@ -1,4 +1,4 @@
-# Universal Rythem Recorder
+# universe rhythm recorder
 
 這個專案使用 `Vite + React` 建立，已接上 GitHub 倉庫，並設定成推送到 `main` 後自動部署到 GitHub Pages。
 
@@ -35,7 +35,7 @@ npm run dev:host
 請依照 `.env.example` 建立 `.env`：
 
 ```bash
-VITE_APP_ID=genshin-lyre-studio
+VITE_APP_ID=universe-rhythm-recorder
 VITE_FIREBASE_CONFIG={"apiKey":"","authDomain":"","projectId":"","storageBucket":"","messagingSenderId":"","appId":""}
 VITE_INITIAL_AUTH_TOKEN=
 VITE_CUSTOM_DOMAIN=

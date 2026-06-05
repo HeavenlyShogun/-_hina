@@ -43,7 +43,7 @@
 
 - 完整譜面：`artifacts/{appId}/users/{uid}/scores/{scoreId}`
 - 摘要列表：`artifacts/{appId}/users/{uid}/scoreSummaries/{scoreId}`
-- 預設 `appId`：`genshin-lyre-studio`，可由 `VITE_APP_ID` 覆寫。
+- 預設 `appId`：`universe-rhythm-recorder`，可由 `VITE_APP_ID` 覆寫。
 
 ## 前端連線流程
 

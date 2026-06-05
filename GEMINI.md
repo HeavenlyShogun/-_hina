@@ -1,4 +1,4 @@
-# Universal Rhythm Recorder (Project Hina) - Instructions
+# universe rhythm recorder - Instructions
 
 ## Core Architecture
 - **Framework:** React + Vite.

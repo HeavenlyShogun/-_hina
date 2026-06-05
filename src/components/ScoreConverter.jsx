@@ -12,6 +12,14 @@ import { convertMusicXmlToSlim, mergeSlimScores } from '../utils/musicXmlToSlim'
 import { naturalCompareByName, readMusicXmlFile } from '../utils/musicXmlArchive';
 
 const LARGE_FILE_WARNING_BYTES = 5 * 1024 * 1024;
+const SUPPORTED_SCORE_FILE_EXTENSIONS = ['.mid', '.midi', '.musicxml', '.xml', '.mxl'];
+const SUPPORTED_SCORE_FILE_LABEL = SUPPORTED_SCORE_FILE_EXTENSIONS.join('、');
+const SUPPORTED_SCORE_FILE_ACCEPT = [
+  ...SUPPORTED_SCORE_FILE_EXTENSIONS,
+  'audio/midi',
+  'application/vnd.recordare.musicxml',
+  'application/vnd.recordare.musicxml+xml',
+].join(',');
 
 function formatBytes(bytes) {
   if (!Number.isFinite(bytes) || bytes <= 0) {
@@ -347,7 +355,7 @@ const ScoreConverter = memo(({
     const unsupportedCount = acceptedFiles.length - supportedCount;
 
     if (unsupportedCount > 0) {
-      showToast?.(`已略過 ${unsupportedCount} 個不支援的檔案，請使用 .mid、.midi、.musicxml、.xml 或 .mxl。`, 'error');
+      showToast?.(`已略過 ${unsupportedCount} 個不支援的檔案，請使用 ${SUPPORTED_SCORE_FILE_LABEL}。`, 'error');
     }
 
     for (const file of midiFiles) {
@@ -483,7 +491,7 @@ const ScoreConverter = memo(({
                   <FileUp size={14} />
                   1. 放入檔案
                 </div>
-                <p className="leading-relaxed">拖曳 .mid 或 .midi 到下方框線區，也可以用按鈕選檔。</p>
+                <p className="leading-relaxed">拖曳可讀取的譜面檔案到下方框線區，也可以用按鈕選檔。</p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
                 <div className="mb-2 flex items-center gap-2 font-bold text-amber-100">
@@ -502,14 +510,14 @@ const ScoreConverter = memo(({
             </div>
           </div>
           <p className="max-w-2xl text-sm text-amber-50/80">
-            將 MIDI 轉成可播放譜面。單檔轉換會直接放進目前譜面；多檔轉換會先放在下方清單，確認後再載入或上傳。
+            將 MIDI、MusicXML 或 MXL 轉成可播放譜面。單檔轉換會直接放進目前譜面；多檔轉換會先放在下方清單，確認後再載入或上傳。
           </p>
           <div className="rounded-2xl border border-amber-300/15 bg-black/20 px-4 py-3 text-sm text-amber-50/80">
             MIDI 匯入會先採用檔案自己的 BPM、拍號、PPQ、tempo map、track、channel、instrument 與 velocity，再讓你手動微調。
           </div>
           <div className="grid gap-2 pt-2 text-xs text-amber-50/70 md:grid-cols-3">
             <div className="rounded-2xl border border-amber-300/15 bg-black/15 px-3 py-2">
-              <span className="font-bold text-amber-100">1. 匯入</span> 拖放檔案，或用下方按鈕選擇 MIDI。
+              <span className="font-bold text-amber-100">1. 匯入</span> 拖放檔案，或用下方按鈕選擇可讀取的譜面檔案。
             </div>
             <div className="rounded-2xl border border-amber-300/15 bg-black/15 px-3 py-2">
               <span className="font-bold text-amber-100">2. 檢查</span> 待上傳清單會顯示來源、大小與轉換出的事件數。
@@ -586,7 +594,7 @@ const ScoreConverter = memo(({
             </div>
             <div>
               <div className="text-base font-bold text-amber-50">拖放 MIDI / MusicXML / MXL 檔案到這裡</div>
-              <div className="mt-1 text-sm text-amber-50/55">支援 .mid、.midi、.musicxml、.xml、.mxl；MXL 會先解壓縮再轉成可播放譜面。</div>
+              <div className="mt-1 text-sm text-amber-50/55">支援 {SUPPORTED_SCORE_FILE_LABEL}；MXL 會先解壓縮再轉成可播放譜面。</div>
             </div>
             <div className="flex flex-wrap justify-center gap-2">
               <button
@@ -596,7 +604,7 @@ const ScoreConverter = memo(({
                 className="inline-flex items-center gap-2 rounded-2xl border border-amber-300/25 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-50 transition hover:bg-amber-500/20 disabled:opacity-50"
               >
                 <FileUp size={15} />
-                選擇 MIDI
+                選擇譜面檔案
               </button>
               <button
                 type="button"
@@ -708,7 +716,7 @@ const ScoreConverter = memo(({
           ref={scoreInputRef}
           type="file"
           multiple
-          accept=".mid,.midi,.musicxml,.xml,.mxl,audio/midi,application/vnd.recordare.musicxml,application/vnd.recordare.musicxml+xml"
+          accept={SUPPORTED_SCORE_FILE_ACCEPT}
           className="hidden"
           onChange={handleMidiFileChange}
         />

@@ -8,6 +8,7 @@ const BPM_MIN = 20;
 const BPM_MAX = 300;
 const METRONOME_MIN = 30;
 const METRONOME_MAX = 240;
+const BEAT_COUNT_OPTIONS = [3, 4, 5, 6, 7];
 
 const RESOLUTION_OPTIONS = [
   { value: 4, label: '1/4 beat grid' },
@@ -104,6 +105,8 @@ const ControlPanel = memo(({
   const metronomeTimerRef = useRef(null);
   const beatIndexRef = useRef(0);
   const resolvedScaleMode = SCALE_MODE_OPTIONS.some((option) => option.value === scaleMode) ? scaleMode : 'major';
+  const currentBeatCount = Number(timeSigNum) || 4;
+  const displayedBeatCount = BEAT_COUNT_OPTIONS.includes(currentBeatCount) ? currentBeatCount : 4;
 
   const stopMetronomeTimer = useCallback(() => {
     if (metronomeTimerRef.current) {
@@ -222,6 +225,12 @@ const ControlPanel = memo(({
     beatIndexRef.current = 0;
     setMetronomeEnabled(true);
   }, [metronomeEnabled]);
+
+  const setBeatCount = useCallback((nextValue) => {
+    const beatCount = Math.min(7, Math.max(3, Number(nextValue) || displayedBeatCount));
+    beatIndexRef.current = 0;
+    setTimeSigNum(beatCount);
+  }, [displayedBeatCount, setTimeSigNum]);
 
   return (
     <section className={embedded ? 'w-full' : 'z-30 my-8 w-full max-w-6xl px-4 sm:my-10 sm:px-6'}>
@@ -344,6 +353,39 @@ const ControlPanel = memo(({
                   />
                   <span className="shrink-0 pr-3 text-[9px] font-black tracking-[0.18em] text-amber-700/65">BPM</span>
                 </div>
+              </div>
+
+              <div className="flex min-w-0 items-center justify-center gap-1 rounded-[22px] border border-slate-200/45 bg-white/20 px-3 py-2 shadow-sm backdrop-blur-md" aria-label="Beats per measure">
+                <button
+                  type="button"
+                  onClick={() => setBeatCount(displayedBeatCount - 1)}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-black text-amber-800 transition-colors hover:bg-amber-100"
+                  aria-label="Decrease beats per measure"
+                >
+                  &lt;
+                </button>
+                {BEAT_COUNT_OPTIONS.map((value) => {
+                  const active = value === currentBeatCount;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setBeatCount(value)}
+                      className={`flex h-8 min-w-8 shrink-0 items-center justify-center rounded-lg px-2 font-mono text-sm font-black transition-colors ${active ? 'bg-amber-100 text-amber-950 shadow-inner' : 'text-slate-700 hover:bg-slate-100/70'}`}
+                      aria-pressed={active}
+                    >
+                      {active ? `(${value})` : value}
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => setBeatCount(displayedBeatCount + 1)}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm font-black text-amber-800 transition-colors hover:bg-amber-100"
+                  aria-label="Increase beats per measure"
+                >
+                  &gt;
+                </button>
               </div>
             </div>
           </div>

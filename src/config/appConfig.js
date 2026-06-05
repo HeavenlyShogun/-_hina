@@ -1,7 +1,7 @@
 export const appId =
   typeof globalThis.__app_id !== 'undefined'
     ? globalThis.__app_id
-    : import.meta.env.VITE_APP_ID || 'genshin-lyre-studio';
+    : import.meta.env.VITE_APP_ID || 'universe-rhythm-recorder';
 
 const firebaseConfigSource =
   typeof globalThis.__firebase_config !== 'undefined'
