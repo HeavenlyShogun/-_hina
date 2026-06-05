@@ -10,6 +10,8 @@ const DEFAULT_RENDER_CONFIG = {
 const LIVE_NOTE_RELEASE_SEC = 0.16;
 const SAMPLE_LOAD_TIMEOUT_MS = 8000;
 const SOUNDFONT_LOAD_TIMEOUT_MS = 6000;
+const TONE_SAMPLER_LOAD_TIMEOUT_MS = 8000;
+const AUDIO_SAMPLE_CACHE_NAME = 'hina-audio-samples-v1';
 const MIDI_JS_SOUNDFONT_BASE_URL = 'https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM';
 const TONEJS_INSTRUMENTS_BASE_URL = 'https://nbrosowsky.github.io/tonejs-instruments/samples';
 const MIDI_JS_SAMPLE_NOTES = ['C2', 'E2', 'G2', 'B2', 'D3', 'F3', 'A3', 'C4', 'E4', 'G4', 'B4', 'D5', 'F5', 'A5', 'C6', 'E6', 'G6'];
@@ -702,6 +704,36 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = SAMPLE_LOAD_TIMEO
   }
 }
 
+function canUseAudioCache(url, options = {}) {
+  return typeof caches !== 'undefined'
+    && (!options.method || String(options.method).toUpperCase() === 'GET')
+    && /^https?:\/\//iu.test(String(url || ''));
+}
+
+async function fetchCachedWithTimeout(url, options = {}, timeoutMs = SAMPLE_LOAD_TIMEOUT_MS) {
+  if (!canUseAudioCache(url, options)) {
+    return fetchWithTimeout(url, options, timeoutMs);
+  }
+
+  const request = new Request(url, options);
+  const cache = await caches.open(AUDIO_SAMPLE_CACHE_NAME);
+  const cached = await cache.match(request);
+  if (cached) {
+    return cached;
+  }
+
+  const response = await fetchWithTimeout(url, options, timeoutMs);
+  if (response.ok) {
+    try {
+      await cache.put(request, response.clone());
+    } catch (error) {
+      console.warn(`Audio sample cache write failed for "${url}".`, error);
+    }
+  }
+
+  return response;
+}
+
 function rampAudioParamToSilence(param, releaseStartTime, stopAtTime, fallbackValue = 0.0001) {
   if (!param) return;
 
@@ -1182,14 +1214,23 @@ class AudioEngine {
       }
 
       const sampler = await new Promise((resolve, reject) => {
+        const timeoutId = window.setTimeout(() => {
+          reject(new Error(`Tone.Sampler "${sampleSetId}" load timed out.`));
+        }, TONE_SAMPLER_LOAD_TIMEOUT_MS);
         const instance = new Tone.Sampler({
           urls,
           baseUrl: resolvedSampleConfig.baseUrl ?? '',
           attack: Math.max(Number(config.atk) || 0.003, 0),
           release: Math.max(Number(config.release) || 0.28, 0.02),
           curve: 'exponential',
-          onload: () => resolve(instance),
-          onerror: reject,
+          onload: () => {
+            window.clearTimeout(timeoutId);
+            resolve(instance);
+          },
+          onerror: (error) => {
+            window.clearTimeout(timeoutId);
+            reject(error);
+          },
         });
         instance.connect(this.compressor);
       });
@@ -1912,7 +1953,7 @@ class AudioEngine {
           return null;
         }
 
-        const response = await fetchWithTimeout(url, { mode: 'cors' }, SAMPLE_LOAD_TIMEOUT_MS);
+        const response = await fetchCachedWithTimeout(url, { mode: 'cors' }, SAMPLE_LOAD_TIMEOUT_MS);
 
         if (!response.ok) {
           throw new Error(`Failed to load sample: ${url}`);
@@ -1966,7 +2007,7 @@ class AudioEngine {
     }
 
     const url = `${MIDI_JS_SOUNDFONT_BASE_URL}/${instrument}-mp3.js`;
-    const loadPromise = fetchWithTimeout(url, { mode: 'cors' }, SOUNDFONT_LOAD_TIMEOUT_MS)
+    const loadPromise = fetchCachedWithTimeout(url, { mode: 'cors' }, SOUNDFONT_LOAD_TIMEOUT_MS)
       .then((response) => {
         if (!response.ok) {
           throw new Error(`Failed to load soundfont: ${url}`);

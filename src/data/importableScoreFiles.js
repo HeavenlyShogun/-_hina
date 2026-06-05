@@ -11,7 +11,7 @@ const scoreModules = import.meta.glob('../../風物之琴譜/縮小版可匯入�
 const SLIM_STORAGE_FORMAT = 'hina-slim-score@3.2';
 const IMPORTABLE_SCORE_TITLE_OVERRIDES = {
   'combined_22_mxl-slim.json': 'unravel',
-  'haruhikage-slim.json': '春日影',
+  'haruhikage-slim.json': '\u6625\u65e5\u5f71',
   'my-dearest-slim.json': 'my dearest',
   'nameless-voice-slim.json': 'NAMONAKI',
   'tada-koe-hitotsu-slim.json': 'ONE VOICE',

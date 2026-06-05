@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   connectFirebaseAuth,
+  copyPublicScoreToUser,
   deleteScore,
   loadScore,
+  loadPublicScore,
+  publishScore,
   saveScore,
+  subscribeToPublicScores,
   subscribeToScores,
   uploadScores,
 } from '../services/firebase';
@@ -20,6 +24,7 @@ function resolvePayloadStorageId(title, payload) {
 
 export function useCloudScores() {
   const [savedScores, setSavedScores] = useState([]);
+  const [publicScores, setPublicScores] = useState([]);
   const [user, setUser] = useState(null);
   const [firebaseCtx, setFirebaseCtx] = useState(null);
   const [cloudStatus, setCloudStatus] = useState('idle');
@@ -30,6 +35,7 @@ export function useCloudScores() {
   const firebaseCtxRef = useRef(null);
   const authUnsubscribeRef = useRef(null);
   const scoresUnsubscribeRef = useRef(null);
+  const publicScoresUnsubscribeRef = useRef(null);
   const connectPromiseRef = useRef(null);
   const scoreCacheRef = useRef(new Map());
 
@@ -86,6 +92,7 @@ export function useCloudScores() {
     }
 
     scoresUnsubscribeRef.current?.();
+    publicScoresUnsubscribeRef.current?.();
     const unsubscribe = subscribeToScores(
       firebaseCtx,
       user.uid,
@@ -99,12 +106,28 @@ export function useCloudScores() {
       },
     );
     scoresUnsubscribeRef.current = unsubscribe;
-    return () => unsubscribe();
+    const unsubscribePublic = subscribeToPublicScores(
+      firebaseCtx,
+      (scores) => {
+        setPublicScores(scores);
+      },
+      (error) => {
+        console.error(error);
+        setCloudStatus('error');
+        setCloudError(error?.message || 'Firestore 公開譜庫讀取失敗');
+      },
+    );
+    publicScoresUnsubscribeRef.current = unsubscribePublic;
+    return () => {
+      unsubscribe();
+      unsubscribePublic();
+    };
   }, [firebaseCtx, user]);
 
   useEffect(() => () => {
     authUnsubscribeRef.current?.();
     scoresUnsubscribeRef.current?.();
+    publicScoresUnsubscribeRef.current?.();
   }, []);
 
   const getConnectedUser = useCallback(async () => {
@@ -153,6 +176,55 @@ export function useCloudScores() {
       return false;
     } finally {
       setIsSaving(false);
+    }
+  }, [getConnectedUser]);
+
+  const shareCloudScore = useCallback(async (title, payload) => {
+    const connection = await getConnectedUser();
+    if (!connection) return null;
+
+    setIsSaving(true);
+    try {
+      const result = await publishScore(connection.ctx, connection.uid, title, payload);
+      scoreCacheRef.current.delete(resolvePayloadStorageId(title, payload));
+      setCloudError('');
+      return result;
+    } catch (error) {
+      console.error(error);
+      setCloudError(error?.message || 'Firestore 分享連結生成失敗');
+      return null;
+    } finally {
+      setIsSaving(false);
+    }
+  }, [getConnectedUser]);
+
+  const loadSharedScore = useCallback(async (id) => {
+    const ctx = await ensureCloudConnection();
+    if (!ctx || !id) return null;
+
+    try {
+      const fullScore = await loadPublicScore(ctx, id);
+      setCloudError('');
+      return fullScore;
+    } catch (error) {
+      console.error(error);
+      setCloudError(error?.message || '公開譜面載入失敗');
+      return null;
+    }
+  }, [ensureCloudConnection]);
+
+  const copyPublicScore = useCallback(async (publicId) => {
+    const connection = await getConnectedUser();
+    if (!connection) return false;
+
+    try {
+      await copyPublicScoreToUser(connection.ctx, connection.uid, publicId);
+      setCloudError('');
+      return true;
+    } catch (error) {
+      console.error(error);
+      setCloudError(error?.message || '公開譜面複製失敗');
+      return false;
     }
   }, [getConnectedUser]);
 
@@ -205,6 +277,7 @@ export function useCloudScores() {
 
   return {
     savedScores,
+    publicScores,
     user,
     cloudStatus,
     cloudError,
@@ -215,5 +288,8 @@ export function useCloudScores() {
     clearAllCloudScores,
     uploadCloudScores,
     loadCloudScore,
+    loadSharedScore,
+    shareCloudScore,
+    copyPublicScore,
   };
 }

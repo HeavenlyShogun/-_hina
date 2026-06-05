@@ -1,6 +1,6 @@
 # GitHub 與部署記憶
 
-最後更新：2026-06-03
+最後更新：2026-06-05
 
 本檔記錄 Git remote、GitHub Pages、Firebase Hosting 與常用部署指令。
 
@@ -61,12 +61,23 @@ npm.cmd run preview:pages
 - PowerShell 內仍建議使用 `npm.cmd`，避免 `npm.ps1` execution policy 問題。
 - Firebase Hosting deploy 前仍由 `firebase.json` predeploy 自動重跑 `npm run build:firebase`。
 
+## 2026-06-05 驗證結果
+
+- `npm run build:firebase` 已通過，輸出到 `dist-fb`。
+- `npm run build:pages` 已通過，輸出到 `dist-gh`。
+- `npm run test:e2e` 已通過 2/2，覆蓋預設 `surges_slim` 載入、播放亮鍵、節奏控制與播放中鎖定樂器切換。
+- Firebase preview 可用 `dist-fb` 啟動，首頁 HTML 與核心資源回應 200。
+- Firebase preview 的 `/?scoreId=test-share-id` 會回應 SPA HTML，分享連結 routing 可進入 App 初始化流程。
+- GitHub Pages preview 可用 repo base path `/-_hina/` 啟動，根路徑 `/` 會導向 `/-_hina/`，首頁 HTML 與核心資源回應 200。
+- `surges-slim.json` 預設載入已恢復，不再停在 fallback 空譜面。
+- Vite 仍提示主 chunk 超過 500 kB，屬效能警告；目前未改動分包策略。
+- 沙盒內執行 Vite build 可能遇到 Windows `commonjs--resolver spawn EPERM`，需用允許子程序的本機權限重跑確認。
+- `tone@15.1.22` 必須存在於 `node_modules`，否則 production build 會無法解析 `src/services/audioEngine.js` 的 `tone` import。
+- Firestore rules 與 Storage rules 由 `firebase.json` 管理；改公開譜庫或 Storage 指標時，Firebase deploy 需包含 rules。
+
 ## 除錯規則
 
 - PowerShell 可能擋 `npm.ps1`，優先使用 `npm.cmd run <script>`。
 - Pages 路徑錯誤時先檢查 `vite.config.js` 與 `scripts/build-github-pages.mjs`。
 - Firebase 路徑錯誤時先檢查 `scripts/build-firebase-hosting.mjs` 與 `firebase.json`。
 - deploy 失敗時先確認 Firebase CLI 登入狀態與目前 project。
-# 2026-06-05 最新覆蓋記憶
-
-本次 Firebase build 使用 `npm run build` 成功輸出 `dist-fb`。本機 preview 已在 `http://127.0.0.1:4173/` 回應 HTTP 200。Vite 在此沙盒環境執行 build/preview 可能遇到 Windows `spawn EPERM`，需用允許子程序的升權方式執行。`tone@15.1.22` 必須存在於 `node_modules`，否則 production build 會無法解析 `src/services/audioEngine.js` 的 `tone` import。

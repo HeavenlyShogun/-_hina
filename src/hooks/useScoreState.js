@@ -1,67 +1,112 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DEFAULT_SCORE_PARAMS } from '../constants/music';
 import { DEFAULT_SCORE_NAME } from '../config/branding';
 import { DEFAULT_SLIM_SCORE_FILENAME, getDefaultSlimScorePath } from '../config/scoreLibraryPaths';
 import { createScoreDocument, SCORE_SOURCE_TYPES } from '../utils/scoreDocument';
 import { applyScoreRecommendation } from '../utils/scoreRecommendations';
 
-const defaultSlimScoreModules = import.meta.glob('../../風物之琴譜/縮小版可匯入譜面/slim-json/surges-slim.json', {
-  eager: true,
+const defaultScoreModules = import.meta.glob('../../風物之琴譜/縮小版可匯入譜面/slim-json/*-slim.json', {
   import: 'default',
 });
-const surgesScore = Object.values(defaultSlimScoreModules)[0] ?? null;
-const DEFAULT_SCORE_TITLE = surgesScore?.meta?.displayTitle ?? surgesScore?.meta?.title ?? DEFAULT_SCORE_NAME;
+const DEFAULT_SCORE_TITLE = DEFAULT_SCORE_NAME;
 const DEFAULT_SCORE_SOURCE_PATH = getDefaultSlimScorePath(DEFAULT_SLIM_SCORE_FILENAME);
 
-function createDefaultState() {
-  if (!surgesScore) {
-    const fallbackScore = {
-      version: '3.2-ultra-slim',
-      meta: {
-        title: DEFAULT_SCORE_TITLE,
-        displayTitle: DEFAULT_SCORE_TITLE,
-        sourceType: 'json',
-        storageFormat: 'hina-slim-score@3.2',
-      },
-      transport: {
-        bpm: DEFAULT_SCORE_PARAMS.bpm,
-        timeSigNum: DEFAULT_SCORE_PARAMS.timeSigNum,
-        timeSigDen: DEFAULT_SCORE_PARAMS.timeSigDen,
-        resolution: 480,
-      },
-      playback: {
-        tone: DEFAULT_SCORE_PARAMS.tone,
-        globalKeyOffset: DEFAULT_SCORE_PARAMS.globalKeyOffset,
-        scaleMode: DEFAULT_SCORE_PARAMS.scaleMode,
-        reverb: DEFAULT_SCORE_PARAMS.reverb,
-      },
-      tracks: [],
-      notes: [],
-    };
+function getDefaultSlimScoreLoader() {
+  return Object.entries(defaultScoreModules)
+    .find(([filePath]) => filePath.endsWith(`/${DEFAULT_SLIM_SCORE_FILENAME}`))?.[1]
+    ?? (() => import('../../風物之琴譜/縮小版可匯入譜面/slim-json/surges-slim.json')
+      .then((module) => module.default ?? module));
+}
 
-    return createScoreDocument({
-      title: DEFAULT_SCORE_TITLE,
-      content: fallbackScore,
-      sourceType: SCORE_SOURCE_TYPES.JSON,
-      sourcePath: DEFAULT_SCORE_SOURCE_PATH,
-    });
-  }
+function createScoreStateFromSource(source) {
+  const content = source?.content ?? source;
+  const title = content?.meta?.displayTitle ?? content?.meta?.title ?? DEFAULT_SCORE_TITLE;
 
   return createScoreDocument(applyScoreRecommendation({
-    title: DEFAULT_SCORE_TITLE,
-    content: surgesScore,
+    title,
+    content,
     sourceType: SCORE_SOURCE_TYPES.JSON,
     sourcePath: DEFAULT_SCORE_SOURCE_PATH,
-    ...surgesScore?.transport,
-    ...surgesScore?.playback,
+    ...content?.transport,
+    ...content?.playback,
     tone: DEFAULT_SCORE_PARAMS.tone,
   }, { force: true }));
 }
 
+function isHydratableDefaultDocument(documentData) {
+  const content = documentData?.content;
+  const hasNotes = Array.isArray(content?.notes) && content.notes.length > 0;
+  const hasTracks = Array.isArray(content?.tracks) && content.tracks.length > 0;
+
+  return documentData?.sourceType === SCORE_SOURCE_TYPES.JSON
+    && documentData?.title === DEFAULT_SCORE_TITLE
+    && !hasNotes
+    && !hasTracks;
+}
+
+function createDefaultState() {
+  const fallbackScore = {
+    version: '3.2-ultra-slim',
+    meta: {
+      title: DEFAULT_SCORE_TITLE,
+      displayTitle: DEFAULT_SCORE_TITLE,
+      sourceType: 'json',
+      storageFormat: 'hina-slim-score@3.2',
+    },
+    transport: {
+      bpm: DEFAULT_SCORE_PARAMS.bpm,
+      timeSigNum: DEFAULT_SCORE_PARAMS.timeSigNum,
+      timeSigDen: DEFAULT_SCORE_PARAMS.timeSigDen,
+      resolution: 480,
+    },
+    playback: {
+      tone: DEFAULT_SCORE_PARAMS.tone,
+      globalKeyOffset: DEFAULT_SCORE_PARAMS.globalKeyOffset,
+      scaleMode: DEFAULT_SCORE_PARAMS.scaleMode,
+      reverb: DEFAULT_SCORE_PARAMS.reverb,
+    },
+    tracks: [],
+    notes: [],
+  };
+
+  return createScoreDocument({
+    title: DEFAULT_SCORE_TITLE,
+    content: fallbackScore,
+    sourceType: SCORE_SOURCE_TYPES.JSON,
+    sourcePath: DEFAULT_SCORE_SOURCE_PATH,
+  });
+}
+
 export function useScoreState() {
   const [scoreDocument, setScoreDocument] = useState(createDefaultState);
+  const shouldHydrateDefaultScoreRef = useRef(true);
+
+  const hydrateDefaultScore = useCallback(async () => {
+    const loadDefaultScore = getDefaultSlimScoreLoader();
+    if (!loadDefaultScore) {
+      return;
+    }
+
+    try {
+      const content = await loadDefaultScore();
+      setScoreDocument((prev) => {
+        if (!isHydratableDefaultDocument(prev)) {
+          return prev;
+        }
+        shouldHydrateDefaultScoreRef.current = false;
+        return createScoreStateFromSource(content);
+      });
+    } catch (error) {
+      console.warn(`Default score "${DEFAULT_SLIM_SCORE_FILENAME}" could not be loaded.`, error);
+    }
+  }, []);
+
+  useEffect(() => {
+    hydrateDefaultScore();
+  }, [hydrateDefaultScore]);
 
   const updateScoreDocument = useCallback((updater) => {
+    shouldHydrateDefaultScoreRef.current = false;
     setScoreDocument((prev) => {
       const next = typeof updater === 'function' ? updater(prev) : { ...prev, ...updater };
       return createScoreDocument(next);
@@ -172,16 +217,20 @@ export function useScoreState() {
   }, [updateScoreDocument]);
 
   const loadScoreSource = useCallback((source) => {
+    shouldHydrateDefaultScoreRef.current = false;
     setScoreDocument(createScoreDocument(applyScoreRecommendation(source)));
   }, []);
 
   const applySavedScore = useCallback((savedScore) => {
+    shouldHydrateDefaultScoreRef.current = false;
     setScoreDocument(createScoreDocument(applyScoreRecommendation(savedScore)));
   }, []);
 
   const resetScoreState = useCallback(() => {
+    shouldHydrateDefaultScoreRef.current = true;
     setScoreDocument(createDefaultState());
-  }, []);
+    hydrateDefaultScore();
+  }, [hydrateDefaultScore]);
 
   const currentScoreParams = useMemo(() => ({
     bpm: scoreDocument.bpm,

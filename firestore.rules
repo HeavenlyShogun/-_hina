@@ -71,8 +71,18 @@ service cloud.firestore {
         && optionalNumber('charResolution', 1, 64)
         && optionalNumber('globalKeyOffset', -24, 24)
         && optionalString('tone', 32)
+        && optionalString('scaleMode', 32)
+        && optionalString('sourceType', 16)
+        && optionalString('compilerVersion', 80)
+        && optionalString('referenceNotes', 4000)
+        && optionalString('ownerUid', 160)
+        && optionalString('publicId', 600)
+        && optionalString('privateScoreId', 300)
         && optionalBool('reverb')
-        && optionalMap('accidentals');
+        && optionalBool('isPublic')
+        && optionalMap('accidentals')
+        && optionalMap('contentStorage')
+        && optionalList('references', 8);
     }
 
     function hasValidScoreSummaryPayload() {
@@ -81,7 +91,7 @@ service cloud.firestore {
         && request.resource.data.updatedAt is timestamp
         && request.resource.data.contentLength is number
         && request.resource.data.contentLength >= 0
-        && request.resource.data.contentLength <= 850 * 1024
+        && request.resource.data.contentLength <= 20 * 1024 * 1024
         && optionalNumber('bpm', 20, 300)
         && optionalNumber('timeSigNum', 1, 16)
         && optionalNumber('timeSigDen', 1, 32)
@@ -92,9 +102,21 @@ service cloud.firestore {
         && optionalString('tone', 32)
         && optionalString('referenceNotes', 4000)
         && optionalString('compilerVersion', 80)
+        && optionalString('ownerUid', 160)
+        && optionalString('publicId', 600)
         && optionalBool('reverb')
+        && optionalBool('isPublic')
         && optionalMap('accidentals')
+        && optionalMap('contentStorage')
         && optionalList('references', 8);
+    }
+
+    function isPublicScore() {
+      return resource.data.isPublic == true;
+    }
+
+    function isPublicOwner() {
+      return isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
     }
 
     match /artifacts/{appId}/users/{userId}/scores/{scoreId} {
@@ -105,6 +127,34 @@ service cloud.firestore {
     match /artifacts/{appId}/users/{userId}/scoreSummaries/{summaryId} {
       allow read, delete: if isOwner(userId);
       allow create, update: if isOwner(userId) && hasValidScoreSummaryPayload();
+    }
+
+    match /artifacts/{appId}/publicScores/{scoreId} {
+      allow read: if isPublicScore();
+      allow create, update: if isPublicOwner()
+        && request.resource.data.isPublic == true
+        && hasValidScorePayload();
+      allow delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+    }
+
+    match /artifacts/{appId}/publicScoreSummaries/{summaryId} {
+      allow read: if isPublicScore();
+      allow create: if isPublicOwner()
+        && request.resource.data.isPublic == true
+        && hasValidScoreSummaryPayload();
+      allow update: if (
+          isSignedIn()
+          && resource.data.ownerUid == request.auth.uid
+          && request.resource.data.isPublic == true
+          && hasValidScoreSummaryPayload()
+        ) || (
+          isSignedIn()
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly(['copiedCount', 'updatedAt'])
+          && request.resource.data.copiedCount is number
+          && request.resource.data.copiedCount >= resource.data.copiedCount
+          && request.resource.data.updatedAt is timestamp
+        );
+      allow delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
     }
 
     match /{document=**} {

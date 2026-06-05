@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle, CheckCircle, FolderOpen, Trash2 } from 'lucide-react';
 import ScoreConverter from './components/ScoreConverter';
 import ScoreEditor from './components/ScoreEditor';
+import ScoreLibrary from './components/ScoreLibrary';
 import PianoRoom from './pages/PianoRoom';
 import galaxyBackgroundUrl from './assets/galaxy-background.jpg';
 import { AudioConfigProvider, useAudioConfig } from './contexts/AudioConfigContext';
@@ -210,6 +211,7 @@ function AppContent({
   setReferenceNotes,
   user,
   savedScores,
+  publicScores,
   cloudStatus,
   cloudError,
   isSaving,
@@ -219,6 +221,9 @@ function AppContent({
   clearAllCloudScores,
   uploadCloudScores,
   loadCloudScore,
+  loadSharedScore,
+  shareCloudScore,
+  copyPublicScore,
   loadScoreSource,
   applySavedScore,
   resetScoreState,
@@ -232,7 +237,13 @@ function AppContent({
   const [uiMode, setUiMode] = useState('normal');
   const [panelModes, setPanelModes] = useState({});
   const [pendingConvertedScores, setPendingConvertedScores] = useState([]);
+  const [autoSyncStatus, setAutoSyncStatus] = useState('idle');
+  const [shareUrl, setShareUrl] = useState('');
+  const [isSharing, setIsSharing] = useState(false);
   const toastTimerRef = useRef(null);
+  const autoSaveTimerRef = useRef(null);
+  const lastAutoSaveSignatureRef = useRef(null);
+  const sharedScoreLoadedRef = useRef(false);
   const visualEventQueueRef = useRef([]);
   const visualFlushFrameRef = useRef(0);
   const featuredRequestIdRef = useRef(0);
@@ -251,6 +262,9 @@ function AppContent({
   useEffect(() => () => {
     if (toastTimerRef.current) {
       window.clearTimeout(toastTimerRef.current);
+    }
+    if (autoSaveTimerRef.current) {
+      window.clearTimeout(autoSaveTimerRef.current);
     }
     if (visualFlushFrameRef.current) {
       window.cancelAnimationFrame(visualFlushFrameRef.current);
@@ -559,6 +573,22 @@ function AppContent({
     showToast('已連線到 Firebase', 'success');
   }, [cloudError, ensureCloudConnection, showToast]);
 
+  const createShareUrl = useCallback((publicId) => {
+    const url = new URL(window.location.href);
+    url.search = '';
+    url.hash = '';
+    url.searchParams.set('scoreId', publicId);
+    return url.toString();
+  }, []);
+
+  const copyShareUrl = useCallback(async (url) => {
+    try {
+      await navigator.clipboard?.writeText(url);
+    } catch {
+      // Clipboard can be unavailable on non-secure previews; the URL remains visible in the UI.
+    }
+  }, []);
+
   const handleLoadScore = useCallback(async (savedScore) => {
     const fullScore = savedScore?.rawText ? savedScore : await loadCloudScore(savedScore.id);
 
@@ -568,9 +598,26 @@ function AppContent({
     }
 
     applySavedScore(fullScore);
+    lastAutoSaveSignatureRef.current = null;
+    setShareUrl(fullScore.publicId ? createShareUrl(fullScore.publicId) : '');
     stopAll();
     showToast(`已載入 ${fullScore.title}`, 'success');
-  }, [applySavedScore, loadCloudScore, showToast, stopAll]);
+  }, [applySavedScore, createShareUrl, loadCloudScore, showToast, stopAll]);
+
+  const handleLoadPublicScore = useCallback(async (savedScore) => {
+    const fullScore = await loadSharedScore(savedScore.id);
+
+    if (!fullScore) {
+      showToast('共享譜面載入失敗', 'error');
+      return;
+    }
+
+    applySavedScore(fullScore);
+    lastAutoSaveSignatureRef.current = null;
+    setShareUrl(createShareUrl(savedScore.id));
+    stopAll();
+    showToast(`已載入共享譜面 ${fullScore.title}`, 'success');
+  }, [applySavedScore, createShareUrl, loadSharedScore, showToast, stopAll]);
 
   const handleSaveScore = useCallback(async () => {
     const title = scoreTitle.trim();
@@ -588,6 +635,163 @@ function AppContent({
 
     showToast('已存入雲端曲庫，節奏與調性也已寫入譜面', 'success');
   }, [buildCurrentScoreSnapshot, cloudError, saveCloudScore, scoreTitle, showToast]);
+
+  const handleShareSnapshot = useCallback(async (title, snapshot) => {
+    if (!title.trim()) {
+      showToast('請先輸入譜面名稱', 'error');
+      return null;
+    }
+
+    setIsSharing(true);
+    try {
+      const result = await shareCloudScore(title, snapshot);
+      if (!result?.publicId) {
+        showToast(cloudError || '分享連結生成失敗', 'error');
+        return null;
+      }
+
+      const url = createShareUrl(result.publicId);
+      setShareUrl(url);
+      await copyShareUrl(url);
+      showToast('分享連結已生成並複製', 'success');
+      return url;
+    } finally {
+      setIsSharing(false);
+    }
+  }, [cloudError, copyShareUrl, createShareUrl, shareCloudScore, showToast]);
+
+  const handleShareCurrentScore = useCallback(async () => {
+    const title = scoreTitle.trim() || scoreDocument.title;
+    await handleShareSnapshot(title, buildCurrentScoreSnapshot(title));
+  }, [buildCurrentScoreSnapshot, handleShareSnapshot, scoreDocument.title, scoreTitle]);
+
+  const handleShareSavedScore = useCallback(async (savedScore) => {
+    const fullScore = savedScore?.rawText ? savedScore : await loadCloudScore(savedScore.id);
+
+    if (!fullScore) {
+      showToast('雲端譜面載入失敗，無法分享', 'error');
+      return;
+    }
+
+    await handleShareSnapshot(fullScore.title, fullScore);
+  }, [handleShareSnapshot, loadCloudScore, showToast]);
+
+  const handleCopyPublicScore = useCallback(async (publicId) => {
+    const copied = await copyPublicScore(publicId);
+    showToast(copied ? '已複製到我的雲端曲庫' : '複製共享譜面失敗', copied ? 'success' : 'error');
+  }, [copyPublicScore, showToast]);
+
+  useEffect(() => {
+    if (sharedScoreLoadedRef.current) {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const scoreId = params.get('scoreId');
+    if (!scoreId) {
+      return;
+    }
+
+    sharedScoreLoadedRef.current = true;
+    let isCancelled = false;
+
+    const loadSharedScoreFromUrl = async () => {
+      const fullScore = await loadSharedScore(scoreId);
+      if (isCancelled) {
+        return;
+      }
+
+      if (!fullScore) {
+        showToast('分享譜面不存在或尚未公開', 'error');
+        return;
+      }
+
+      applySavedScore(fullScore);
+      lastAutoSaveSignatureRef.current = null;
+      setShareUrl(createShareUrl(scoreId));
+      stopAll();
+      showToast(`已載入分享譜面 ${fullScore.title}`, 'success');
+    };
+
+    void loadSharedScoreFromUrl();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [applySavedScore, createShareUrl, loadSharedScore, showToast, stopAll]);
+
+  useEffect(() => {
+    if (autoSaveTimerRef.current) {
+      window.clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
+    }
+
+    if (cloudStatus !== 'ready' || !user || !scoreTitle.trim()) {
+      setAutoSyncStatus('idle');
+      return undefined;
+    }
+
+    let snapshot;
+    let signature;
+    try {
+      snapshot = buildCurrentScoreSnapshot(scoreTitle.trim() || scoreDocument.title);
+      signature = JSON.stringify({
+        title: snapshot.title,
+        rawText: snapshot.rawText,
+        bpm: snapshot.bpm,
+        timeSigNum: snapshot.timeSigNum,
+        timeSigDen: snapshot.timeSigDen,
+        charResolution: snapshot.charResolution,
+        tone: snapshot.tone,
+        reverb: snapshot.reverb,
+        globalKeyOffset: snapshot.globalKeyOffset,
+        scaleMode: snapshot.scaleMode,
+        accidentals: snapshot.accidentals,
+        references: snapshot.references,
+        referenceNotes: snapshot.referenceNotes,
+      });
+    } catch (error) {
+      console.error(error);
+      setAutoSyncStatus('error');
+      return undefined;
+    }
+
+    if (lastAutoSaveSignatureRef.current === null) {
+      lastAutoSaveSignatureRef.current = signature;
+      setAutoSyncStatus('synced');
+      return undefined;
+    }
+
+    if (lastAutoSaveSignatureRef.current === signature) {
+      return undefined;
+    }
+
+    setAutoSyncStatus('pending');
+    autoSaveTimerRef.current = window.setTimeout(async () => {
+      setAutoSyncStatus('syncing');
+      const saved = await saveCloudScore(snapshot.title, snapshot);
+      if (saved) {
+        lastAutoSaveSignatureRef.current = signature;
+        setAutoSyncStatus('synced');
+      } else {
+        setAutoSyncStatus('error');
+      }
+    }, 3000);
+
+    return () => {
+      if (autoSaveTimerRef.current) {
+        window.clearTimeout(autoSaveTimerRef.current);
+        autoSaveTimerRef.current = null;
+      }
+    };
+  }, [
+    buildCurrentScoreSnapshot,
+    cloudStatus,
+    saveCloudScore,
+    scoreDocument.title,
+    scoreTitle,
+    user,
+  ]);
 
   const handleDeleteScore = useCallback(async (id) => {
     const deleted = await deleteCloudScore(id);
@@ -905,7 +1109,7 @@ function AppContent({
           workspaceSections={workspaceSections}
           isBusy={isUiBusy}
           busyMessage={uiBusyMessage}
-          isPlaybackActive={isPlaying}
+          isPlaybackActive={isPlaying || isPaused}
           uiMode={uiMode}
           onPanelPointerDown={handlePanelPointerDown}
         />
@@ -993,6 +1197,23 @@ function AppContent({
                   </div>
                 </div>
               </div>
+
+              <div className="mt-6">
+                <ScoreLibrary
+                  user={user}
+                  savedScores={savedScores}
+                  publicScores={publicScores}
+                  onLoadScore={handleLoadScore}
+                  onLoadPublicScore={handleLoadPublicScore}
+                  onCopyPublicScore={handleCopyPublicScore}
+                  onShareScore={handleShareSavedScore}
+                  onClearAll={handleClearAllScores}
+                  onDeleteScore={handleDeleteScore}
+                  onConnectCloud={handleConnectCloud}
+                  cloudStatus={cloudStatus}
+                  cloudError={cloudError}
+                />
+              </div>
             </aside>
 
             <div className="space-y-8">
@@ -1018,8 +1239,12 @@ function AppContent({
                   onImport={handleImportLocal}
                   onExport={handleExportLocal}
                   onSave={handleSaveScore}
+                  onShare={handleShareCurrentScore}
                   onReset={handleResetScore}
                   isSaving={isSaving}
+                  isSharing={isSharing}
+                  autoSyncStatus={autoSyncStatus}
+                  shareUrl={shareUrl}
                   onConnectCloud={handleConnectCloud}
                   cloudStatus={cloudStatus}
                   showGuidePanel={false}
@@ -1160,6 +1385,7 @@ export default function App() {
 
   const {
     savedScores,
+    publicScores,
     user,
     cloudStatus,
     cloudError,
@@ -1170,6 +1396,9 @@ export default function App() {
     clearAllCloudScores,
     uploadCloudScores,
     loadCloudScore,
+    loadSharedScore,
+    shareCloudScore,
+    copyPublicScore,
   } = useCloudScores();
 
   const handleAudioConfigChange = useCallback((patch) => {
@@ -1237,6 +1466,7 @@ export default function App() {
         setReferenceNotes={setReferenceNotes}
         user={user}
         savedScores={savedScores}
+        publicScores={publicScores}
         cloudStatus={cloudStatus}
         cloudError={cloudError}
         isSaving={isSaving}
@@ -1246,6 +1476,9 @@ export default function App() {
         clearAllCloudScores={clearAllCloudScores}
         uploadCloudScores={uploadCloudScores}
         loadCloudScore={loadCloudScore}
+        loadSharedScore={loadSharedScore}
+        shareCloudScore={shareCloudScore}
+        copyPublicScore={copyPublicScore}
         loadScoreSource={loadScoreSource}
         applySavedScore={applySavedScore}
         resetScoreState={resetScoreState}

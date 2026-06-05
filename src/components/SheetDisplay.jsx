@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpen, ChevronRight, Download, Edit3, FileJson, FolderOpen, Link2, Music2, Plus, RotateCcw, Trash2, UploadCloud } from 'lucide-react';
+import { BookOpen, ChevronRight, Download, Edit3, FileJson, FolderOpen, Link2, Music2, Plus, RotateCcw, Share2, Trash2, UploadCloud } from 'lucide-react';
 import { usePlayback } from '../contexts/PlaybackContext';
 import { useAudioConfig } from '../contexts/AudioConfigContext';
 import useLivePlaybackFrame from '../hooks/useLivePlaybackFrame';
@@ -186,8 +186,12 @@ const SheetDisplay = memo(({
   onLoadJsonDemo,
   onExport,
   onSave,
+  onShare,
   onReset,
   isSaving,
+  isSharing = false,
+  autoSyncStatus = 'idle',
+  shareUrl = '',
   onConnectCloud,
   cloudStatus,
   showScoreActions = true,
@@ -558,10 +562,41 @@ const SheetDisplay = memo(({
               <UploadCloud size={16} />
               {cloudStatus === 'ready' ? (isSaving ? '儲存中' : '存入雲端') : (cloudStatus === 'loading' ? '連線中' : '連線雲端')}
             </button>
+            <button
+              type="button"
+              onClick={cloudStatus === 'ready' ? onShare : onConnectCloud}
+              disabled={isSharing || cloudStatus === 'loading'}
+              className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-amber-300/25 bg-amber-500/12 px-5 py-3 text-xs font-black text-amber-100 shadow-lg transition-all hover:bg-amber-500/20 disabled:opacity-60 sm:flex-none"
+              title={shareUrl || '生成分享連結'}
+            >
+              <Share2 size={16} />
+              {cloudStatus === 'ready' ? (isSharing ? '生成中' : '分享') : '連線'}
+            </button>
             <button onClick={onReset} className="flex items-center justify-center rounded-2xl border border-rose-500/20 bg-rose-500/10 p-3 text-rose-400 transition-all hover:bg-rose-500/20" title="重設譜面">
               <RotateCcw size={18} />
             </button>
           </div>
+        </div>
+      ) : null}
+
+      {showScoreActions && cloudStatus === 'ready' ? (
+        <div className="mb-5 flex flex-wrap items-center gap-2 rounded-2xl border border-white/8 bg-black/25 px-4 py-3 text-[11px] font-bold text-white/55">
+          <span className="text-emerald-200">
+            {autoSyncStatus === 'pending'
+              ? '雲端同步排程中'
+              : autoSyncStatus === 'syncing'
+                ? '雲端同步中'
+                : autoSyncStatus === 'synced'
+                  ? '雲端已同步'
+                  : autoSyncStatus === 'error'
+                    ? '雲端同步失敗'
+                    : '雲端自動同步待命'}
+          </span>
+          {shareUrl ? (
+            <span className="min-w-0 truncate text-amber-100/80">
+              分享連結：{shareUrl}
+            </span>
+          ) : null}
         </div>
       ) : null}
 
