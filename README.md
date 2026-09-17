@@ -92,6 +92,10 @@ npm run preview:pages
 - `待整理/`：尚未符合目前譜面格式或保留中的原始備份。
 - `工具與參考/`：外掛、捷徑、圖片等非譜面檔案
 
+## 外接硬體工作區
+
+`外接硬體資訊/` 是網站以外的實體演奏控制器工作區，保存硬體製作、接線、韌體與實機測試；網站程式與雲端作業仍保存在 `src/` 與 `專案記憶/`。目前網站尚未實作 Web MIDI 接收，第一代控制器的 USB MIDI 介接契約與軟體待辦見 `外接硬體資訊/硬體計畫資訊.md`。
+
 ## 2026-05-29 Notes
 
 - Canonical event schema is unified as `tick`, `durationTicks`, `k`, `v`, `noteName`, `frequency`, `trackId`.

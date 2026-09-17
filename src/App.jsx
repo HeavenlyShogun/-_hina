@@ -10,6 +10,7 @@ import { PlaybackProvider } from './contexts/PlaybackContext';
 import { IMPORTABLE_SCORE_FILES, IMPORTABLE_SCORE_GROUPS } from './data/importableScoreFiles';
 import { useCloudScores } from './hooks/useCloudScores';
 import useKeyboardMatcher from './hooks/useKeyboardMatcher';
+import useMidiInput from './hooks/useMidiInput';
 import { useScorePlayback } from './hooks/useScorePlayback';
 import { useScoreState } from './hooks/useScoreState';
 import { APP_NAME, APP_TAGLINE, APP_VERSION } from './config/branding';
@@ -22,6 +23,7 @@ import {
 import { applyScoreRecommendation } from './utils/scoreRecommendations';
 import { normalizeScoreSource } from './utils/score';
 import { scoreJsonToMidiBytes } from './utils/scoreToMidi';
+import { downloadTrack01Wav } from './services/audioOfflineRenderer';
 
 function getFileTitle(filename) {
   return filename.replace(/\.[^/.]+$/, '');
@@ -240,6 +242,7 @@ function AppContent({
   const [autoSyncStatus, setAutoSyncStatus] = useState('idle');
   const [shareUrl, setShareUrl] = useState('');
   const [isSharing, setIsSharing] = useState(false);
+  const [isRenderingTrack, setIsRenderingTrack] = useState(false);
   const toastTimerRef = useRef(null);
   const autoSaveTimerRef = useRef(null);
   const lastAutoSaveSignatureRef = useRef(null);
@@ -488,6 +491,33 @@ function AppContent({
     onKeyVisualRelease,
     onVisualReset,
   });
+
+  useMidiInput({
+    onKeyActivate: handleKeyActivate,
+    onKeyDeactivate: handleKeyDeactivate,
+  });
+
+  const handleDownloadTrack01 = useCallback(async () => {
+    if (isRenderingTrack) return;
+    setIsRenderingTrack(true);
+    try {
+      await downloadTrack01Wav(playbackScore, {
+        bpm,
+        timeSigNum,
+        timeSigDen,
+        charResolution,
+        globalKeyOffset: audioConfig.globalKeyOffset,
+        accidentals,
+        gain: audioConfig.vol,
+      });
+      showToast('TRACK01.WAV 已開始下載。', 'success');
+    } catch (error) {
+      console.error('TRACK01.WAV render failed.', error);
+      showToast('TRACK01.WAV 產生失敗，請使用支援 Web Audio 的瀏覽器。', 'error');
+    } finally {
+      setIsRenderingTrack(false);
+    }
+  }, [accidentals, audioConfig.globalKeyOffset, audioConfig.vol, bpm, charResolution, isRenderingTrack, playbackScore, showToast, timeSigDen, timeSigNum]);
 
   const isUiBusy = isPlaybackBusy || featuredLoadState.isLoading;
   const uiBusyMessage = featuredLoadState.isLoading
@@ -1110,6 +1140,8 @@ function AppContent({
           isBusy={isUiBusy}
           busyMessage={uiBusyMessage}
           isPlaybackActive={isPlaying || isPaused}
+          onDownloadTrack01={handleDownloadTrack01}
+          isRenderingTrack={isRenderingTrack}
           uiMode={uiMode}
           onPanelPointerDown={handlePanelPointerDown}
         />

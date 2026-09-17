@@ -14,8 +14,7 @@ const DEFAULT_SCORE_SOURCE_PATH = getDefaultSlimScorePath(DEFAULT_SLIM_SCORE_FIL
 function getDefaultSlimScoreLoader() {
   return Object.entries(defaultScoreModules)
     .find(([filePath]) => filePath.endsWith(`/${DEFAULT_SLIM_SCORE_FILENAME}`))?.[1]
-    ?? (() => import('../../風物之琴譜/縮小版可匯入譜面/slim-json/surges-slim.json')
-      .then((module) => module.default ?? module));
+    ?? null;
 }
 
 function createScoreStateFromSource(source) {
