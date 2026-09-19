@@ -5,6 +5,7 @@ import {
   deleteScore,
   loadScore,
   loadPublicScore,
+  logFirebasePermissionDebugHint,
   publishScore,
   saveScore,
   subscribeToPublicScores,
@@ -20,6 +21,11 @@ function resolvePayloadStorageId(title, payload) {
     ?? title
     ?? '',
   ).trim();
+}
+
+function reportCloudError(error) {
+  logFirebasePermissionDebugHint(error);
+  console.error(error);
 }
 
 export function useCloudScores() {
@@ -71,7 +77,7 @@ export function useCloudScores() {
         return result.ctx;
       })
       .catch((error) => {
-        console.error(error);
+        reportCloudError(error);
         setCloudStatus('error');
         setCloudError(error?.message || 'Firebase 連線失敗。');
         return null;
@@ -102,7 +108,7 @@ export function useCloudScores() {
         setSavedScores(scores);
       },
       (error) => {
-        console.error(error);
+        reportCloudError(error);
         setCloudStatus('error');
         setCloudError(error?.message || 'Firestore 訂閱失敗。');
       },
@@ -114,7 +120,7 @@ export function useCloudScores() {
         setPublicScores(scores);
       },
       (error) => {
-        console.error(error);
+        reportCloudError(error);
         setCloudStatus('error');
         setCloudError(error?.message || 'Firestore 公開譜庫讀取失敗');
       },
@@ -160,7 +166,7 @@ export function useCloudScores() {
       setCloudError('');
       return fullScore;
     } catch (error) {
-      console.error(error);
+      reportCloudError(error);
       setCloudError(error?.message || 'Firestore 譜面讀取失敗。');
       return null;
     }
@@ -177,7 +183,7 @@ export function useCloudScores() {
       setCloudError('');
       return true;
     } catch (error) {
-      console.error(error);
+      reportCloudError(error);
       setCloudError(error?.message || 'Firestore 存檔失敗。');
       return false;
     } finally {
@@ -196,7 +202,7 @@ export function useCloudScores() {
       setCloudError('');
       return result;
     } catch (error) {
-      console.error(error);
+      reportCloudError(error);
       setCloudError(error?.message || 'Firestore 分享連結生成失敗');
       return null;
     } finally {
@@ -213,7 +219,7 @@ export function useCloudScores() {
       setCloudError('');
       return fullScore;
     } catch (error) {
-      console.error(error);
+      reportCloudError(error);
       setCloudError(error?.message || '公開譜面載入失敗');
       return null;
     }
@@ -228,7 +234,7 @@ export function useCloudScores() {
       setCloudError('');
       return true;
     } catch (error) {
-      console.error(error);
+      reportCloudError(error);
       setCloudError(error?.message || '公開譜面複製失敗');
       return false;
     }
@@ -243,7 +249,7 @@ export function useCloudScores() {
       setCloudError('');
       return true;
     } catch (error) {
-      console.error(error);
+      reportCloudError(error);
       setCloudError(error?.message || 'Firestore 刪除失敗。');
       return false;
     }
@@ -258,7 +264,7 @@ export function useCloudScores() {
       setCloudError('');
       return true;
     } catch (error) {
-      console.error(error);
+      reportCloudError(error);
       setCloudError(error?.message || 'Firestore 清空曲庫失敗。');
       return false;
     }
@@ -275,7 +281,7 @@ export function useCloudScores() {
       setCloudError('');
       return true;
     } catch (error) {
-      console.error(error);
+      reportCloudError(error);
       setCloudError(error?.message || 'Firestore 批次上傳失敗。');
       return false;
     }

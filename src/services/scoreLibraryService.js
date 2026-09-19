@@ -1,4 +1,3 @@
-const MANIFEST_URL = '/score-library-manifest.json';
 const SCORE_CACHE_NAME = 'universe-score-cache';
 const SCORE_CACHE_SCHEMA_VERSION = 'universe-score-cache@1';
 const DEFAULT_FETCH_TIMEOUT_MS = 8000;
@@ -191,7 +190,11 @@ async function writeCachedScore(slug, manifestItem, score) {
  * @returns {string}
  */
 function resolveScoreUrl(manifestItem = {}) {
-  const url = manifestItem.localPath ?? manifestItem.downloadUrl;
+  if (manifestItem.localPath) {
+    return `${import.meta.env.BASE_URL}${manifestItem.localPath.replace(/^\//, '')}`;
+  }
+
+  const url = manifestItem.downloadUrl;
 
   if (!url) {
     throw new Error(`Manifest item "${manifestItem.slug ?? 'unknown'}" does not include a localPath.`);
@@ -214,7 +217,7 @@ export async function loadLibraryManifest() {
     return manifestPromise;
   }
 
-  manifestPromise = fetchJson(MANIFEST_URL)
+  manifestPromise = fetchJson(`${import.meta.env.BASE_URL}score-library-manifest.json`)
     .then((manifest) => {
       manifestCache = manifest;
       return manifest;
@@ -251,8 +254,8 @@ export async function fetchScoreBySlug(slug, manifestItem) {
       return cachedScore;
     }
 
-    const scoreUrl = resolveScoreUrl(manifestItem);
-    const score = await fetchJson(scoreUrl, { timeoutMs: DEFAULT_FETCH_TIMEOUT_MS });
+    const fetchUrl = resolveScoreUrl(manifestItem);
+    const score = await fetchJson(fetchUrl, { timeoutMs: DEFAULT_FETCH_TIMEOUT_MS });
 
     await writeCachedScore(normalizedSlug, manifestItem, score);
     return score;

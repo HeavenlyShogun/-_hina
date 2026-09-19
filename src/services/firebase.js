@@ -8,6 +8,23 @@ const SCORE_LIST_LIMIT = 40;
 const FIRESTORE_SCORE_SAFE_BYTES = 850 * 1024;
 const FIRESTORE_SCORE_STORAGE_THRESHOLD_BYTES = 500 * 1024;
 const SCORE_STORAGE_CONTENT_TYPE = 'application/json; charset=utf-8';
+const FIREBASE_PERMISSION_DEBUG_HINT = '請確認 Firebase Console 中的 Authentication 已啟用「匿名登入 (Anonymous)」，且 firestore.rules 已正確部署。';
+
+export function isFirebasePermissionError(error = {}) {
+  const code = String(error?.code ?? '');
+  const message = String(error?.message ?? error ?? '');
+
+  return code === 'permission-denied'
+    || code.endsWith('/permission-denied')
+    || message.includes('permission-denied')
+    || message.includes('Missing or insufficient permissions');
+}
+
+export function logFirebasePermissionDebugHint(error) {
+  if (isFirebasePermissionError(error)) {
+    console.error(FIREBASE_PERMISSION_DEBUG_HINT);
+  }
+}
 
 function createPublicScoreId(uid, id) {
   const safeUid = encodeURIComponent(String(uid || 'anonymous'));
@@ -135,6 +152,7 @@ export async function connectFirebaseAuth(onUserChange) {
     const user = resolvedUser ?? ctx.auth.currentUser ?? await waitForUser;
     onUserChange?.(user);
   } catch (error) {
+    logFirebasePermissionDebugHint(error);
     console.warn('Firebase Auth Error', error);
     authUnsubscribe?.();
     throw error;
