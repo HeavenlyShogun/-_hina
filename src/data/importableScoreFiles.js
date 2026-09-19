@@ -1,33 +1,30 @@
 import { DEFAULT_SCORE_PARAMS } from '../constants/music.js';
 import { DEFAULT_SCORE_NAME } from '../config/branding.js';
 import { DEFAULT_MIDI_SOURCE_PATH, DEFAULT_SLIM_SCORE_PATH } from '../config/scoreLibraryPaths.js';
+import { scoreLibraryService } from '../services/scoreLibraryService.js';
 import { SCORE_SOURCE_TYPES } from '../utils/scoreDocument.js';
 
-const scoreModules = import.meta.glob('../../風物之琴譜/縮小版可匯入譜面/slim-json/*-slim.json', {
-  eager: false,
-  import: 'default',
-});
-
 const SLIM_STORAGE_FORMAT = 'hina-slim-score@3.2';
-const IMPORTABLE_SCORE_TITLE_OVERRIDES = {
+const PLAYLIST_ID = 'wind-lyre-slim-library';
+
+export const IMPORTABLE_SCORE_TITLE_OVERRIDES = {
   'avid-slim.json': 'Avid',
   'combined_22_mxl-slim.json': 'unravel',
   'haruhikage-slim.json': '\u6625\u65e5\u5f71',
   'i-really-want-to-stay-at-your-house-slim.json': 'I really want to stay at your house',
   'my-dearest-slim.json': 'my dearest',
   'nameless-voice-slim.json': 'NAMONAKI',
-  'qing-tian-slim.json': '晴天',
-  'sora-no-hako-slim.json': '空の箱',
   'tada-koe-hitotsu-slim.json': 'ONE VOICE',
-  'tenkyu-musica-slim.json': '天球 Música',
 };
-const IMPORTABLE_SCORE_PLAYBACK_OVERRIDES = {
+
+export const IMPORTABLE_SCORE_PLAYBACK_OVERRIDES = {
   'haruhikage-slim.json': {
     globalKeyOffset: 11,
     scaleMode: 'major',
   },
 };
-const IMPORTABLE_SCORE_ORDER = [
+
+export const IMPORTABLE_SCORE_ORDER = [
   'surges-slim.json',
   'neo-aspect-slim.json',
   'bansanka-slim.json',
@@ -69,12 +66,8 @@ function scoreOrder(filename) {
   return order === -1 ? Number.POSITIVE_INFINITY : order;
 }
 
-function filenameFromPath(filePath) {
-  return String(filePath ?? '').split('/').pop() ?? 'score.json';
-}
-
 function titleFromFilename(filename) {
-  const cleanTitle = filename
+  const cleanTitle = String(filename ?? '')
     .replace(/\.json$/iu, '')
     .replace(/-slim$/iu, '')
     .replace(/-/g, ' ')
@@ -84,78 +77,108 @@ function titleFromFilename(filename) {
 }
 
 function idFromFilename(filename) {
-  return `importable-${encodeURIComponent(filename.replace(/\.json$/iu, ''))
+  return `importable-${encodeURIComponent(String(filename ?? 'score').replace(/\.json$/iu, ''))
     .replace(/%/g, '')
     .toLowerCase()}`;
 }
 
-function createSlimMetadata(score = {}, filename) {
-  const meta = score?.meta ?? {};
-  const transport = score?.transport ?? {};
-  const playback = score?.playback ?? {};
+function createManifestScoreMetadata(manifestItem = {}) {
+  const filename = manifestItem.filename ?? `${manifestItem.slug ?? 'score'}-slim.json`;
   const playbackOverride = IMPORTABLE_SCORE_PLAYBACK_OVERRIDES[filename] ?? {};
-  const fallbackTitle = IMPORTABLE_SCORE_TITLE_OVERRIDES[filename] ?? titleFromFilename(filename);
+  const fallbackTitle =
+    manifestItem.displayTitle
+    ?? manifestItem.title
+    ?? IMPORTABLE_SCORE_TITLE_OVERRIDES[filename]
+    ?? titleFromFilename(filename);
 
   return {
-    id: meta.id ?? idFromFilename(filename),
+    id: manifestItem.id ?? idFromFilename(filename),
+    slug: manifestItem.slug ?? filename.replace(/-slim\.json$/iu, ''),
     filename,
     title: fallbackTitle,
     displayTitle: fallbackTitle,
-    subtitle: 'Slim JSON import',
-    storageFormat: meta.storageFormat ?? SLIM_STORAGE_FORMAT,
+    subtitle: manifestItem.isOfflineCore ? 'Offline core score' : 'Cloud library score',
+    storageFormat: manifestItem.storageFormat ?? SLIM_STORAGE_FORMAT,
     version: 'slim',
     versionLabel: 'Slim JSON',
-    groupLabel: 'Slim MIDI',
+    groupLabel: manifestItem.isOfflineCore ? 'Offline Core' : 'Cloud Library',
     sourceType: SCORE_SOURCE_TYPES.JSON,
     libraryPath: DEFAULT_SLIM_SCORE_PATH,
     defaultMidiPath: DEFAULT_MIDI_SOURCE_PATH,
-    bpm: roundBpm(transport.bpm ?? DEFAULT_SCORE_PARAMS.bpm),
-    timeSigNum: transport.timeSigNum ?? DEFAULT_SCORE_PARAMS.timeSigNum,
-    timeSigDen: transport.timeSigDen ?? DEFAULT_SCORE_PARAMS.timeSigDen,
-    charResolution: transport.resolution ?? DEFAULT_SCORE_PARAMS.charResolution,
-    globalKeyOffset: playbackOverride.globalKeyOffset ?? playback.globalKeyOffset ?? DEFAULT_SCORE_PARAMS.globalKeyOffset,
-    scaleMode: playbackOverride.scaleMode ?? playback.scaleMode ?? DEFAULT_SCORE_PARAMS.scaleMode,
-    tone: playback.tone ?? DEFAULT_SCORE_PARAMS.tone,
-    reverb: playback.reverb ?? DEFAULT_SCORE_PARAMS.reverb,
-    accidentals: playback.accidentals ?? {},
-    tags: ['Slim JSON', 'MIDI'],
+    bpm: roundBpm(manifestItem.bpm ?? DEFAULT_SCORE_PARAMS.bpm),
+    timeSigNum: manifestItem.timeSigNum ?? DEFAULT_SCORE_PARAMS.timeSigNum,
+    timeSigDen: manifestItem.timeSigDen ?? DEFAULT_SCORE_PARAMS.timeSigDen,
+    charResolution: manifestItem.resolution ?? DEFAULT_SCORE_PARAMS.charResolution,
+    globalKeyOffset: playbackOverride.globalKeyOffset ?? DEFAULT_SCORE_PARAMS.globalKeyOffset,
+    scaleMode: playbackOverride.scaleMode ?? DEFAULT_SCORE_PARAMS.scaleMode,
+    tone: DEFAULT_SCORE_PARAMS.tone,
+    reverb: DEFAULT_SCORE_PARAMS.reverb,
+    accidentals: {},
+    noteCount: manifestItem.noteCount ?? 0,
+    trackCount: manifestItem.trackCount ?? 0,
+    durationTicks: manifestItem.durationTicks ?? 0,
+    bytes: manifestItem.bytes ?? 0,
+    localPath: manifestItem.localPath ?? null,
+    storagePath: manifestItem.storagePath ?? null,
+    downloadUrl: manifestItem.downloadUrl ?? null,
+    isOfflineCore: Boolean(manifestItem.isOfflineCore),
+    tags: ['Slim JSON', 'MIDI', ...(manifestItem.isOfflineCore ? ['Offline Core'] : ['Cloud Library'])],
+    manifestItem,
+    sourcePath: manifestItem.localPath ?? manifestItem.storagePath ?? filename,
+    playlistId: PLAYLIST_ID,
   };
 }
 
-export const IMPORTABLE_SCORE_FILES = Object.entries(scoreModules)
-  .map(([filePath, loader]) => {
-    const filename = filenameFromPath(filePath);
-    const fallbackMeta = createSlimMetadata({}, filename);
-
-    return {
-      ...fallbackMeta,
-      sourcePath: filePath,
-      playlistId: 'wind-lyre-slim-library',
-      load: async () => {
-        const content = await loader();
-        const metadata = createSlimMetadata(content, filename);
-
-        return {
-          ...metadata,
-          content,
-          sourcePath: filePath,
-          playlistId: 'wind-lyre-slim-library',
-        };
-      },
-    };
-  })
-  .sort((left, right) => (
+function sortScores(scores = []) {
+  return [...scores].sort((left, right) => (
     scoreOrder(left.filename) - scoreOrder(right.filename)
-    || left.displayTitle.localeCompare(right.displayTitle, 'zh-Hant')
-    || left.filename.localeCompare(right.filename, 'zh-Hant')
+    || String(left.displayTitle ?? left.title).localeCompare(String(right.displayTitle ?? right.title), 'zh-Hant')
+    || String(left.filename).localeCompare(String(right.filename), 'zh-Hant')
   ));
+}
 
-export const IMPORTABLE_SCORE_GROUPS = [
-  {
-    id: 'slim',
-    label: 'Slim MIDI',
-    files: IMPORTABLE_SCORE_FILES,
-  },
-];
+function createLoadableScore(manifestItem = {}) {
+  const metadata = createManifestScoreMetadata(manifestItem);
 
-export default IMPORTABLE_SCORE_FILES;
+  return {
+    ...metadata,
+    load: async () => {
+      const content = await scoreLibraryService.fetchScoreBySlug(metadata.slug, manifestItem);
+      const latestMetadata = createManifestScoreMetadata({
+        ...manifestItem,
+        bpm: content?.transport?.bpm ?? manifestItem.bpm,
+        timeSigNum: content?.transport?.timeSigNum ?? manifestItem.timeSigNum,
+        timeSigDen: content?.transport?.timeSigDen ?? manifestItem.timeSigDen,
+        resolution: content?.transport?.resolution ?? manifestItem.resolution,
+        storageFormat: content?.meta?.storageFormat ?? manifestItem.storageFormat,
+      });
+
+      return {
+        ...latestMetadata,
+        content,
+        sourcePath: metadata.sourcePath,
+        playlistId: PLAYLIST_ID,
+      };
+    },
+  };
+}
+
+export async function loadImportableScoreFiles() {
+  const manifest = await scoreLibraryService.loadLibraryManifest();
+  const scores = Array.isArray(manifest?.scores) ? manifest.scores : [];
+  return sortScores(scores.map(createLoadableScore));
+}
+
+export async function loadImportableScoreGroups() {
+  const files = await loadImportableScoreFiles();
+
+  return [
+    {
+      id: 'slim',
+      label: 'Slim MIDI',
+      files,
+    },
+  ];
+}
+
+export default loadImportableScoreFiles;

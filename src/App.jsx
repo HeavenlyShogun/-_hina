@@ -7,10 +7,10 @@ import PianoRoom from './pages/PianoRoom';
 import galaxyBackgroundUrl from './assets/galaxy-background.jpg';
 import { AudioConfigProvider, useAudioConfig } from './contexts/AudioConfigContext';
 import { PlaybackProvider } from './contexts/PlaybackContext';
-import { IMPORTABLE_SCORE_FILES, IMPORTABLE_SCORE_GROUPS } from './data/importableScoreFiles';
 import { useCloudScores } from './hooks/useCloudScores';
 import useKeyboardMatcher from './hooks/useKeyboardMatcher';
 import useMidiInput from './hooks/useMidiInput';
+import useScoreLibraryList from './hooks/useScoreLibraryList';
 import { useScorePlayback } from './hooks/useScorePlayback';
 import { useScoreState } from './hooks/useScoreState';
 import { APP_NAME, APP_TAGLINE, APP_VERSION } from './config/branding';
@@ -243,6 +243,12 @@ function AppContent({
   const [shareUrl, setShareUrl] = useState('');
   const [isSharing, setIsSharing] = useState(false);
   const [isRenderingTrack, setIsRenderingTrack] = useState(false);
+  const {
+    scores: libraryScores,
+    groups: libraryGroups,
+    isLoading: isScoreLibraryLoading,
+    error: scoreLibraryError,
+  } = useScoreLibraryList();
   const toastTimerRef = useRef(null);
   const autoSaveTimerRef = useRef(null);
   const lastAutoSaveSignatureRef = useRef(null);
@@ -386,7 +392,7 @@ function AppContent({
     });
   }, []);
 
-  const selectableScores = useMemo(() => IMPORTABLE_SCORE_FILES, []);
+  const selectableScores = libraryScores;
   const pendingConvertedScoreOptions = useMemo(() => (
     pendingConvertedScores.map((result, index) => {
       const payload = result.payload;
@@ -424,15 +430,15 @@ function AppContent({
   const selectableScoreGroups = useMemo(() => (
     pendingConvertedScoreOptions.length
       ? [
-        ...IMPORTABLE_SCORE_GROUPS,
+        ...libraryGroups,
         {
           id: 'pending-converted',
           label: '本機暫存轉檔',
           files: pendingConvertedScoreOptions,
         },
       ]
-      : IMPORTABLE_SCORE_GROUPS
-  ), [pendingConvertedScoreOptions]);
+      : libraryGroups
+  ), [libraryGroups, pendingConvertedScoreOptions]);
 
   const workspaceSections = useMemo(() => ([
     { id: 'main-screen', label: '\u4e3b\u756b\u9762', shortLabel: '\u4e3b\u756b\u9762', caption: '\u66f2\u5eab\u8207\u64ad\u653e\u5165\u53e3' },
@@ -1126,6 +1132,8 @@ function AppContent({
           setPlayHotkey={setPlayHotkey}
           featuredScores={selectableScores}
           scoreGroups={selectableScoreGroups}
+          isScoreLibraryLoading={isScoreLibraryLoading}
+          scoreLibraryError={scoreLibraryError}
           onPlayFeaturedScore={handlePlayFeaturedScore}
           activeKeys={activeKeys}
           accidentals={accidentals}

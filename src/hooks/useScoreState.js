@@ -2,19 +2,23 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DEFAULT_SCORE_PARAMS } from '../constants/music';
 import { DEFAULT_SCORE_NAME } from '../config/branding';
 import { DEFAULT_SLIM_SCORE_FILENAME, getDefaultSlimScorePath } from '../config/scoreLibraryPaths';
+import { scoreLibraryService } from '../services/scoreLibraryService';
 import { createScoreDocument, SCORE_SOURCE_TYPES } from '../utils/scoreDocument';
 import { applyScoreRecommendation } from '../utils/scoreRecommendations';
 
-const defaultScoreModules = import.meta.glob('../../風物之琴譜/縮小版可匯入譜面/slim-json/*-slim.json', {
-  import: 'default',
-});
 const DEFAULT_SCORE_TITLE = DEFAULT_SCORE_NAME;
 const DEFAULT_SCORE_SOURCE_PATH = getDefaultSlimScorePath(DEFAULT_SLIM_SCORE_FILENAME);
 
-function getDefaultSlimScoreLoader() {
-  return Object.entries(defaultScoreModules)
-    .find(([filePath]) => filePath.endsWith(`/${DEFAULT_SLIM_SCORE_FILENAME}`))?.[1]
-    ?? null;
+async function loadDefaultSlimScore() {
+  const manifest = await scoreLibraryService.loadLibraryManifest();
+  const defaultItem = (manifest?.scores ?? [])
+    .find((item) => item.filename === DEFAULT_SLIM_SCORE_FILENAME);
+
+  if (!defaultItem) {
+    return null;
+  }
+
+  return scoreLibraryService.fetchScoreBySlug(defaultItem.slug, defaultItem);
 }
 
 function createScoreStateFromSource(source) {
@@ -81,13 +85,12 @@ export function useScoreState() {
   const shouldHydrateDefaultScoreRef = useRef(true);
 
   const hydrateDefaultScore = useCallback(async () => {
-    const loadDefaultScore = getDefaultSlimScoreLoader();
-    if (!loadDefaultScore) {
-      return;
-    }
-
     try {
-      const content = await loadDefaultScore();
+      const content = await loadDefaultSlimScore();
+      if (!content) {
+        return;
+      }
+
       setScoreDocument((prev) => {
         if (!isHydratableDefaultDocument(prev)) {
           return prev;

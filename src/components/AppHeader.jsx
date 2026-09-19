@@ -8,6 +8,8 @@ const AppHeader = memo(({
   setPlayHotkey,
   featuredScores = [],
   scoreGroups = [],
+  isScoreLibraryLoading = false,
+  scoreLibraryError = null,
   onPlayFeaturedScore,
   scoreTitle,
   onJumpToSection,
@@ -79,7 +81,7 @@ const AppHeader = memo(({
             <button
               type="button"
               onClick={onTogglePlay}
-              disabled={isBusy}
+              disabled={isBusy || isScoreLibraryLoading || Boolean(scoreLibraryError)}
               className={`flex h-12 items-center justify-center gap-3 rounded-full border px-5 text-xs font-black tracking-[0.18em] shadow-xl transition-all active:scale-[0.98] disabled:cursor-wait disabled:opacity-65 ${isPlaying ? 'border-rose-300/60 bg-rose-400/15 text-rose-100 shadow-[0_16px_40px_rgba(244,63,94,0.18)]' : 'border-emerald-300/50 bg-emerald-400/20 text-emerald-50 shadow-[0_18px_45px_rgba(16,185,129,0.24)] hover:bg-emerald-400/28'}`}
             >
               {isPlaying ? <Square size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
@@ -139,7 +141,7 @@ const AppHeader = memo(({
               className="mt-3 h-12 w-full rounded-2xl border border-amber-200/20 bg-slate-900 px-4 text-sm font-bold text-amber-50 outline-none transition focus:border-amber-200/55 disabled:cursor-wait disabled:opacity-60"
             >
               <option value="" className="bg-slate-950 text-slate-100">
-                {scoreTitle || DEFAULT_SCORE_NAME}
+                {isScoreLibraryLoading ? '載入曲庫清單中...' : (scoreTitle || DEFAULT_SCORE_NAME)}
               </option>
               {scoreOptions.map((group) => (
                 <optgroup key={group.id} label={group.label}>
@@ -151,6 +153,18 @@ const AppHeader = memo(({
                 </optgroup>
               ))}
             </select>
+
+            {isScoreLibraryLoading ? (
+              <div className="mt-3 rounded-2xl border border-amber-200/20 bg-amber-300/10 px-3 py-2 text-xs font-semibold text-amber-50/90">
+                載入曲庫清單中...
+              </div>
+            ) : null}
+
+            {scoreLibraryError ? (
+              <div className="mt-3 rounded-2xl border border-rose-300/25 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-100/90">
+                曲庫清單載入失敗，請重新整理頁面再試。
+              </div>
+            ) : null}
 
             <div className="mt-4 grid gap-2 text-xs text-slate-300 sm:grid-cols-2">
               <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2">

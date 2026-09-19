@@ -9,6 +9,8 @@ const PianoRoom = memo(({
   setPlayHotkey,
   featuredScores,
   scoreGroups,
+  isScoreLibraryLoading,
+  scoreLibraryError,
   onPlayFeaturedScore,
   activeKeys,
   accidentals,
@@ -34,6 +36,8 @@ const PianoRoom = memo(({
         setPlayHotkey={setPlayHotkey}
         featuredScores={featuredScores}
         scoreGroups={scoreGroups}
+        isScoreLibraryLoading={isScoreLibraryLoading}
+        scoreLibraryError={scoreLibraryError}
         onPlayFeaturedScore={onPlayFeaturedScore}
         scoreTitle={scoreTitle}
         onJumpToSection={onJumpToSection}

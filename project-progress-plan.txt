@@ -1,11 +1,18 @@
 # universe rhythm recorder 進度規劃表
 
-最後更新：2026-04-27
-專案位置：`C:\Users\wuche\Desktop\hina_project`
+最後更新：2026-09-19
+專案位置：`C:\Users\TPCYL\Desktop\Project_Hina`
 
 ## 一句話現況
 
 這個專案已經完成「可演奏、可播放、可切換音色、可匯入匯出、可同步 Firebase 曲庫」的主體架構；目前主軸已從「能不能跑」轉為「播放能力深化、譜面模型升級、UI/UX 細修、音色系統擴充」。
+
+## 最新同步（2026-09-19 曲庫 manifest）
+
+- 內建曲庫已改走 `public/score-library-manifest.json` 作為索引入口，manifest 目前共 47 首 slim JSON。
+- `scripts/generate-score-manifest.mjs` 會以對應 MIDI 檔 basename 產生 `title` / `displayTitle`，讓使用者選曲時看到 MIDI 檔名。
+- slim JSON 的 `slug`、`filename`、`localPath` 仍保留作為載入與快取識別，避免顯示名調整影響 `fetchScoreBySlug()`。
+- 已重新產出 `public/score-library-manifest.json` 與 `public/score-library/slim-json/`，公開 slim JSON 目前共 47 檔。
 
 ## 最新重大重構 (2026-04-27)
 
