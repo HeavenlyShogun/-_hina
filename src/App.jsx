@@ -270,7 +270,12 @@ function AppContent({
   }, []);
 
   const onPlaylistPlaybackEnd = useCallback(() => {
-    playlistActionsRef.current?.playNextScore({ automatic: true }).catch((error) => {
+    const actions = playlistActionsRef.current;
+    if (!actions) return;
+    const advance = actions.playlist.queue.length
+      ? actions.playlist.playNextScore({ automatic: true })
+      : actions.playLibraryNext();
+    advance?.catch((error) => {
       console.error('Automatic playlist advance failed.', error);
       showToast(error?.message ?? '無法播放下一首曲目', 'error');
     });
@@ -538,7 +543,6 @@ function AppContent({
     seekToTick,
     resumePlayback: resumeScoreAction,
   });
-  playlistActionsRef.current = playlist;
 
   useMidiInput({
     onKeyActivate: handleKeyActivate,
@@ -1047,8 +1051,32 @@ function AppContent({
 
   const handleSelectQueueItem = useCallback((index) => {
     const item = selectableScores[index];
-    if (item) void handlePlayFeaturedScore(item);
+    if (item) return handlePlayFeaturedScore(item);
+    return undefined;
   }, [handlePlayFeaturedScore, selectableScores]);
+
+  const playLibraryNext = useCallback(async () => {
+    const activeIndex = selectableScores.findIndex((item) => (
+      item.title === scoreTitle || item.displayTitle === scoreTitle
+    ));
+    if (activeIndex < 0 || !selectableScores.length) return;
+    if (playlist.playMode === 'loop-one') {
+      await handleSelectQueueItem(activeIndex);
+      return;
+    }
+    if (playlist.playMode === 'shuffle' && selectableScores.length > 1) {
+      const choices = selectableScores.map((_, index) => index).filter((index) => index !== activeIndex);
+      await handleSelectQueueItem(choices[Math.floor(Math.random() * choices.length)]);
+      return;
+    }
+    if (activeIndex + 1 < selectableScores.length) {
+      await handleSelectQueueItem(activeIndex + 1);
+    } else if (playlist.playMode === 'loop-all') {
+      await handleSelectQueueItem(0);
+    }
+  }, [handleSelectQueueItem, playlist.playMode, scoreTitle, selectableScores]);
+
+  playlistActionsRef.current = { playlist, playLibraryNext };
 
   const handleLoadLocalConvertedScore = useCallback((payload, options = {}) => {
     const { mode = 'replace' } = options;
@@ -1192,6 +1220,7 @@ function AppContent({
           progressBarRef={progressBarRef}
           score={editorScore}
           scoreTitle={scoreTitle}
+          bpm={bpm}
           onJumpToSection={scrollToSection}
           workspaceSections={workspaceSections}
           isBusy={isUiBusy}
