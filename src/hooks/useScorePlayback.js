@@ -53,6 +53,7 @@ export function useScorePlayback({
   onKeyVisualAttack,
   onKeyVisualRelease,
   onVisualReset,
+  onPlaybackEnd,
 }) {
   const [playbackState, setPlaybackState] = useState(() => playbackController.getState());
   const [busyState, setBusyState] = useState({ isBusy: false, message: '' });
@@ -106,12 +107,13 @@ export function useScorePlayback({
       onStateChange: (nextState) => {
         setPlaybackState(nextState);
       },
+      onPlaybackEnd,
     });
 
     setPlaybackState(playbackController.getState());
 
     return unregister;
-  }, [onKeyVisualAttack, onKeyVisualRelease, onVisualReset]);
+  }, [onKeyVisualAttack, onKeyVisualRelease, onPlaybackEnd, onVisualReset]);
 
   useEffect(() => () => {
     queuedSeekJobRef.current = null;
@@ -525,6 +527,7 @@ export function useScorePlayback({
     progressBarRef,
     isPlayingRef,
     playScoreAction,
+    playScoreFromStart: playFromStart,
     playScoreSourceAction,
     pauseScoreAction,
     resumeScoreAction,

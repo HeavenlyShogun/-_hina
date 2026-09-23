@@ -16,6 +16,10 @@ const MIDI_JS_SOUNDFONT_BASE_URL = 'https://gleitz.github.io/midi-js-soundfonts/
 const TONEJS_INSTRUMENTS_BASE_URL = 'https://nbrosowsky.github.io/tonejs-instruments/samples';
 const MIDI_JS_SAMPLE_NOTES = ['C2', 'E2', 'G2', 'B2', 'D3', 'F3', 'A3', 'C4', 'E4', 'G4', 'B4', 'D5', 'F5', 'A5', 'C6', 'E6', 'G6'];
 const DENSE_NOTE_GAIN_FLOOR = 0.16;
+const DENSE_NOTE_GAIN_ATTACK_SEC = 0.008;
+const VOICE_STEAL_FADE_SEC = 0.02;
+const MOBILE_MAX_VOICES = 32;
+const DESKTOP_MAX_VOICES = 72;
 const TONE_SAMPLER_SOURCE = 'tone-sampler';
 const TONE_POLYSYNTH_SOURCE = 'tone-polysynth';
 const PIANO_TONE_SHAPING = {
@@ -748,8 +752,7 @@ function rampAudioParamToSilence(param, releaseStartTime, stopAtTime, fallbackVa
     param.setValueAtTime(Math.max(Number(param.value) || fallbackValue, floor), safeStart);
   }
 
-  param.setTargetAtTime(floor, safeStart, Math.max((safeEnd - safeStart) / 4, 0.004));
-  param.exponentialRampToValueAtTime(floor, safeEnd);
+  param.linearRampToValueAtTime(floor, safeEnd);
 }
 
 function normalizeMidiJsNoteName(noteName) {
@@ -787,7 +790,12 @@ function parseMidiJsSoundfont(text) {
 }
 
 class AudioEngine {
-  static MAX_VOICES = 72;
+  static get MAX_VOICES() {
+    if (typeof window === 'undefined') return DESKTOP_MAX_VOICES;
+    return ('ontouchstart' in window || Number(window.innerWidth) <= 768)
+      ? MOBILE_MAX_VOICES
+      : DESKTOP_MAX_VOICES;
+  }
 
   constructor() {
     this.audioContext = null;
@@ -1390,9 +1398,10 @@ class AudioEngine {
     const oscillators = [oscillator];
 
     const envelopeGain = context.createGain();
+    const attackDuration = Math.max(Number(config.atk) || 0, DENSE_NOTE_GAIN_ATTACK_SEC);
     envelopeGain.gain.setValueAtTime(0.0001, startTime);
-    envelopeGain.gain.linearRampToValueAtTime(peak, startTime + config.atk);
-    envelopeGain.gain.exponentialRampToValueAtTime(sustainLevel, startTime + config.dec);
+    envelopeGain.gain.linearRampToValueAtTime(peak, startTime + attackDuration);
+    envelopeGain.gain.exponentialRampToValueAtTime(sustainLevel, startTime + Math.max(Number(config.dec) || 0, attackDuration + 0.001));
     envelopeGain.gain.setValueAtTime(sustainLevel, sustainUntil);
     envelopeGain.gain.exponentialRampToValueAtTime(0.0001, stopTime);
 
@@ -1561,11 +1570,12 @@ class AudioEngine {
     }
 
     const envelopeGain = context.createGain();
+    const attackDuration = Math.max(Number(config.atk) || 0, DENSE_NOTE_GAIN_ATTACK_SEC);
     envelopeGain.gain.setValueAtTime(0.0001, startTime);
-    envelopeGain.gain.linearRampToValueAtTime(peak, startTime + Math.max(config.atk ?? 0.003, 0.002));
+    envelopeGain.gain.linearRampToValueAtTime(peak, startTime + attackDuration);
     envelopeGain.gain.exponentialRampToValueAtTime(
       Math.max(peak * Math.max(config.sus ?? 0.82, 0.05), 0.0001),
-      startTime + Math.max(config.dec ?? 0.18, 0.05),
+      startTime + Math.max(Number(config.dec) || 0, attackDuration + 0.001, 0.05),
     );
     envelopeGain.gain.setValueAtTime(Math.max(peak * Math.max(config.sus ?? 0.82, 0.05), 0.0001), sustainUntil);
     envelopeGain.gain.exponentialRampToValueAtTime(0.0001, stopTime);
@@ -1713,7 +1723,7 @@ class AudioEngine {
       this.activeLiveVoices.delete(voice.liveVoiceKey);
     }
     const releaseStart = voice.startTime > time ? voice.startTime : time;
-    const stopAt = releaseStart + 0.03;
+    const stopAt = releaseStart + VOICE_STEAL_FADE_SEC;
     this.releaseVoice(voice, releaseStart, stopAt, true);
   }
 
@@ -1818,7 +1828,7 @@ class AudioEngine {
     };
 
     const density = Math.max(Number(normalized.density ?? normalized.simultaneousNotes) || 1, 1);
-    resolved.denseGainScale = Math.max(1 / Math.sqrt(density), DENSE_NOTE_GAIN_FLOOR);
+    resolved.denseGainScale = clamp(1 / Math.sqrt(density), DENSE_NOTE_GAIN_FLOOR, 1);
 
     if (typeof resolved.reverb === 'boolean') {
       resolved.reverbAmount = resolved.reverb ? DEFAULT_RENDER_CONFIG.reverbAmount : 0;

@@ -305,6 +305,7 @@ class PlaybackController {
       onVisualReset: null,
       onProgressUpdate: null,
       onStateChange: null,
+      onPlaybackEnd: null,
     };
     this.schedulerTimer = null;
     this.visualFrame = null;
@@ -815,6 +816,7 @@ class PlaybackController {
     this.resetVisualState({ fromTick: 0, emitReset: true });
     this.emitProgress();
     this.emitState();
+    this.callbacks.onPlaybackEnd?.();
   }
 
   scheduleEvent(event, absoluteTime, durationSec = event.playDurationSec ?? event.durationSec) {

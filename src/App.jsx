@@ -11,6 +11,7 @@ import { useCloudScores } from './hooks/useCloudScores';
 import useKeyboardMatcher from './hooks/useKeyboardMatcher';
 import useMidiInput from './hooks/useMidiInput';
 import useScoreLibraryList from './hooks/useScoreLibraryList';
+import { usePlaylistQueue } from './hooks/usePlaylistQueue';
 import { useScorePlayback } from './hooks/useScorePlayback';
 import { useScoreState } from './hooks/useScoreState';
 import { APP_NAME, APP_TAGLINE, APP_VERSION } from './config/branding';
@@ -256,7 +257,7 @@ function AppContent({
   const visualEventQueueRef = useRef([]);
   const visualFlushFrameRef = useRef(0);
   const featuredRequestIdRef = useRef(0);
-
+  const playlistActionsRef = useRef(null);
   const showToast = useCallback((message, type = 'info') => {
     if (toastTimerRef.current) {
       window.clearTimeout(toastTimerRef.current);
@@ -267,6 +268,13 @@ function AppContent({
       setToast(null);
     }, 3000);
   }, []);
+
+  const onPlaylistPlaybackEnd = useCallback(() => {
+    playlistActionsRef.current?.playNextScore({ automatic: true }).catch((error) => {
+      console.error('Automatic playlist advance failed.', error);
+      showToast(error?.message ?? '無法播放下一首曲目', 'error');
+    });
+  }, [showToast]);
 
   useEffect(() => () => {
     if (toastTimerRef.current) {
@@ -473,6 +481,7 @@ function AppContent({
     playbackState,
     progressBarRef,
     playScoreAction,
+    playScoreFromStart,
     pauseScoreAction,
     resumeScoreAction,
     restartScoreAction,
@@ -496,7 +505,40 @@ function AppContent({
     onKeyVisualAttack,
     onKeyVisualRelease,
     onVisualReset,
+    onPlaybackEnd: onPlaylistPlaybackEnd,
   });
+
+  const loadScoreData = useCallback(async (loadedScore) => {
+    const content = loadedScore?.content ?? loadedScore?.score ?? loadedScore;
+    const source = {
+      id: loadedScore?.id ?? loadedScore?.slug,
+      title: loadedScore?.displayTitle ?? loadedScore?.title ?? content?.meta?.displayTitle ?? content?.meta?.title,
+      content,
+      sourceType: loadedScore?.sourceType ?? SCORE_SOURCE_TYPES.JSON,
+      ...content?.transport,
+      ...content?.playback,
+      bpm: loadedScore?.bpm ?? content?.transport?.bpm,
+      timeSigNum: loadedScore?.timeSigNum ?? content?.transport?.timeSigNum,
+      timeSigDen: loadedScore?.timeSigDen ?? content?.transport?.timeSigDen,
+      charResolution: loadedScore?.charResolution ?? content?.transport?.resolution,
+      globalKeyOffset: loadedScore?.globalKeyOffset ?? content?.playback?.globalKeyOffset,
+      scaleMode: loadedScore?.scaleMode ?? content?.playback?.scaleMode,
+      tone: audioConfig.tone,
+      reverb: loadedScore?.reverb ?? content?.playback?.reverb,
+    };
+    loadScoreSource(applyScoreRecommendation(source, { force: true }));
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+  }, [audioConfig.tone, loadScoreSource]);
+
+  const playlist = usePlaylistQueue({
+    scores: libraryScores,
+    loadScoreData,
+    startScore: playScoreFromStart,
+    playbackState,
+    seekToTick,
+    resumePlayback: resumeScoreAction,
+  });
+  playlistActionsRef.current = playlist;
 
   useMidiInput({
     onKeyActivate: handleKeyActivate,
@@ -1003,6 +1045,11 @@ function AppContent({
     }
   }, [audioConfig.tone, loadScoreSource, showToast, stopAll]);
 
+  const handleSelectQueueItem = useCallback((index) => {
+    const item = selectableScores[index];
+    if (item) void handlePlayFeaturedScore(item);
+  }, [handlePlayFeaturedScore, selectableScores]);
+
   const handleLoadLocalConvertedScore = useCallback((payload, options = {}) => {
     const { mode = 'replace' } = options;
     let nextPayload = payload;
@@ -1076,12 +1123,14 @@ function AppContent({
     onScrubToTick: scrubToTick,
     onSetPlaybackRate: setPlaybackRate,
     onApplySettingsToScore: handleApplyCurrentSettingsToScore,
+    playlist,
   }), [
     bpm,
     charResolution,
     handleApplyCurrentSettingsToScore,
     isPlaying,
     isPaused,
+    playlist,
     playbackState,
     pauseScoreAction,
     playScoreAction,
@@ -1152,6 +1201,9 @@ function AppContent({
           isRenderingTrack={isRenderingTrack}
           uiMode={uiMode}
           onPanelPointerDown={handlePanelPointerDown}
+          queue={selectableScores}
+          currentQueueIndex={selectableScores.findIndex((item) => item.title === scoreTitle || item.displayTitle === scoreTitle)}
+          onSelectQueueItem={handleSelectQueueItem}
         />
 
         <section className="z-20 w-full max-w-6xl px-4">

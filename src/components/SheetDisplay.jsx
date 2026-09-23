@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BookOpen, ChevronRight, Download, Edit3, FileJson, FolderOpen, Link2, Music2, Plus, RotateCcw, Share2, Trash2, UploadCloud } from 'lucide-react';
 import { usePlayback } from '../contexts/PlaybackContext';
+import ScoreTopPlaylistBar from './ScoreTopPlaylistBar';
 import { useAudioConfig } from '../contexts/AudioConfigContext';
 import useLivePlaybackFrame from '../hooks/useLivePlaybackFrame';
 import { usePlayheadSync } from '../hooks/usePlayheadSync';
@@ -214,6 +215,7 @@ const SheetDisplay = memo(({
     charResolution,
     playbackState,
     onScrubToTick,
+    playlist,
   } = usePlayback();
   const audioConfig = useAudioConfig();
   const livePlaybackState = useLivePlaybackFrame();
@@ -507,6 +509,7 @@ const SheetDisplay = memo(({
 
   return (
     <div className="relative flex flex-col rounded-[40px] border border-white/5 bg-white/[0.02] p-6 shadow-2xl md:p-8">
+      <ScoreTopPlaylistBar playlist={playlist} />
       {showScoreActions ? (
         <div className="mb-6 flex flex-col items-center justify-between gap-4 sm:flex-row">
           <div className="flex w-full min-w-[200px] items-center gap-4 rounded-2xl border border-white/10 bg-black/40 px-5 py-3 focus-within:border-emerald-500/40 sm:flex-1">

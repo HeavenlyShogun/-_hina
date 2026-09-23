@@ -20,4 +20,9 @@ export function usePlayback() {
   return context;
 }
 
+export function usePlaylist() {
+  const context = usePlayback();
+  return context.playlist;
+}
+
 export default PlaybackContext;
