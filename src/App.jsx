@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, CheckCircle, FolderOpen, Trash2 } from 'lucide-react';
+import { AlertCircle, CheckCircle, FolderOpen, Library, ListMusic, Trash2 } from 'lucide-react';
 import ScoreConverter from './components/ScoreConverter';
 import ScoreEditor from './components/ScoreEditor';
 import ScoreLibrary from './components/ScoreLibrary';
@@ -232,6 +232,7 @@ function AppContent({
   resetScoreState,
   updateScoreDocument,
 }) {
+  const [libraryImportTab, setLibraryImportTab] = useState('library');
   const audioConfig = useAudioConfig();
   const [playHotkey, setPlayHotkey] = useState('Space');
   const [toast, setToast] = useState(null);
@@ -458,7 +459,8 @@ function AppContent({
     { id: 'lyre-keyboard', label: '\u9375\u76e4', shortLabel: '\u9375\u76e4', caption: '\u5373\u6642\u6f14\u594f\u9375\u76e4' },
     { id: 'rhythm-controls', label: '\u7bc0\u594f\u8207\u8abf\u6027\u8abf\u6574', shortLabel: '\u7bc0\u594f\u8abf\u6027', caption: 'BPM\u3001\u62cd\u865f\u3001\u97f3\u8272\u8207\u8abf\u6027' },
     { id: 'editor', label: '\u8b5c\u9762\u7de8\u8f2f', shortLabel: '\u8b5c\u9762\u7de8\u8f2f', caption: 'Score Editor' },
-    { id: 'converter', label: '\u8b5c\u9762\u8f49\u63db', shortLabel: '\u8b5c\u9762\u8f49\u63db', caption: 'MusicXML / MIDI Converter' },
+    { id: 'library-and-import', label: '\u66f2\u5eab\u8207\u8f49\u6a94', shortLabel: '\u66f2\u5eab\u8f49\u6a94', caption: 'Score Library / Import', icon: Library },
+    { id: 'playlist-manager', label: '\u6211\u7684\u6b4c\u55ae', shortLabel: '\u6211\u7684\u6b4c\u55ae', caption: 'Playlist Manager', icon: ListMusic },
     { id: 'background-board', label: '\u80cc\u666f', shortLabel: '\u80cc\u666f', caption: '\u5e03\u544a\u6b04\u8207\u80cc\u666f\u6b23\u8cde' },
   ]), []);
 
@@ -1055,6 +1057,10 @@ function AppContent({
     return undefined;
   }, [handlePlayFeaturedScore, selectableScores]);
 
+  const handleAddDefaultsToPlaylist = useCallback(() => {
+    selectableScores.forEach((score) => playlist.addToQueue(score));
+  }, [playlist.addToQueue, selectableScores]);
+
   const playLibraryNext = useCallback(async () => {
     const activeIndex = selectableScores.findIndex((item) => (
       item.title === scoreTitle || item.displayTitle === scoreTitle
@@ -1181,16 +1187,20 @@ function AppContent({
     <PlaybackProvider value={playbackValue}>
       <div
         data-ui-mode={uiMode}
-        className="app-shell relative flex min-h-screen select-none flex-col items-center pb-20 font-serif text-slate-50 touch-pan-y"
+        className="app-shell relative isolate flex min-h-screen select-none flex-col items-center pb-20 font-serif text-slate-50 touch-pan-y"
         onPointerDown={handleBackgroundPointerDown}
         onContextMenu={(event) => event.preventDefault()}
-        style={{
+      >
+        <div
+          aria-hidden="true"
+          className="pointer-events-none fixed inset-0 -z-10"
+          style={{
           backgroundImage: `linear-gradient(135deg, rgba(2, 3, 15, 0.38), rgba(24, 18, 54, 0.34) 44%, rgba(3, 12, 32, 0.58)), url(${galaxyBackgroundUrl})`,
-          backgroundPosition: 'center top',
+          backgroundPosition: 'center',
           backgroundRepeat: 'no-repeat',
           backgroundSize: 'cover',
-        }}
-      >
+          }}
+        />
         {toast ? (
           <div className={`fixed right-6 top-6 z-50 flex items-center gap-3 rounded-2xl border px-6 py-3.5 shadow-[0_10px_40px_rgba(0,0,0,0.5)] backdrop-blur-md animate-in slide-in-from-top-5 fade-in duration-300 ${toast.type === 'error' ? 'border-rose-500/50 bg-rose-500/20 text-rose-100' : 'border-emerald-500/50 bg-emerald-500/20 text-emerald-100'}`}>
             {toast.type === 'error' ? <AlertCircle size={18} /> : <CheckCircle size={18} />}
@@ -1233,9 +1243,26 @@ function AppContent({
           queue={selectableScores}
           currentQueueIndex={selectableScores.findIndex((item) => item.title === scoreTitle || item.displayTitle === scoreTitle)}
           onSelectQueueItem={handleSelectQueueItem}
+          playlist={{
+            queue: playlist.queue,
+            currentIndex: playlist.currentIndex,
+            playMode: playlist.playMode,
+            removeFromQueue: playlist.removeFromQueue,
+            clearQueue: playlist.clearQueue,
+            playTrack: playlist.playQueueIndex,
+            playNext: () => playlist.playNextScore().catch((error) => console.error('Failed to play next playlist item.', error)),
+            playPrevious: () => playlist.playPrevScore().catch((error) => console.error('Failed to play previous playlist item.', error)),
+            changePlayMode: playlist.changePlayMode,
+            addTrack: playlist.addToQueue,
+          }}
+          onAddDefaultsToPlaylist={handleAddDefaultsToPlaylist}
         />
 
-        <section className="z-20 w-full max-w-6xl px-4">
+        <div className="z-20 mt-6 flex w-full max-w-6xl gap-2 px-4" role="tablist" aria-label="曲庫與轉檔">
+          <button type="button" role="tab" aria-selected={libraryImportTab === 'library'} onClick={() => setLibraryImportTab('library')} className={`rounded-t-2xl border px-4 py-2 text-xs font-bold ${libraryImportTab === 'library' ? 'border-cyan-200/20 bg-black/40 text-cyan-100' : 'border-white/10 bg-white/5 text-white/55'}`}>內建曲庫</button>
+          <button type="button" role="tab" aria-selected={libraryImportTab === 'converter'} onClick={() => setLibraryImportTab('converter')} className={`rounded-t-2xl border px-4 py-2 text-xs font-bold ${libraryImportTab === 'converter' ? 'border-amber-200/20 bg-black/40 text-amber-100' : 'border-white/10 bg-white/5 text-white/55'}`}>檔案轉檔</button>
+        </div>
+        <section id="library-and-import" className="z-20 w-full max-w-6xl scroll-mt-6 px-4">
           <div className="grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)]">
             <aside className="xl:sticky xl:top-6 xl:self-start">
               <div data-ui-panel="true" data-panel-mode={getPanelMode('workspace')} onPointerDown={handlePanelPointerDown} className="ui-panel rounded-[32px] border border-white/10 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.22)] transition-colors duration-300">
@@ -1319,7 +1346,7 @@ function AppContent({
                 </div>
               </div>
 
-              <div className="mt-6">
+              {libraryImportTab === 'library' && <div className="mt-6">
                 <ScoreLibrary
                   user={user}
                   savedScores={savedScores}
@@ -1334,11 +1361,12 @@ function AppContent({
                   cloudStatus={cloudStatus}
                   cloudError={cloudError}
                 />
-              </div>
+              </div>}
             </aside>
 
             <div className="space-y-8">
-              <div id="editor" data-ui-panel="true" data-panel-mode={getPanelMode('editor')} onPointerDown={handlePanelPointerDown} className="ui-panel scroll-mt-6 rounded-[36px] border border-white/10 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] transition-colors duration-300 md:p-6">
+              <details id="editor" className="group ui-panel scroll-mt-6 rounded-[36px] border border-white/10 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] transition-colors duration-300 md:p-6">
+                <summary className="cursor-pointer list-none px-1 text-sm font-semibold text-violet-50"><span className="text-[10px] font-black uppercase tracking-[0.34em] text-violet-100">Score Editor</span><span className="ml-3 text-xs text-white/45">展開 JSON 編輯器</span></summary>
                 <div role="button" tabIndex={0} onClick={() => togglePanelMode('editor')} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') togglePanelMode('editor'); }} className="mb-5 flex flex-col gap-2 px-1">
                   <div className="text-[10px] font-black uppercase tracking-[0.34em] text-violet-100">
                     Score Editor
@@ -1371,9 +1399,9 @@ function AppContent({
                   showGuidePanel={false}
                   showReferencePanel={false}
                 />
-              </div>
+              </details>
 
-              <div id="converter" data-ui-panel="true" data-panel-mode={getPanelMode('converter')} onPointerDown={handlePanelPointerDown} className="ui-panel scroll-mt-6 rounded-[36px] border border-white/10 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] transition-colors duration-300 md:p-6">
+              {libraryImportTab === 'converter' && <div id="converter" data-ui-panel="true" data-panel-mode={getPanelMode('converter')} onPointerDown={handlePanelPointerDown} className="ui-panel scroll-mt-6 rounded-[36px] border border-white/10 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] transition-colors duration-300 md:p-6">
                 <div role="button" tabIndex={0} onClick={() => togglePanelMode('converter')} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') togglePanelMode('converter'); }} className="mb-5 flex flex-col gap-2 px-1">
                   <div className="text-[10px] font-black uppercase tracking-[0.34em] text-amber-100">
                     Converter
@@ -1406,7 +1434,7 @@ function AppContent({
                   onConvertedResultsChange={setPendingConvertedScores}
                   onClearCurrentScore={handleClearCurrentScore}
                 />
-              </div>
+              </div>}
             </div>
           </div>
         </section>

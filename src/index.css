@@ -32,35 +32,12 @@ body {
     0 0 48px rgba(99, 102, 241, 0.1);
   min-height: 100vh;
   min-height: 100svh;
-  background-attachment: fixed;
   background-color: #02030f;
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
 }
 
 @supports (height: 100dvh) {
   .app-shell {
     min-height: 100dvh;
-  }
-}
-
-@media (max-width: 768px), (pointer: coarse) {
-  .app-shell {
-    background-attachment: scroll;
-    background-position: center top !important;
-  }
-}
-
-@media (orientation: portrait) {
-  .app-shell {
-    background-size: auto 100% !important;
-  }
-}
-
-@media (orientation: landscape) {
-  .app-shell {
-    background-size: cover !important;
   }
 }
 

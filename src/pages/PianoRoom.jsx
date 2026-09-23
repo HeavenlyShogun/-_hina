@@ -4,6 +4,7 @@ import ControlPanel from '../components/ControlPanel';
 import InstrumentSelector from '../components/InstrumentSelector';
 import PianoKeys from '../components/PianoKeys';
 import DynamicTransport from '../components/DynamicTransport';
+import PlaylistManager from '../components/PlaylistManager';
 
 const PianoRoom = memo(({
   playHotkey,
@@ -33,6 +34,8 @@ const PianoRoom = memo(({
   onSelectQueueItem,
   queue = [],
   currentQueueIndex = -1,
+  playlist = {},
+  onAddDefaultsToPlaylist,
 }) => (
   <div id="main-screen" className="flex w-full scroll-mt-6 flex-col items-center">
     <div data-ui-panel="true" onPointerDown={onPanelPointerDown} className="flex w-full justify-center">
@@ -61,6 +64,9 @@ const PianoRoom = memo(({
       uiMode={uiMode}
       onPanelPointerDown={onPanelPointerDown}
     />
+    <div className="mt-4 w-full max-w-6xl px-3 sm:px-4">
+      <PlaylistManager {...playlist} featuredScores={featuredScores} onAddDefaults={onAddDefaultsToPlaylist} />
+    </div>
     <div id="rhythm-controls" className="relative z-20 mt-4 flex w-full max-w-6xl scroll-mt-6 flex-col gap-4 px-3 sm:mt-5 sm:px-4">
       <DynamicTransport title={scoreTitle} queue={queue} currentIndex={currentQueueIndex} onSelectQueueItem={onSelectQueueItem} bpm={bpm} />
       <InstrumentSelector disabled={isBusy || isPlaybackActive} />
