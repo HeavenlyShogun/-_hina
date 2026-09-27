@@ -1,3 +1,5 @@
+import { getFirebaseContext } from './firebase';
+
 const SCORE_CACHE_NAME = 'universe-score-cache';
 const SCORE_CACHE_SCHEMA_VERSION = 'universe-score-cache@1';
 const DEFAULT_FETCH_TIMEOUT_MS = 8000;
@@ -189,18 +191,23 @@ async function writeCachedScore(slug, manifestItem, score) {
  * @param {object} manifestItem - Score metadata from the manifest.
  * @returns {string}
  */
-function resolveScoreUrl(manifestItem = {}) {
+async function resolveScoreUrl(manifestItem = {}) {
   if (manifestItem.localPath) {
     return `${import.meta.env.BASE_URL}${manifestItem.localPath.replace(/^\//, '')}`;
   }
 
-  const url = manifestItem.downloadUrl;
-
-  if (!url) {
-    throw new Error(`Manifest item "${manifestItem.slug ?? 'unknown'}" does not include a localPath.`);
+  if (manifestItem.downloadUrl) {
+    return manifestItem.downloadUrl;
   }
 
-  return url;
+  if (manifestItem.storagePath) {
+    const firebaseContext = await getFirebaseContext();
+    return firebaseContext.getDownloadURL(
+      firebaseContext.storageRef(firebaseContext.storage, manifestItem.storagePath),
+    );
+  }
+
+  throw new Error(`Manifest item "${manifestItem.slug ?? 'unknown'}" does not include a loadable score path.`);
 }
 
 /**
@@ -254,7 +261,7 @@ export async function fetchScoreBySlug(slug, manifestItem) {
       return cachedScore;
     }
 
-    const fetchUrl = resolveScoreUrl(manifestItem);
+    const fetchUrl = await resolveScoreUrl(manifestItem);
     const score = await fetchJson(fetchUrl, { timeoutMs: DEFAULT_FETCH_TIMEOUT_MS });
 
     await writeCachedScore(normalizedSlug, manifestItem, score);

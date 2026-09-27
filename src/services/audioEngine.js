@@ -1,5 +1,6 @@
 import { getInstrumentDefinition } from '../constants/instruments.js';
 import * as Tone from 'tone';
+import JSON5 from 'json5';
 
 const DEFAULT_RENDER_CONFIG = {
   tone: 'piano',
@@ -17,7 +18,7 @@ const TONEJS_INSTRUMENTS_BASE_URL = 'https://nbrosowsky.github.io/tonejs-instrum
 const MIDI_JS_SAMPLE_NOTES = ['C2', 'E2', 'G2', 'B2', 'D3', 'F3', 'A3', 'C4', 'E4', 'G4', 'B4', 'D5', 'F5', 'A5', 'C6', 'E6', 'G6'];
 const DENSE_NOTE_GAIN_FLOOR = 0.16;
 const DENSE_NOTE_GAIN_ATTACK_SEC = 0.008;
-const VOICE_STEAL_FADE_SEC = 0.02;
+const VOICE_STEAL_FADE_SEC = 0.05;
 const MOBILE_MAX_VOICES = 32;
 const DESKTOP_MAX_VOICES = 72;
 const TONE_SAMPLER_SOURCE = 'tone-sampler';
@@ -775,18 +776,26 @@ function resolveSampleUrl(baseUrl, url) {
   return `${String(baseUrl).replace(/\/?$/u, '/')}${String(url).replace(/^\/+/u, '')}`;
 }
 
-function parseMidiJsSoundfont(text) {
-  const match = /=\s*(\{[\s\S]*\})\s*;?\s*$/u.exec(String(text || '').trim());
-  if (!match) {
-    return {};
+function parseMidiJsSoundfont(text, instrument) {
+  const source = String(text || '').trim();
+  const assignment = `MIDI.Soundfont.${instrument} =`;
+  const assignmentIndex = source.lastIndexOf(assignment);
+  if (assignmentIndex < 0) {
+    throw new Error(`SoundFont assignment for "${instrument}" was not found.`);
   }
 
-  try {
-    return JSON.parse(match[1]);
-  } catch (error) {
-    console.warn('Failed to parse MIDI.js soundfont.', error);
-    return {};
+  const objectStart = source.indexOf('{', assignmentIndex + assignment.length);
+  if (objectStart < 0) {
+    throw new Error(`SoundFont data for "${instrument}" is empty.`);
   }
+
+  const soundfontSource = source.slice(objectStart).trim().replace(/;\s*$/u, '');
+  const soundfont = JSON5.parse(soundfontSource);
+  if (!soundfont || typeof soundfont !== 'object' || Array.isArray(soundfont) || !Object.keys(soundfont).length) {
+    throw new Error(`SoundFont data for "${instrument}" contains no samples.`);
+  }
+
+  return soundfont;
 }
 
 class AudioEngine {
@@ -1228,7 +1237,7 @@ class AudioEngine {
         const instance = new Tone.Sampler({
           urls,
           baseUrl: resolvedSampleConfig.baseUrl ?? '',
-          attack: Math.max(Number(config.atk) || 0.003, 0),
+          attack: Math.max(Number(config.atk) || 0.003, DENSE_NOTE_GAIN_ATTACK_SEC),
           release: Math.max(Number(config.release) || 0.28, 0.02),
           curve: 'exponential',
           onload: () => {
@@ -1270,7 +1279,7 @@ class AudioEngine {
           type: normalizeOscillatorType(config.type, 'triangle'),
         },
         envelope: {
-          attack: Math.max(Number(config.atk) || 0.01, 0.001),
+          attack: Math.max(Number(config.atk) || 0.01, DENSE_NOTE_GAIN_ATTACK_SEC),
           decay: Math.max(Number(config.dec) || 0.2, 0.001),
           sustain: clamp(Number(config.sus) || 0.45, 0.001, 1),
           release: Math.max(Number(config.release) || 0.35, 0.02),
@@ -2025,7 +2034,7 @@ class AudioEngine {
         return response.text();
       })
       .then((text) => {
-        const parsed = parseMidiJsSoundfont(text);
+        const parsed = parseMidiJsSoundfont(text, instrument);
         this.sampleSets.set(cacheKey, parsed);
         this.sampleSetLoads.delete(cacheKey);
         return parsed;

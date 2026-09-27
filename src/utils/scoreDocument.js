@@ -231,6 +231,7 @@ export function createScoreDocument(source = {}) {
   return {
     id: resolvedId,
     title: resolvedTitle,
+    sourcePath: String(source.sourcePath ?? source.filename ?? source.localPath ?? '').trim(),
     rawText,
     content,
     compiledEvents,

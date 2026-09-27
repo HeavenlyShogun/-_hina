@@ -49,17 +49,19 @@ Hosting 設定：firebase.json
 
 儲存大小限制：Firestore 單筆文件建議不超過 850 KB。超過此限制的大型譜面應走 Slim JSON，或轉存 Storage。
 
-核心機制 3：Storage 曲庫分離 (網頁瘦身計畫)
+核心機制 3：Storage 曲庫分離 (Firebase Hosting)
 
-為了消除 Vite bundle 過大 (>500kB) 的問題，內建的 47 首曲庫已從前端原始碼抽離。
+內建曲庫有 47 首 Slim JSON。Firebase build 會把 JSON 從 dist-fb 移除，並將該 build 的 manifest localPath 設為 null；GitHub Pages 與本機 build 仍保留靜態曲譜。曲譜載入先使用 CacheStorage，未命中時以 Firebase Storage SDK 依 storagePath 取得下載 URL。
 
-後端上傳產線：使用 Node.js 腳本 scripts/upload-scores-to-storage.mjs 搭配 firebase-admin 批次上傳。
+批次上傳腳本：scripts/upload-scores-to-storage.mjs，使用 firebase-admin 的 Application Default Credentials。
 
-上傳路徑：score-library/slim-json/<filename>。
+上傳路徑：score-library/slim-json/<filename>。Storage rules 僅允許此路徑公開讀取，禁止前端寫入。
 
-Metadata 設定：上傳時統一設定 contentType: "application/json" 與 cacheControl: "public,max-age=3600"。
+上傳 Metadata：contentType: "application/json"；cacheControl: "public,max-age=3600"。
 
-金鑰管理：執行上傳腳本需依賴 Service Account 憑證（置於專案外的 firebase-keys/ 並由 .gitignore 排除），透過 $env:GOOGLE_APPLICATION_CREDENTIALS 注入。
+安全驗證：先執行 npm run scores:upload:storage -- --dry-run；正式上傳前設定 FIREBASE_STORAGE_BUCKET 與 GOOGLE_APPLICATION_CREDENTIALS，再執行 npm run scores:upload:storage。憑證應放在專案外，勿提交至 Git。
+
+注意：移除 Hosting 曲譜 JSON 可減少部署靜態檔案；目前 Vite >500kB 警告來自主應用程式 JS chunk，需另行做 code splitting 才能消除。
 
 自動同步與分享
 

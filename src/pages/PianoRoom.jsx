@@ -27,6 +27,8 @@ const PianoRoom = memo(({
   isBusy,
   busyMessage,
   isPlaybackActive = false,
+  performanceMode = 'solo',
+  onPerformanceModeChange,
   onDownloadTrack01,
   isRenderingTrack = false,
   uiMode = 'normal',
@@ -64,16 +66,20 @@ const PianoRoom = memo(({
       uiMode={uiMode}
       onPanelPointerDown={onPanelPointerDown}
     />
-    <div className="mt-4 w-full max-w-6xl px-3 sm:px-4">
-      <PlaylistManager {...playlist} featuredScores={featuredScores} onAddDefaults={onAddDefaultsToPlaylist} />
-    </div>
     <div id="rhythm-controls" className="relative z-20 mt-4 flex w-full max-w-6xl scroll-mt-6 flex-col gap-4 px-3 sm:mt-5 sm:px-4">
       <DynamicTransport title={scoreTitle} queue={queue} currentIndex={currentQueueIndex} onSelectQueueItem={onSelectQueueItem} bpm={bpm} />
-      <InstrumentSelector disabled={isBusy || isPlaybackActive} />
+      <InstrumentSelector
+        disabled={isBusy || isPlaybackActive}
+        performanceMode={performanceMode}
+        onPerformanceModeChange={onPerformanceModeChange}
+      />
       <ControlPanel embedded compact uiMode={uiMode} onPanelPointerDown={onPanelPointerDown} />
       <button type="button" onClick={onDownloadTrack01} disabled={isRenderingTrack} className="self-center rounded-2xl border border-cyan-200/35 bg-cyan-500/15 px-5 py-3 text-xs font-black tracking-[0.16em] text-cyan-50 transition hover:bg-cyan-400/25 disabled:cursor-wait disabled:opacity-60">
         {isRenderingTrack ? 'Rendering TRACK01...' : 'Download TRACK01.WAV'}
       </button>
+    </div>
+    <div className="mt-4 w-full max-w-6xl px-3 sm:px-4">
+      <PlaylistManager {...playlist} featuredScores={featuredScores} onAddDefaults={onAddDefaultsToPlaylist} />
     </div>
   </div>
 ));

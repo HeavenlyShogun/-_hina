@@ -1,6 +1,6 @@
 # Firebase 與雲端曲庫記憶
 
-最後更新：2026-06-05
+最後更新：2026-09-27
 
 本檔記錄 Firebase 設定、Auth、Firestore 曲庫、分享連結、離線快取、自動同步與上傳限制。
 
@@ -65,6 +65,15 @@
 - Firestore 單筆文件需保守控制大小；目前程式以約 `850 KB` 作為安全上限。
 - 大型譜面優先使用 Slim JSON；若仍過大，改以 Firebase Storage 或 Hosting 存檔，再於 Firestore 保存 URL 與 metadata。
 - 內建 slim 譜面 metadata 可包含 `libraryPath` 與 `defaultMidiPath`；雲端保存時不要假設所有使用者譜面都有本機預設曲庫路徑。
+
+## 內建曲庫 Storage
+
+- 47 首內建 Slim JSON 來源為 `風物之琴譜/風物之譜面/slim-json/`，上傳至 `score-library/slim-json/{filename}`。
+- `scripts/upload-scores-to-storage.mjs` 使用 Firebase Admin SDK 與 Application Default Credentials；先以 `npm run scores:upload:storage -- --dry-run` 驗證，再設定 `FIREBASE_STORAGE_BUCKET`、`GOOGLE_APPLICATION_CREDENTIALS` 正式上傳。
+- `storage.rules` 僅允許 `score-library/slim-json/` 公開讀取，拒絕用戶端寫入。
+- Firebase Hosting build 於 `vite.config.js` 產出 `localPath: null` 的 manifest 並移除 `dist-fb/score-library/slim-json/`；Pages/local build 保留本機路徑。
+- `scoreLibraryService.js` 先讀 CacheStorage，再以 Storage SDK `getDownloadURL()` 取得曲譜；manifest 的 `localPath` 或 `downloadUrl` 仍可供其他部署模式使用。
+- 這個搬移可排除 Hosting 的 47 份曲譜靜態檔，但不會消除 Vite 主 JS chunk 的 >500kB 警告；該警告需另行拆分 JavaScript。
 
 ## 分享與社群譜庫
 

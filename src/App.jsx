@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, CheckCircle, FolderOpen, Library, ListMusic, Trash2 } from 'lucide-react';
+import { AlertCircle, CheckCircle, Eye, EyeOff, FileInput, FolderOpen, Library, ListMusic, Trash2 } from 'lucide-react';
 import ScoreConverter from './components/ScoreConverter';
 import ScoreEditor from './components/ScoreEditor';
 import ScoreLibrary from './components/ScoreLibrary';
@@ -238,6 +238,7 @@ function AppContent({
   const [toast, setToast] = useState(null);
   const [activeKeys, setActiveKeys] = useState(() => new Set());
   const [featuredLoadState, setFeaturedLoadState] = useState({ isLoading: false, message: '' });
+  const [performanceMode, setPerformanceMode] = useState('solo');
   const [uiMode, setUiMode] = useState('normal');
   const [panelModes, setPanelModes] = useState({});
   const [pendingConvertedScores, setPendingConvertedScores] = useState([]);
@@ -406,7 +407,30 @@ function AppContent({
     });
   }, []);
 
+  const handleLibraryImportTabKeyDown = useCallback((event) => {
+    const tabs = ['library', 'converter'];
+    const currentIndex = tabs.indexOf(libraryImportTab);
+    let nextIndex = currentIndex;
+
+    if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % tabs.length;
+    else if (event.key === 'ArrowLeft') nextIndex = (currentIndex + tabs.length - 1) % tabs.length;
+    else if (event.key === 'Home') nextIndex = 0;
+    else if (event.key === 'End') nextIndex = tabs.length - 1;
+    else return;
+
+    event.preventDefault();
+    const nextTab = tabs[nextIndex];
+    setLibraryImportTab(nextTab);
+    document.getElementById(`library-import-tab-${nextTab}`)?.focus();
+  }, [libraryImportTab]);
+
   const selectableScores = libraryScores;
+  const currentScoreFilename = String(scoreDocument.sourcePath ?? '').split(/[\\/]/u).pop();
+  const currentQueueIndex = selectableScores.findIndex((item) => (
+    item.title === scoreTitle
+    || item.displayTitle === scoreTitle
+    || item.filename === currentScoreFilename
+  ));
   const pendingConvertedScoreOptions = useMemo(() => (
     pendingConvertedScores.map((result, index) => {
       const payload = result.payload;
@@ -458,10 +482,9 @@ function AppContent({
     { id: 'main-screen', label: '\u4e3b\u756b\u9762', shortLabel: '\u4e3b\u756b\u9762', caption: '\u66f2\u5eab\u8207\u64ad\u653e\u5165\u53e3' },
     { id: 'lyre-keyboard', label: '\u9375\u76e4', shortLabel: '\u9375\u76e4', caption: '\u5373\u6642\u6f14\u594f\u9375\u76e4' },
     { id: 'rhythm-controls', label: '\u7bc0\u594f\u8207\u8abf\u6027\u8abf\u6574', shortLabel: '\u7bc0\u594f\u8abf\u6027', caption: 'BPM\u3001\u62cd\u865f\u3001\u97f3\u8272\u8207\u8abf\u6027' },
+    { id: 'playlist-manager', label: '\u6211\u7684\u6b4c\u55ae', shortLabel: '\u6211\u7684\u6b4c\u55ae', caption: 'Playlist Manager', icon: ListMusic },
     { id: 'editor', label: '\u8b5c\u9762\u7de8\u8f2f', shortLabel: '\u8b5c\u9762\u7de8\u8f2f', caption: 'Score Editor' },
     { id: 'library-and-import', label: '\u66f2\u5eab\u8207\u8f49\u6a94', shortLabel: '\u66f2\u5eab\u8f49\u6a94', caption: 'Score Library / Import', icon: Library },
-    { id: 'playlist-manager', label: '\u6211\u7684\u6b4c\u55ae', shortLabel: '\u6211\u7684\u6b4c\u55ae', caption: 'Playlist Manager', icon: ListMusic },
-    { id: 'background-board', label: '\u80cc\u666f', shortLabel: '\u80cc\u666f', caption: '\u5e03\u544a\u6b04\u8207\u80cc\u666f\u6b23\u8cde' },
   ]), []);
 
   const playbackScore = useMemo(() => {
@@ -489,6 +512,7 @@ function AppContent({
     progressBarRef,
     playScoreAction,
     playScoreFromStart,
+    playScoreSourceAction,
     pauseScoreAction,
     resumeScoreAction,
     restartScoreAction,
@@ -520,6 +544,7 @@ function AppContent({
     const source = {
       id: loadedScore?.id ?? loadedScore?.slug,
       title: loadedScore?.displayTitle ?? loadedScore?.title ?? content?.meta?.displayTitle ?? content?.meta?.title,
+      sourcePath: loadedScore?.sourcePath ?? loadedScore?.localPath ?? loadedScore?.filename,
       content,
       sourceType: loadedScore?.sourceType ?? SCORE_SOURCE_TYPES.JSON,
       ...content?.transport,
@@ -534,13 +559,13 @@ function AppContent({
       reverb: loadedScore?.reverb ?? content?.playback?.reverb,
     };
     loadScoreSource(applyScoreRecommendation(source, { force: true }));
-    await new Promise((resolve) => window.setTimeout(resolve, 0));
+    return source;
   }, [audioConfig.tone, loadScoreSource]);
 
   const playlist = usePlaylistQueue({
     scores: libraryScores,
     loadScoreData,
-    startScore: playScoreFromStart,
+    startScore: playScoreSourceAction,
     playbackState,
     seekToTick,
     resumePlayback: resumeScoreAction,
@@ -1005,7 +1030,7 @@ function AppContent({
     timeSigNum,
   ]);
 
-  const handlePlayFeaturedScore = useCallback(async (featuredScore) => {
+  const handlePlayFeaturedScore = useCallback(async (featuredScore, { autoPlay = false } = {}) => {
     const requestId = featuredRequestIdRef.current + 1;
     featuredRequestIdRef.current = requestId;
     setFeaturedLoadState({
@@ -1038,6 +1063,9 @@ function AppContent({
 
     loadScoreSource(applyScoreRecommendation(source, { force: true }));
     stopAll();
+    if (autoPlay) {
+      await playScoreSourceAction(source);
+    }
     showToast(`已載入 ${nextScore.displayTitle ?? nextScore.title}`, 'success');
     } catch (error) {
       console.error(error);
@@ -1049,11 +1077,11 @@ function AppContent({
         setFeaturedLoadState({ isLoading: false, message: '' });
       }
     }
-  }, [audioConfig.tone, loadScoreSource, showToast, stopAll]);
+  }, [audioConfig.tone, loadScoreSource, playScoreSourceAction, showToast, stopAll]);
 
-  const handleSelectQueueItem = useCallback((index) => {
+  const handleSelectQueueItem = useCallback((index, options = { autoPlay: true }) => {
     const item = selectableScores[index];
-    if (item) return handlePlayFeaturedScore(item);
+    if (item) return handlePlayFeaturedScore(item, options);
     return undefined;
   }, [handlePlayFeaturedScore, selectableScores]);
 
@@ -1062,9 +1090,7 @@ function AppContent({
   }, [playlist.addToQueue, selectableScores]);
 
   const playLibraryNext = useCallback(async () => {
-    const activeIndex = selectableScores.findIndex((item) => (
-      item.title === scoreTitle || item.displayTitle === scoreTitle
-    ));
+    const activeIndex = currentQueueIndex;
     if (activeIndex < 0 || !selectableScores.length) return;
     if (playlist.playMode === 'loop-one') {
       await handleSelectQueueItem(activeIndex);
@@ -1080,7 +1106,7 @@ function AppContent({
     } else if (playlist.playMode === 'loop-all') {
       await handleSelectQueueItem(0);
     }
-  }, [handleSelectQueueItem, playlist.playMode, scoreTitle, selectableScores]);
+  }, [currentQueueIndex, handleSelectQueueItem, playlist.playMode, selectableScores]);
 
   playlistActionsRef.current = { playlist, playLibraryNext };
 
@@ -1238,10 +1264,12 @@ function AppContent({
           isPlaybackActive={isPlaying || isPaused}
           onDownloadTrack01={handleDownloadTrack01}
           isRenderingTrack={isRenderingTrack}
+          performanceMode={performanceMode}
+          onPerformanceModeChange={setPerformanceMode}
           uiMode={uiMode}
           onPanelPointerDown={handlePanelPointerDown}
           queue={selectableScores}
-          currentQueueIndex={selectableScores.findIndex((item) => item.title === scoreTitle || item.displayTitle === scoreTitle)}
+          currentQueueIndex={currentQueueIndex}
           onSelectQueueItem={handleSelectQueueItem}
           playlist={{
             queue: playlist.queue,
@@ -1258,10 +1286,53 @@ function AppContent({
           onAddDefaultsToPlaylist={handleAddDefaultsToPlaylist}
         />
 
-        <div className="z-20 mt-6 flex w-full max-w-6xl gap-2 px-4" role="tablist" aria-label="曲庫與轉檔">
-          <button type="button" role="tab" aria-selected={libraryImportTab === 'library'} onClick={() => setLibraryImportTab('library')} className={`rounded-t-2xl border px-4 py-2 text-xs font-bold ${libraryImportTab === 'library' ? 'border-cyan-200/20 bg-black/40 text-cyan-100' : 'border-white/10 bg-white/5 text-white/55'}`}>內建曲庫</button>
-          <button type="button" role="tab" aria-selected={libraryImportTab === 'converter'} onClick={() => setLibraryImportTab('converter')} className={`rounded-t-2xl border px-4 py-2 text-xs font-bold ${libraryImportTab === 'converter' ? 'border-amber-200/20 bg-black/40 text-amber-100' : 'border-white/10 bg-white/5 text-white/55'}`}>檔案轉檔</button>
-        </div>
+        <section id="editor" className="z-20 mt-8 w-full max-w-6xl scroll-mt-6 px-4">
+          <details data-ui-panel="true" data-panel-mode={getPanelMode('editor')} onPointerDown={handlePanelPointerDown} className="group ui-panel rounded-[32px] border border-white/10 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] transition-colors duration-300 md:p-6">
+            <summary className="cursor-pointer list-none px-1 text-sm font-semibold text-violet-50">
+              <span className="text-[10px] font-black uppercase tracking-[0.34em] text-violet-100">Score Editor</span>
+              <span className="ml-3 text-xs text-white/45">展開譜面編輯器</span>
+            </summary>
+            <div className="mb-5 mt-5 flex items-center justify-between gap-4 px-1">
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-[0.34em] text-violet-100">Score Editor</div>
+                <div className="mt-2 text-sm font-semibold text-violet-50">編輯目前譜面、匯入／匯出，並保存至雲端曲庫。</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => togglePanelMode('editor')}
+                aria-label={getPanelMode('editor') === 'clear' ? '恢復編輯器外觀' : '淡化編輯器外觀'}
+                title={getPanelMode('editor') === 'clear' ? '恢復編輯器外觀' : '淡化編輯器外觀'}
+                className="shrink-0 rounded-xl border border-white/10 p-2 text-violet-100/70 transition hover:bg-white/10 hover:text-violet-50"
+              >
+                {getPanelMode('editor') === 'clear' ? <Eye size={16} /> : <EyeOff size={16} />}
+              </button>
+            </div>
+            <ScoreEditor
+              score={editorScore}
+              setScore={setScore}
+              scoreTitle={scoreTitle}
+              setScoreTitle={setScoreTitle}
+              references={references}
+              setReferences={setReferences}
+              referenceNotes={referenceNotes}
+              setReferenceNotes={setReferenceNotes}
+              onImport={handleImportLocal}
+              onExport={handleExportLocal}
+              onSave={handleSaveScore}
+              onShare={handleShareCurrentScore}
+              onReset={handleResetScore}
+              isSaving={isSaving}
+              isSharing={isSharing}
+              autoSyncStatus={autoSyncStatus}
+              shareUrl={shareUrl}
+              onConnectCloud={handleConnectCloud}
+              cloudStatus={cloudStatus}
+              showGuidePanel={false}
+              showReferencePanel={false}
+            />
+          </details>
+        </section>
+
         <section id="library-and-import" className="z-20 w-full max-w-6xl scroll-mt-6 px-4">
           <div className="grid gap-6 xl:grid-cols-[260px_minmax(0,1fr)]">
             <aside className="xl:sticky xl:top-6 xl:self-start">
@@ -1271,7 +1342,7 @@ function AppContent({
                     Workspace
                   </div>
                   <div className="mt-2 text-sm font-semibold text-sky-50">
-                    快速跳到演奏、設定、編輯、轉換與雲端區塊。
+                    快速跳至鍵盤、節奏調性、歌單、編輯器與曲庫。
                   </div>
                 </div>
 
@@ -1346,8 +1417,45 @@ function AppContent({
                 </div>
               </div>
 
-              {libraryImportTab === 'library' && <div className="mt-6">
-                <ScoreLibrary
+            </aside>
+
+            <div className="min-w-0 space-y-5">
+              <div className="flex flex-wrap items-end justify-between gap-4">
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.3em] text-sky-100/65">Score Workspace</div>
+                  <h2 className="mt-2 text-lg font-black text-white">曲庫與轉檔</h2>
+                </div>
+                <div className="inline-flex rounded-2xl border border-white/10 bg-black/30 p-1" role="tablist" aria-label="曲庫與轉檔" onKeyDown={handleLibraryImportTabKeyDown}>
+                  <button
+                    id="library-import-tab-library"
+                    type="button"
+                    role="tab"
+                    aria-selected={libraryImportTab === 'library'}
+                    aria-controls="library-import-panel"
+                    tabIndex={libraryImportTab === 'library' ? 0 : -1}
+                    onClick={() => setLibraryImportTab('library')}
+                    className={`inline-flex min-h-10 items-center gap-2 rounded-xl px-4 text-xs font-bold transition-colors ${libraryImportTab === 'library' ? 'bg-cyan-400/15 text-cyan-100' : 'text-white/55 hover:text-cyan-100'}`}
+                  >
+                    <Library size={15} />
+                    內建曲庫
+                  </button>
+                  <button
+                    id="library-import-tab-converter"
+                    type="button"
+                    role="tab"
+                    aria-selected={libraryImportTab === 'converter'}
+                    aria-controls="library-import-panel"
+                    tabIndex={libraryImportTab === 'converter' ? 0 : -1}
+                    onClick={() => setLibraryImportTab('converter')}
+                    className={`inline-flex min-h-10 items-center gap-2 rounded-xl px-4 text-xs font-bold transition-colors ${libraryImportTab === 'converter' ? 'bg-amber-400/15 text-amber-100' : 'text-white/55 hover:text-amber-100'}`}
+                  >
+                    <FileInput size={15} />
+                    檔案轉檔
+                  </button>
+                </div>
+              </div>
+              <div id="library-import-panel" role="tabpanel" aria-labelledby={`library-import-tab-${libraryImportTab}`} tabIndex={0} className="min-w-0">
+                {libraryImportTab === 'library' && <ScoreLibrary
                   user={user}
                   savedScores={savedScores}
                   publicScores={publicScores}
@@ -1360,47 +1468,7 @@ function AppContent({
                   onConnectCloud={handleConnectCloud}
                   cloudStatus={cloudStatus}
                   cloudError={cloudError}
-                />
-              </div>}
-            </aside>
-
-            <div className="space-y-8">
-              <details id="editor" className="group ui-panel scroll-mt-6 rounded-[36px] border border-white/10 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] transition-colors duration-300 md:p-6">
-                <summary className="cursor-pointer list-none px-1 text-sm font-semibold text-violet-50"><span className="text-[10px] font-black uppercase tracking-[0.34em] text-violet-100">Score Editor</span><span className="ml-3 text-xs text-white/45">展開 JSON 編輯器</span></summary>
-                <div role="button" tabIndex={0} onClick={() => togglePanelMode('editor')} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') togglePanelMode('editor'); }} className="mb-5 flex flex-col gap-2 px-1">
-                  <div className="text-[10px] font-black uppercase tracking-[0.34em] text-violet-100">
-                    Score Editor
-                  </div>
-                  <div className="mt-2 text-sm font-semibold text-violet-50">
-                    Edit, import, export, and save the current score.
-                  </div>
-                </div>
-
-                <ScoreEditor
-                  score={editorScore}
-                  setScore={setScore}
-                  scoreTitle={scoreTitle}
-                  setScoreTitle={setScoreTitle}
-                  references={references}
-                  setReferences={setReferences}
-                  referenceNotes={referenceNotes}
-                  setReferenceNotes={setReferenceNotes}
-                  onImport={handleImportLocal}
-                  onExport={handleExportLocal}
-                  onSave={handleSaveScore}
-                  onShare={handleShareCurrentScore}
-                  onReset={handleResetScore}
-                  isSaving={isSaving}
-                  isSharing={isSharing}
-                  autoSyncStatus={autoSyncStatus}
-                  shareUrl={shareUrl}
-                  onConnectCloud={handleConnectCloud}
-                  cloudStatus={cloudStatus}
-                  showGuidePanel={false}
-                  showReferencePanel={false}
-                />
-              </details>
-
+                />}
               {libraryImportTab === 'converter' && <div id="converter" data-ui-panel="true" data-panel-mode={getPanelMode('converter')} onPointerDown={handlePanelPointerDown} className="ui-panel scroll-mt-6 rounded-[36px] border border-white/10 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] transition-colors duration-300 md:p-6">
                 <div role="button" tabIndex={0} onClick={() => togglePanelMode('converter')} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') togglePanelMode('converter'); }} className="mb-5 flex flex-col gap-2 px-1">
                   <div className="text-[10px] font-black uppercase tracking-[0.34em] text-amber-100">
@@ -1435,46 +1503,6 @@ function AppContent({
                   onClearCurrentScore={handleClearCurrentScore}
                 />
               </div>}
-            </div>
-          </div>
-        </section>
-
-        <section id="background-board" className="z-10 mt-12 w-full max-w-6xl scroll-mt-6 px-4">
-          <div data-ui-panel="true" data-panel-kind="background-board" data-panel-mode={getPanelMode('background-board')} onPointerDown={handlePanelPointerDown} className="relative min-h-[64vh] overflow-hidden rounded-[36px] border border-white/12 bg-slate-950/16 p-5 shadow-[0_24px_90px_rgba(0,0,0,0.18)] transition-colors duration-300 md:min-h-[68vh] md:rounded-[44px] md:p-8">
-            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.22),rgba(2,6,23,0.08)_42%,rgba(2,6,23,0.26)),radial-gradient(circle_at_18%_18%,rgba(56,189,248,0.12),transparent_32%),radial-gradient(circle_at_82%_26%,rgba(253,224,171,0.10),transparent_28%)]" />
-            <button
-              type="button"
-              onClick={() => togglePanelMode('background-board')}
-              className="absolute right-4 top-4 z-10 rounded-full border border-white/12 bg-slate-950/45 px-4 py-2 text-[10px] font-black tracking-[0.2em] text-sky-50/85 transition hover:bg-slate-900/70"
-            >
-              {getPanelMode('background-board') === 'clear' ? '顯示介紹' : '淡化介紹'}
-            </button>
-            <div className={`relative flex min-h-[calc(64vh-2.5rem)] flex-col justify-between gap-10 transition duration-500 md:min-h-[calc(68vh-4rem)] ${getPanelMode('background-board') === 'clear' ? 'pointer-events-none opacity-0' : 'opacity-100'}`}>
-              <div className="max-w-3xl">
-                <div className="text-[10px] font-black uppercase tracking-[0.38em] text-sky-100/75">
-                  Background Board
-                </div>
-                <h2 className="mt-4 text-3xl font-black leading-tight text-white sm:text-4xl md:text-5xl">
-                  {APP_NAME}
-                </h2>
-                <p className="mt-4 max-w-2xl text-sm font-semibold leading-7 text-sky-50/82 sm:text-base">
-                  {APP_TAGLINE} 是一個把譜面編輯、即時演奏、MIDI / MusicXML 轉換與雲端曲庫整合在同一個畫面的音樂工作台。這個區域保留給公告、演出提示與背景欣賞，播放時也能把介面視線放回星空。
-                </p>
-              </div>
-
-              <div className="grid gap-3 text-sm text-slate-50/82 md:grid-cols-3">
-                <div className="rounded-2xl border border-white/10 bg-black/18 px-4 py-4 backdrop-blur-sm">
-                  <div className="text-[10px] font-black uppercase tracking-[0.24em] text-amber-100/70">Play</div>
-                  <div className="mt-2 font-semibold leading-6">用鍵盤或畫面琴鍵即時演奏，並跟隨播放進度練習。</div>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-black/18 px-4 py-4 backdrop-blur-sm">
-                  <div className="text-[10px] font-black uppercase tracking-[0.24em] text-sky-100/70">Convert</div>
-                  <div className="mt-2 font-semibold leading-6">匯入 MIDI、MusicXML、MXL，轉成可播放與可保存的譜面資料。</div>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-black/18 px-4 py-4 backdrop-blur-sm">
-                  <div className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-100/70">Archive</div>
-                  <div className="mt-2 font-semibold leading-6">把完成的曲目存入雲端曲庫，保留節奏、調性、音色與參考資料。</div>
-                </div>
               </div>
             </div>
           </div>

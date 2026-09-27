@@ -84,6 +84,22 @@ const ScoreLibrary = memo(({
 }) => {
   const [activeTab, setActiveTab] = useState('mine');
   const visibleScores = activeTab === 'public' ? publicScores : savedScores;
+  const handleTabKeyDown = (event) => {
+    const tabs = ['mine', 'public'];
+    const currentIndex = tabs.indexOf(activeTab);
+    let nextIndex = currentIndex;
+
+    if (event.key === 'ArrowRight') nextIndex = (currentIndex + 1) % tabs.length;
+    else if (event.key === 'ArrowLeft') nextIndex = (currentIndex + tabs.length - 1) % tabs.length;
+    else if (event.key === 'Home') nextIndex = 0;
+    else if (event.key === 'End') nextIndex = tabs.length - 1;
+    else return;
+
+    event.preventDefault();
+    const nextTab = tabs[nextIndex];
+    setActiveTab(nextTab);
+    document.getElementById(`cloud-library-tab-${nextTab}`)?.focus();
+  };
 
   return (
     <div className="relative flex h-fit min-h-[360px] flex-col rounded-[32px] border border-white/8 bg-black/35 p-6 shadow-inner backdrop-blur-sm">
@@ -143,9 +159,14 @@ const ScoreLibrary = memo(({
         </button>
       </div>
 
-      <div className="mb-4 grid grid-cols-2 gap-2 rounded-2xl border border-white/8 bg-black/25 p-1">
+      <div className="mb-4 grid grid-cols-2 gap-2 rounded-2xl border border-white/8 bg-black/25 p-1" role="tablist" aria-label="雲端曲庫分類" onKeyDown={handleTabKeyDown}>
         <button
+          id="cloud-library-tab-mine"
           type="button"
+          role="tab"
+          aria-selected={activeTab === 'mine'}
+          aria-controls="cloud-library-panel"
+          tabIndex={activeTab === 'mine' ? 0 : -1}
           onClick={() => setActiveTab('mine')}
           className={`inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-[10px] font-black tracking-[0.16em] transition ${activeTab === 'mine' ? 'bg-sky-500/18 text-sky-100' : 'text-white/45 hover:text-sky-100'}`}
         >
@@ -153,7 +174,12 @@ const ScoreLibrary = memo(({
           我的樂譜
         </button>
         <button
+          id="cloud-library-tab-public"
           type="button"
+          role="tab"
+          aria-selected={activeTab === 'public'}
+          aria-controls="cloud-library-panel"
+          tabIndex={activeTab === 'public' ? 0 : -1}
           onClick={() => setActiveTab('public')}
           className={`inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-[10px] font-black tracking-[0.16em] transition ${activeTab === 'public' ? 'bg-amber-500/18 text-amber-100' : 'text-white/45 hover:text-amber-100'}`}
         >
@@ -162,7 +188,7 @@ const ScoreLibrary = memo(({
         </button>
       </div>
 
-      <div className="custom-scrollbar flex-1 space-y-3 overflow-y-auto pr-1">
+      <div id="cloud-library-panel" role="tabpanel" aria-labelledby={`cloud-library-tab-${activeTab}`} tabIndex={0} className="custom-scrollbar flex-1 space-y-3 overflow-y-auto pr-1">
         {visibleScores.length === 0 ? (
           <div className="rounded-3xl border border-dashed border-white/10 bg-white/[0.03] px-5 py-10 text-center">
             <div className="text-xs font-semibold text-white/65">
@@ -175,51 +201,47 @@ const ScoreLibrary = memo(({
             </div>
           </div>
         ) : visibleScores.map((saved) => (
-          <div
-            key={saved.id}
-            onClick={() => (activeTab === 'public' ? onLoadPublicScore(saved) : onLoadScore(saved))}
-            className="group relative flex cursor-pointer items-center justify-between rounded-3xl border border-white/10 bg-white/[0.03] p-4 transition-all hover:border-sky-300/30 hover:bg-sky-500/10"
-          >
-            <div className="min-w-0 flex-1 overflow-hidden pr-2">
-              <div className="flex items-center gap-2">
-                <div className="truncate text-sm font-bold text-sky-50">{saved.title}</div>
-                {saved.isPublic ? (
-                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-300/20 bg-amber-500/10 px-2 py-1 text-[9px] font-black tracking-[0.16em] text-amber-100">
-                    <Share2 size={11} />
-                    Public
-                  </span>
-                ) : null}
-                {Array.isArray(saved.references) && saved.references.length > 0 ? (
-                  <span
-                    className="inline-flex shrink-0 items-center gap-1 rounded-full border border-sky-300/20 bg-sky-500/10 px-2 py-1 text-[9px] font-black tracking-[0.16em] text-sky-200"
-                    title="含參考資料"
-                  >
-                    <Link2 size={11} />
-                    Ref
-                  </span>
-                ) : null}
-              </div>
-              <div className="mt-2 flex flex-wrap gap-2 text-[10px] uppercase tracking-wider text-white/55">
-                <span>{formatDate(saved)}</span>
-                {saved.bpm ? <span className="text-emerald-300">BPM {saved.bpm}</span> : null}
-                <span className="text-sky-300">{formatKeyLabel(saved.globalKeyOffset, saved.scaleMode)}</span>
-                {saved.tone ? <span className="text-amber-300">{formatToneLabel(saved.tone)}</span> : null}
-                <span className="text-violet-300">{formatContentLength(saved.contentLength)}</span>
-                {activeTab === 'public' ? <span className="text-amber-200">Copies {saved.copiedCount ?? 0}</span> : null}
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="rounded-xl bg-sky-500/15 p-2 text-sky-300 transition-all group-hover:bg-sky-500/25 group-hover:text-sky-100" title="載入譜面">
-                <FolderOpen size={16} />
-              </div>
+          <div key={saved.id} className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.03] p-1 transition-colors hover:border-sky-300/30 hover:bg-sky-500/10">
+            <button
+              type="button"
+              onClick={() => (activeTab === 'public' ? onLoadPublicScore(saved) : onLoadScore(saved))}
+              aria-label={`載入譜面 ${saved.title}`}
+              className="group flex min-w-0 flex-1 items-center justify-between gap-3 rounded-md p-3 text-left transition-colors hover:bg-sky-500/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-200"
+            >
+              <span className="min-w-0 flex-1 overflow-hidden">
+                <span className="flex items-center gap-2">
+                  <span className="truncate text-sm font-bold text-sky-50">{saved.title}</span>
+                  {saved.isPublic ? (
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-300/20 bg-amber-500/10 px-2 py-1 text-[9px] font-black tracking-[0.16em] text-amber-100">
+                      <Share2 size={11} />
+                      Public
+                    </span>
+                  ) : null}
+                  {Array.isArray(saved.references) && saved.references.length > 0 ? (
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-sky-300/20 bg-sky-500/10 px-2 py-1 text-[9px] font-black tracking-[0.16em] text-sky-200" title="含參考資料">
+                      <Link2 size={11} />
+                      Ref
+                    </span>
+                  ) : null}
+                </span>
+                <span className="mt-2 flex flex-wrap gap-2 text-[10px] uppercase tracking-wider text-white/55">
+                  <span>{formatDate(saved)}</span>
+                  {saved.bpm ? <span className="text-emerald-300">BPM {saved.bpm}</span> : null}
+                  <span className="text-sky-300">{formatKeyLabel(saved.globalKeyOffset, saved.scaleMode)}</span>
+                  {saved.tone ? <span className="text-amber-300">{formatToneLabel(saved.tone)}</span> : null}
+                  <span className="text-violet-300">{formatContentLength(saved.contentLength)}</span>
+                  {activeTab === 'public' ? <span className="text-amber-200">Copies {saved.copiedCount ?? 0}</span> : null}
+                </span>
+              </span>
+              <FolderOpen size={16} className="shrink-0 text-sky-300 transition-colors group-hover:text-sky-100" />
+            </button>
+            <div className="flex shrink-0 items-center gap-1">
               {activeTab === 'public' ? (
                 <button
                   type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onCopyPublicScore(saved.id);
-                  }}
-                  className="rounded-xl p-2 text-emerald-300/60 transition-all hover:bg-emerald-500/20 hover:text-emerald-100"
+                  onClick={() => onCopyPublicScore(saved.id)}
+                  aria-label={`複製到我的工作台 ${saved.title}`}
+                  className="rounded-lg p-2 text-emerald-300/60 transition-all hover:bg-emerald-500/20 hover:text-emerald-100"
                   title="複製到我的工作台"
                 >
                   <Copy size={16} />
@@ -228,22 +250,18 @@ const ScoreLibrary = memo(({
                 <>
                   <button
                     type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onShareScore(saved);
-                    }}
-                    className="rounded-xl p-2 text-amber-300/60 transition-all hover:bg-amber-500/20 hover:text-amber-100"
+                    onClick={() => onShareScore(saved)}
+                    aria-label={`生成分享連結 ${saved.title}`}
+                    className="rounded-lg p-2 text-amber-300/60 transition-all hover:bg-amber-500/20 hover:text-amber-100"
                     title="生成分享連結"
                   >
                     <Share2 size={16} />
                   </button>
                   <button
                     type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onDeleteScore(saved.id);
-                    }}
-                    className="rounded-xl p-2 text-rose-300/45 transition-all hover:bg-rose-500/20 hover:text-rose-200"
+                    onClick={() => onDeleteScore(saved.id)}
+                    aria-label={`刪除 ${saved.title}`}
+                    className="rounded-lg p-2 text-rose-300/45 transition-all hover:bg-rose-500/20 hover:text-rose-200"
                     title="刪除"
                   >
                     <Trash2 size={16} />

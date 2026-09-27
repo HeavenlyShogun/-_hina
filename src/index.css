@@ -80,16 +80,6 @@ body {
   background: linear-gradient(145deg, rgba(8, 12, 32, 0.18), rgba(42, 35, 88, 0.1));
 }
 
-.app-shell [data-panel-kind='background-board'][data-panel-mode='clear'] {
-  background: transparent;
-  border-color: transparent;
-  box-shadow: none;
-}
-
-.app-shell [data-panel-kind='background-board'][data-panel-mode='clear'] > .pointer-events-none {
-  opacity: 0;
-}
-
 .app-shell .ui-panel-light[data-panel-mode='normal'] {
   background:
     radial-gradient(circle at 12% 0%, rgba(250, 204, 21, 0.16), transparent 30%),

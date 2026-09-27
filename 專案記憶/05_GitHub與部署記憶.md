@@ -1,6 +1,6 @@
 # GitHub 與部署記憶
 
-最後更新：2026-06-05
+最後更新：2026-09-27
 
 本檔記錄 Git remote、GitHub Pages、Firebase Hosting 與常用部署指令。
 
@@ -81,3 +81,9 @@ npm.cmd run preview:pages
 - Pages 路徑錯誤時先檢查 `vite.config.js` 與 `scripts/build-github-pages.mjs`。
 - Firebase 路徑錯誤時先檢查 `scripts/build-firebase-hosting.mjs` 與 `firebase.json`。
 - deploy 失敗時先確認 Firebase CLI 登入狀態與目前 project。
+
+## 2026-09-27 驗證結果
+
+- `npm.cmd run build:vite` 已通過，Vite 仍提示主 chunk 超過 500 kB；這是效能警告，不是建置失敗。
+- `npm.cmd run test:e2e -- --list` 成功列出 5 個測試，涵蓋音訊播放、演奏模式、曲庫自動前進、節奏控制與工作區導覽；本次未執行完整瀏覽器測試。
+- Firebase Storage 曲庫分流已接入 build/config，但正式 Storage 上傳與雙平台完整 build/deploy 尚待憑證和部署環境驗證。

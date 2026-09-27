@@ -56,9 +56,9 @@ export function usePlaylistQueue({ scores = [], loadScoreData, startScore, playb
       scoreData = { ...item, content: scoreData };
     }
     if (loadRequestRef.current !== requestId) return;
-    await loadScoreData(scoreData);
+    const loadedSource = await loadScoreData(scoreData);
     if (loadRequestRef.current !== requestId) return;
-    await startScore();
+    await startScore(loadedSource);
   }, [loadScoreData, queue, startScore]);
 
   const playNextScore = useCallback(async ({ automatic = false } = {}) => {

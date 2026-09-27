@@ -59,6 +59,7 @@ async function createFirebaseContext() {
       serverTimestamp,
       query,
       orderBy,
+      where,
       limit,
       increment,
     },
@@ -106,6 +107,7 @@ async function createFirebaseContext() {
     signInWithCustomToken,
     query,
     orderBy,
+    where,
     limit,
     increment,
     storageRef,
@@ -126,31 +128,42 @@ export async function connectFirebaseAuth(onUserChange) {
   const ctx = await getFirebaseContext();
   if (!ctx) return null;
 
-  let resolvedUser = ctx.auth.currentUser ?? null;
+  let resolvedUser = null;
   let authUnsubscribe = null;
-  const waitForUser = new Promise((resolve) => {
-    const unsubscribe = ctx.onAuthStateChanged(ctx.auth, (nextUser) => {
+  const waitForInitialAuthState = new Promise((resolve, reject) => {
+    let isInitialState = true;
+    authUnsubscribe = ctx.onAuthStateChanged(ctx.auth, (nextUser) => {
       resolvedUser = nextUser;
       onUserChange?.(nextUser);
-      if (nextUser) {
+      if (isInitialState) {
+        isInitialState = false;
         resolve(nextUser);
       }
+    }, (error) => {
+      if (isInitialState) {
+        isInitialState = false;
+        reject(error);
+      }
     });
-
-    authUnsubscribe = unsubscribe;
   });
 
   try {
+    const existingUser = await waitForInitialAuthState;
+
     if (initialAuthToken) {
       const credential = await ctx.signInWithCustomToken(ctx.auth, initialAuthToken);
       resolvedUser = credential.user ?? resolvedUser;
-    } else {
+    } else if (!existingUser) {
       const credential = await ctx.signInAnonymously(ctx.auth);
       resolvedUser = credential.user ?? resolvedUser;
     }
 
-    const user = resolvedUser ?? ctx.auth.currentUser ?? await waitForUser;
+    const user = resolvedUser ?? ctx.auth.currentUser;
+    if (!user?.uid) {
+      throw new Error('Firebase Auth 已連線，但未取得有效的使用者 UID。');
+    }
     onUserChange?.(user);
+    resolvedUser = user;
   } catch (error) {
     logFirebasePermissionDebugHint(error);
     console.warn('Firebase Auth Error', error);
@@ -508,6 +521,7 @@ export async function saveScore(ctx, uid, title, data) {
 export function subscribeToPublicScores(ctx, onData, onError) {
   const scoreListQuery = ctx.query(
     publicScoreSummaryCollection(ctx),
+    ctx.where('isPublic', '==', true),
     ctx.orderBy('sharedAt', 'desc'),
     ctx.limit(SCORE_LIST_LIMIT),
   );

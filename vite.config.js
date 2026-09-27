@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+import { readFile, rm, writeFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -84,6 +85,25 @@ function resolveBuildOutDir(deployTarget) {
   return resolve(ROOT_DIR, 'dist');
 }
 
+function externalizeFirebaseScoreLibrary(outputDirectory) {
+  return {
+    name: 'externalize-firebase-score-library',
+    apply: 'build',
+    async closeBundle() {
+      const manifestPath = resolve(outputDirectory, 'score-library-manifest.json');
+      const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+      manifest.scores = manifest.scores.map((score) => ({
+        ...score,
+        localPath: null,
+        downloadUrl: null,
+      }));
+
+      await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+      await rm(resolve(outputDirectory, 'score-library', 'slim-json'), { recursive: true, force: true });
+    },
+  };
+}
+
 export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, ROOT_DIR, '');
   const deployTarget = resolveDeployTarget(env);
@@ -103,7 +123,12 @@ export default defineConfig(({ command, mode }) => {
   return {
     root: ROOT_DIR,
     base: command === 'build' ? buildBase : '/',
-    plugins: [react()],
+    plugins: [
+      react(),
+      ...(deployTarget === DEPLOY_TARGETS.FIREBASE
+        ? [externalizeFirebaseScoreLibrary(buildOutDir)]
+        : []),
+    ],
     define: {
       __APP_VERSION__: JSON.stringify(PACKAGE_VERSION),
     },

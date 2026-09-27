@@ -200,7 +200,8 @@ export function useScorePlayback({
 
   const loadProvidedScore = useCallback((source) => {
     const normalizedBpm = Number(source?.bpm) || DEFAULT_SCORE_PARAMS.bpm;
-    const { events, maxTime, playback } = normalizeScoreSource(source?.score ?? '', {
+    const scoreSource = source?.score ?? source?.content ?? source?.rawText ?? source ?? '';
+    const { events, maxTime, playback } = normalizeScoreSource(scoreSource, {
       bpm: normalizedBpm,
       timeSigNum: source?.timeSigNum ?? DEFAULT_SCORE_PARAMS.timeSigNum,
       timeSigDen: source?.timeSigDen ?? DEFAULT_SCORE_PARAMS.timeSigDen,

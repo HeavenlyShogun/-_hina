@@ -32,3 +32,23 @@ test('keeps rhythm controls responsive and locks instrument changes during playb
   await expect(page.locator('.blend-toggle input')).toBeDisabled();
   await expect(page.locator('.instrument-btn').first()).toBeDisabled();
 });
+
+test('keeps workspace navigation aligned with score sections and supports tab keys', async ({ page }) => {
+  await page.goto('/');
+
+  const sectionOrder = await page.locator('#rhythm-controls, #playlist-manager, #editor, #library-and-import')
+    .evaluateAll((sections) => sections.map((section) => section.id));
+  expect(sectionOrder).toEqual(['rhythm-controls', 'playlist-manager', 'editor', 'library-and-import']);
+
+  await page.getByRole('navigation', { name: 'Workspace quick navigation' })
+    .getByRole('button', { name: '譜面編輯', exact: true })
+    .click();
+  await expect(page.locator('#editor')).toBeInViewport();
+
+  const libraryTab = page.getByRole('tab', { name: '內建曲庫' });
+  const converterTab = page.getByRole('tab', { name: '檔案轉檔' });
+  await libraryTab.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(converterTab).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#converter')).toBeVisible();
+});

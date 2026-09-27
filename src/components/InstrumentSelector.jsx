@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useMemo, useState } from 'react';
+import React, { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { AudioLines, Drum, Guitar, Music2, Piano, Waves } from 'lucide-react';
 import { useAudioConfig } from '../contexts/AudioConfigContext';
 import { SUPPORTED_TONES, listAvailableInstruments } from '../constants/instruments';
@@ -25,10 +25,39 @@ function normalizeToneList(tone) {
   return normalized.length ? normalized : ['piano'];
 }
 
-const InstrumentSelector = memo(({ disabled = false }) => {
+const PERFORMANCE_MODES = [
+  { id: 'solo', label: '獨奏 Solo' },
+  { id: 'band', label: '樂團 Band' },
+  { id: 'orchestra', label: '管弦樂團 Orchestra' },
+];
+
+const InstrumentSelector = memo(({ disabled = false, performanceMode = 'solo', onPerformanceModeChange }) => {
   const { tone, setTone } = useAudioConfig();
   const selectedTones = useMemo(() => normalizeToneList(tone), [tone]);
   const [isBlendMode, setIsBlendMode] = useState(Array.isArray(tone) && tone.length > 1);
+  const savedToneRef = useRef(null);
+
+  const handlePerformanceModeChange = useCallback((nextMode) => {
+    if (nextMode === performanceMode) return;
+
+    if (nextMode === 'orchestra') {
+      savedToneRef.current = tone;
+      setTone('midi-original');
+      setIsBlendMode(false);
+    } else if (performanceMode === 'orchestra') {
+      const restoredTones = normalizeToneList(savedToneRef.current ?? 'piano');
+      setTone(nextMode === 'band' ? restoredTones : restoredTones[0]);
+      setIsBlendMode(nextMode === 'band');
+    } else if (nextMode === 'band') {
+      setTone(normalizeToneList(tone));
+      setIsBlendMode(true);
+    } else {
+      setTone(normalizeToneList(tone)[0]);
+      setIsBlendMode(false);
+    }
+
+    onPerformanceModeChange?.(nextMode);
+  }, [onPerformanceModeChange, performanceMode, setTone, tone]);
 
   const handleSelectTone = useCallback((id) => {
     if (!isBlendMode) {
@@ -60,7 +89,20 @@ const InstrumentSelector = memo(({ disabled = false }) => {
   return (
     <div className="instrument-selector-wrap">
       <div className="instrument-toolbar">
-        <label className="blend-toggle">
+        <div className="performance-modes" role="group" aria-label="演奏模式">
+          {PERFORMANCE_MODES.map(({ id, label }) => (
+            <button
+              key={id}
+              type="button"
+              aria-pressed={performanceMode === id}
+              disabled={disabled}
+              onClick={() => handlePerformanceModeChange(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {performanceMode === 'band' ? <label className="blend-toggle">
           <input
             type="checkbox"
             checked={isBlendMode}
@@ -69,9 +111,10 @@ const InstrumentSelector = memo(({ disabled = false }) => {
           />
           <span className="blend-toggle-track" aria-hidden="true" />
           <span className="blend-toggle-label">Blend</span>
-        </label>
+        </label> : null}
       </div>
-      <div className="instrument-selector">
+      {performanceMode === 'orchestra' ? <p className="orchestra-mode-note">依 MIDI 軌道原始樂器演奏</p> : null}
+      {performanceMode !== 'orchestra' ? <div className="instrument-selector">
         {INSTRUMENTS.map(({ id, label, Icon, sub }) => {
           const active = selectedTones.includes(id);
 
@@ -92,7 +135,7 @@ const InstrumentSelector = memo(({ disabled = false }) => {
             </button>
           );
         })}
-      </div>
+      </div> : null}
       <style>{`
         .instrument-selector-wrap {
           position: relative;
@@ -107,6 +150,40 @@ const InstrumentSelector = memo(({ disabled = false }) => {
           width: min(100%, 980px);
           justify-content: flex-end;
           padding: 0 16px;
+        }
+        .performance-modes {
+          display: inline-flex;
+          gap: 3px;
+          margin-right: auto;
+          padding: 3px;
+          border: 1px solid rgba(219,234,254,0.18);
+          border-radius: 12px;
+          background: rgba(5, 8, 28, 0.7);
+        }
+        .performance-modes button {
+          min-height: 30px;
+          border: 0;
+          border-radius: 8px;
+          background: transparent;
+          padding: 0 12px;
+          color: rgba(219,234,254,0.65);
+          font-size: 10px;
+          font-weight: 800;
+          cursor: pointer;
+        }
+        .performance-modes button[aria-pressed="true"] {
+          background: rgba(45, 212, 191, 0.22);
+          color: #ccfbf1;
+        }
+        .performance-modes button:disabled {
+          cursor: wait;
+          opacity: 0.55;
+        }
+        .orchestra-mode-note {
+          margin: 0;
+          padding: 8px 12px 0;
+          color: rgba(219,234,254,0.72);
+          font-size: 11px;
         }
         .blend-toggle {
           display: inline-flex;
