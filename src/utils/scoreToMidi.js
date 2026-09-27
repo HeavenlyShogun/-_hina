@@ -119,6 +119,47 @@ function normalizeTrackEvents(track, sourcePpq, targetPpq) {
   };
 }
 
+function normalizeScoreTracks(scoreJson) {
+  if (scoreJson.version !== '3.2-ultra-slim' || !Array.isArray(scoreJson.notes)) {
+    return Array.isArray(scoreJson.tracks) ? scoreJson.tracks.filter((track) => !track?.mute) : [];
+  }
+
+  const trackMetadata = Array.isArray(scoreJson.tracks) ? scoreJson.tracks : [];
+  const grouped = new Map();
+  scoreJson.notes.forEach((entry) => {
+    if (!Array.isArray(entry) || entry.length < 3) return;
+    const trackId = String(entry[4] ?? 0);
+    if (!grouped.has(trackId)) grouped.set(trackId, []);
+    grouped.get(trackId).push({
+      tick: entry[0],
+      durationTicks: entry[1],
+      midi: entry[2],
+      velocity: entry[3],
+    });
+  });
+
+  return [...grouped.entries()].map(([trackId, events], index) => ({
+    ...(trackMetadata[Number(trackId)] ?? {}),
+    id: trackMetadata[Number(trackId)]?.id ?? `track-${trackId}`,
+    name: trackMetadata[Number(trackId)]?.name ?? `Track ${index + 1}`,
+    events,
+  }));
+}
+
+function resolveTempoEntries(scoreJson, sourcePpq, fallbackBpm) {
+  const tempoMap = scoreJson.playback?.tempoMap;
+  if (!Array.isArray(tempoMap) || !tempoMap.length) {
+    return [{ ticks: 0, bpm: fallbackBpm }];
+  }
+
+  return tempoMap.map((entry) => ({
+    ticks: Number(entry.startTick) || 0,
+    bpm: Number(entry.bpm) > 0
+      ? Number(entry.bpm)
+      : 60 / (Math.max(Number(entry.secondsPerTick) || 0, Number.EPSILON) * sourcePpq),
+  }));
+}
+
 export function scoreJsonToMidi(scoreJson, options = {}) {
   if (!scoreJson || typeof scoreJson !== 'object') {
     throw new Error('Score JSON is required before exporting MIDI.');
@@ -130,7 +171,7 @@ export function scoreJsonToMidi(scoreJson, options = {}) {
   const bpm = Number(transport.bpm) || DEFAULT_SCORE_PARAMS.bpm;
   const timeSigNum = Number(transport.timeSigNum) || DEFAULT_SCORE_PARAMS.timeSigNum;
   const timeSigDen = Number(transport.timeSigDen) || DEFAULT_SCORE_PARAMS.timeSigDen;
-  const tracks = Array.isArray(scoreJson.tracks) ? scoreJson.tracks.filter((track) => !track?.mute) : [];
+  const tracks = normalizeScoreTracks(scoreJson);
   const midi = new Midi();
 
   midi.fromJSON({
@@ -138,7 +179,7 @@ export function scoreJsonToMidi(scoreJson, options = {}) {
       name: scoreJson.meta?.title || options.title || 'universe rhythm recorder export',
       ppq: targetPpq,
       meta: [],
-      tempos: [{ ticks: 0, bpm }],
+      tempos: resolveTempoEntries(scoreJson, sourcePpq, bpm),
       timeSignatures: [{ ticks: 0, timeSignature: [timeSigNum, timeSigDen] }],
       keySignatures: [],
     },

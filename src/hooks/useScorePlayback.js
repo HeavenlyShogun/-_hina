@@ -201,20 +201,35 @@ export function useScorePlayback({
   const loadProvidedScore = useCallback((source) => {
     const normalizedBpm = Number(source?.bpm) || DEFAULT_SCORE_PARAMS.bpm;
     const scoreSource = source?.score ?? source?.content ?? source?.rawText ?? source ?? '';
-    const { events, maxTime, playback } = normalizeScoreSource(scoreSource, {
-      bpm: normalizedBpm,
-      timeSigNum: source?.timeSigNum ?? DEFAULT_SCORE_PARAMS.timeSigNum,
-      timeSigDen: source?.timeSigDen ?? DEFAULT_SCORE_PARAMS.timeSigDen,
-      charResolution: resolveCharResolution(source),
-      globalKeyOffset:
-        source?.audioConfig?.globalKeyOffset
-        ?? source?.globalKeyOffset
-        ?? DEFAULT_SCORE_PARAMS.globalKeyOffset,
-      scaleMode:
-        source?.audioConfig?.scaleMode
-        ?? source?.scaleMode
-        ?? DEFAULT_SCORE_PARAMS.scaleMode,
-    });
+    let parsedSource = scoreSource;
+    if (typeof parsedSource === 'string') {
+      try {
+        parsedSource = JSON.parse(parsedSource);
+      } catch {
+        parsedSource = scoreSource;
+      }
+    }
+
+    const normalized = parsedSource
+      && typeof parsedSource === 'object'
+      && Array.isArray(parsedSource.events)
+      && parsedSource.playback
+      ? parsedSource
+      : normalizeScoreSource(parsedSource, {
+        bpm: normalizedBpm,
+        timeSigNum: source?.timeSigNum ?? DEFAULT_SCORE_PARAMS.timeSigNum,
+        timeSigDen: source?.timeSigDen ?? DEFAULT_SCORE_PARAMS.timeSigDen,
+        charResolution: resolveCharResolution(source),
+        globalKeyOffset:
+          source?.audioConfig?.globalKeyOffset
+          ?? source?.globalKeyOffset
+          ?? DEFAULT_SCORE_PARAMS.globalKeyOffset,
+        scaleMode:
+          source?.audioConfig?.scaleMode
+          ?? source?.scaleMode
+          ?? DEFAULT_SCORE_PARAMS.scaleMode,
+      });
+    const { events, maxTime, playback } = normalized;
 
     playbackController.load(events, maxTime, playback);
     return { events, maxTime, playback };
@@ -356,7 +371,7 @@ export function useScorePlayback({
 
       if (!events.length) {
         showToast('沒有可播放的音符。', 'error');
-        return;
+        return playbackController.getState();
       }
 
       await audioEngine.resume();
@@ -364,11 +379,17 @@ export function useScorePlayback({
         source?.audioConfig?.tone ?? playbackConfigRef.current.audioConfig?.tone,
         playback,
       );
-      audioEngine.setReverbEnabled(source?.audioConfig?.reverb);
+      audioEngine.setReverbEnabled(
+        source?.audioConfig?.reverb
+        ?? source?.reverb
+        ?? playback?.reverb
+        ?? playbackConfigRef.current.audioConfig?.reverb,
+      );
       await playbackController.play(audioEngine.audioContext, buildSnapshot({
         audioConfig: source?.audioConfig,
         accidentals: source?.accidentals,
       }));
+      return playbackController.getState();
     } catch (error) {
       console.error(error);
       stopAll();

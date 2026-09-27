@@ -446,6 +446,33 @@ class PlaybackController {
     return event.tick + event.durationTicks;
   }
 
+  hasLoadedScore(events, maxTime, playback = {}) {
+    if (!Array.isArray(events) || events.length !== this.events.length) {
+      return false;
+    }
+
+    if (Math.abs((Number(maxTime) || 0) - this.maxTime) > 0.001) {
+      return false;
+    }
+
+    if (
+      Number(playback?.bpm) !== Number(this.playback?.bpm)
+      || Number(playback?.resolution) !== Number(this.playback?.resolution)
+    ) {
+      return false;
+    }
+
+    const sampleIndexes = [...new Set([0, Math.floor(events.length / 2), events.length - 1])];
+    return sampleIndexes.every((index) => {
+      const incoming = events[index];
+      const loaded = this.events[index];
+      return incoming?.tick === loaded?.tick
+        && incoming?.durationTicks === loaded?.durationTicks
+        && incoming?.k === loaded?.k
+        && Number(incoming?.frequency ?? 0) === Number(loaded?.frequency ?? 0);
+    });
+  }
+
   getEventSoundEndTick(event) {
     return event.tick + Math.max(roundTick(event?.playDurationTicks), 1);
   }

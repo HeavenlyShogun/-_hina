@@ -49,4 +49,52 @@ test('automatically starts playback when advancing to the next library score', a
   await expect(nextButton).toBeEnabled();
   await nextButton.click();
   await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible();
+  await expect.poll(async () => Number(await page.locator('[aria-label="Seek playback timeline"]').getAttribute('aria-valuenow')) || 0, {
+    timeout: 5000,
+  }).toBeGreaterThan(0);
+});
+
+test('exposes playlist transport controls to browser media-session actions', async ({ page }) => {
+  test.setTimeout(60000);
+
+  await page.addInitScript(() => {
+    window.__mediaActions = {};
+    Object.defineProperty(navigator, 'mediaSession', {
+      configurable: true,
+      value: {
+        setActionHandler: (action, handler) => { window.__mediaActions[action] = handler; },
+        setPositionState: () => {},
+      },
+    });
+    window.MediaMetadata = class MediaMetadata {
+      constructor(metadata) { Object.assign(this, metadata); }
+    };
+  });
+
+  await page.goto('/');
+
+  await expect(page.locator('#playlist-manager')).toBeVisible();
+  await expect(page.getByRole('button', { name: '暫停' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '上一首' })).toBeVisible();
+  await expect(page.getByRole('button', { name: '下一首' })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => Object.keys(window.__mediaActions).sort())).toEqual([
+    'nexttrack',
+    'pause',
+    'play',
+    'previoustrack',
+    'seekbackward',
+    'seekforward',
+    'seekto',
+  ]);
+
+  await page.locator('#playlist-manager details summary').click();
+  await page.getByRole('button', { name: '加入歌單 surges' }).click();
+  await page.getByRole('button', { name: '加入歌單 Neo-aspect' }).click();
+  await page.getByRole('button', { name: '播放 surges' }).click();
+  await expect(page.locator('#playlist-manager button[aria-label="暫停"]')).toBeVisible({ timeout: 25000 });
+
+  await page.evaluate(async () => window.__mediaActions.nexttrack());
+  await expect(page.locator('#playlist-manager section[aria-label="目前播放"] h3')).toHaveText('Neo-aspect', { timeout: 25000 });
+  await expect(page.locator('#playlist-manager button[aria-label="暫停"]')).toBeVisible({ timeout: 25000 });
+  await expect.poll(() => page.evaluate(() => navigator.mediaSession.playbackState)).toBe('playing');
 });

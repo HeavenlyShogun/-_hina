@@ -13,9 +13,46 @@ function getOfflineAudioContext(duration, sampleRate) {
 function frequencyForEvent(event, globalKeyOffset, accidentals) {
   const fromEvent = Number(event?.frequency);
   const fromKey = KEY_INFO_MAP[event?.k]?.f;
-  const base = Number.isFinite(fromEvent) ? fromEvent : fromKey;
+  if (Number.isFinite(fromEvent) && fromEvent > 0) {
+    return fromEvent;
+  }
+
+  const base = fromKey;
   if (!Number.isFinite(base) || base <= 0) return null;
   return base * 2 ** ((Number(globalKeyOffset) + (accidentals?.[event?.k] ? 1 : 0)) / 12);
+}
+
+function createTempoMap(playback) {
+  const bpm = Math.max(Number(playback?.bpm) || DEFAULT_SCORE_PARAMS.bpm, 1);
+  const resolution = Math.max(Number(playback?.resolution) || DEFAULT_SCORE_PARAMS.charResolution, 1);
+  const fallback = (60 / bpm) / resolution;
+  const entries = (Array.isArray(playback?.tempoMap) ? playback.tempoMap : [])
+    .map((entry) => ({
+      startTick: Math.max(Number(entry?.startTick) || 0, 0),
+      secondsPerTick: Number(entry?.secondsPerTick) > 0
+        ? Number(entry.secondsPerTick)
+        : Number(entry?.bpm) > 0 ? (60 / Number(entry.bpm)) / resolution : fallback,
+    }))
+    .sort((left, right) => left.startTick - right.startTick);
+
+  if (!entries.length || entries[0].startTick !== 0) {
+    entries.unshift({ startTick: 0, secondsPerTick: fallback });
+  }
+  return { resolution, entries };
+}
+
+function ticksToSeconds(tick, tempo) {
+  const target = Math.max(Number(tick) || 0, 0);
+  let currentTick = 0;
+  let seconds = 0;
+  for (let index = 0; index < tempo.entries.length && currentTick < target; index += 1) {
+    const segment = tempo.entries[index];
+    const nextTick = tempo.entries[index + 1]?.startTick ?? target;
+    const endTick = Math.min(target, Math.max(nextTick, currentTick));
+    seconds += (endTick - currentTick) * segment.secondsPerTick;
+    currentTick = endTick;
+  }
+  return seconds;
 }
 
 function schedulePluckedNote(context, destination, event, options) {
@@ -83,9 +120,19 @@ export async function renderScoreToWav(score, options = {}) {
     charResolution: options.charResolution ?? DEFAULT_SCORE_PARAMS.charResolution,
     globalKeyOffset: options.globalKeyOffset ?? DEFAULT_SCORE_PARAMS.globalKeyOffset,
   });
+  const tempo = createTempoMap(normalized.playback);
   const events = normalized.events.filter((event) => !event.isRest);
   if (!events.length) throw new Error('The current score has no playable notes.');
-  const endTime = events.reduce((end, event) => Math.max(end, (event.time || 0) + (event.durationSec || 0)), 0);
+  const endTime = events.reduce((end, event) => {
+    const start = ticksToSeconds(event.startTick ?? event.tick, tempo);
+    const finish = ticksToSeconds(
+      (event.startTick ?? event.tick ?? 0) + (event.durationTicks ?? event.durationTick ?? 1),
+      tempo,
+    );
+    event.time = start;
+    event.durationSec = Math.max(finish - start, MIN_DURATION_SECONDS);
+    return Math.max(end, finish);
+  }, 0);
   const context = getOfflineAudioContext(Math.max(endTime + TAIL_SECONDS, 1), options.sampleRate ?? 44100);
   const master = context.createGain();
   master.gain.value = Math.min(1, Math.max(0.05, Number(options.gain) || 0.72));

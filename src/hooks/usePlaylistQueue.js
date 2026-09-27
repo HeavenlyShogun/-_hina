@@ -3,10 +3,11 @@ import { scoreLibraryService } from '../services/scoreLibraryService.js';
 
 const PLAY_MODES = ['sequence', 'loop-all', 'loop-one', 'shuffle'];
 
-export function usePlaylistQueue({ scores = [], loadScoreData, startScore, playbackState, seekToTick, resumePlayback }) {
+export function usePlaylistQueue({ scores = [], loadScoreData, startScore, playbackState, seekToTick, resumePlayback, stopPlayback }) {
   const [queue, setQueue] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(-1);
   const [playMode, setPlayMode] = useState('sequence');
+  const [isLoading, setIsLoading] = useState(false);
   const loadRequestRef = useRef(0);
 
   const addToQueue = useCallback((scoreItem) => {
@@ -15,19 +16,29 @@ export function usePlaylistQueue({ scores = [], loadScoreData, startScore, playb
   }, []);
 
   const clearQueue = useCallback(() => {
+    loadRequestRef.current += 1;
+    if (currentIndex >= 0 || isLoading) {
+      stopPlayback?.();
+    }
+    setIsLoading(false);
     setQueue([]);
     setCurrentIndex(-1);
-  }, []);
+  }, [currentIndex, isLoading, stopPlayback]);
 
   const removeFromQueue = useCallback((index) => {
     if (index < 0 || index >= queue.length) return;
+    if (index === currentIndex) {
+      loadRequestRef.current += 1;
+      stopPlayback?.();
+      setIsLoading(false);
+    }
     setQueue((current) => index < 0 || index >= current.length
       ? current
       : current.filter((_, itemIndex) => itemIndex !== index));
     setCurrentIndex((active) => active === index
       ? -1
       : active > index ? active - 1 : active);
-  }, [queue.length]);
+  }, [currentIndex, queue.length, stopPlayback]);
 
   const reorderQueue = useCallback((fromIndex, toIndex) => {
     if (fromIndex < 0 || toIndex < 0 || fromIndex >= queue.length || toIndex >= queue.length || fromIndex === toIndex) return;
@@ -47,18 +58,25 @@ export function usePlaylistQueue({ scores = [], loadScoreData, startScore, playb
     loadRequestRef.current = requestId;
     const item = queue[index];
     setCurrentIndex(index);
-    let scoreData;
-    if (typeof item.load === 'function') {
-      scoreData = await item.load();
-    } else {
-      const manifestItem = item.manifestItem ?? item;
-      scoreData = await scoreLibraryService.fetchScoreBySlug(item.slug, manifestItem);
-      scoreData = { ...item, content: scoreData };
+    setIsLoading(true);
+    try {
+      let scoreData;
+      if (typeof item.load === 'function') {
+        scoreData = await item.load();
+      } else {
+        const manifestItem = item.manifestItem ?? item;
+        scoreData = await scoreLibraryService.fetchScoreBySlug(item.slug, manifestItem);
+        scoreData = { ...item, content: scoreData };
+      }
+      if (loadRequestRef.current !== requestId) return;
+      const loadedSource = await loadScoreData(scoreData);
+      if (loadRequestRef.current !== requestId) return;
+      return await startScore(loadedSource);
+    } finally {
+      if (loadRequestRef.current === requestId) {
+        setIsLoading(false);
+      }
     }
-    if (loadRequestRef.current !== requestId) return;
-    const loadedSource = await loadScoreData(scoreData);
-    if (loadRequestRef.current !== requestId) return;
-    await startScore(loadedSource);
   }, [loadScoreData, queue, startScore]);
 
   const playNextScore = useCallback(async ({ automatic = false } = {}) => {
@@ -95,7 +113,7 @@ export function usePlaylistQueue({ scores = [], loadScoreData, startScore, playb
     if (PLAY_MODES.includes(mode)) setPlayMode(mode);
   }, []);
 
-  return { queue, currentIndex, playMode, playModes: PLAY_MODES, scores, addToQueue, removeFromQueue, reorderQueue, clearQueue, changePlayMode, playQueueIndex, playNextScore, playPrevScore };
+  return { queue, currentIndex, playMode, isLoading, playModes: PLAY_MODES, scores, addToQueue, removeFromQueue, reorderQueue, clearQueue, changePlayMode, playQueueIndex, playNextScore, playPrevScore };
 }
 
 export default usePlaylistQueue;

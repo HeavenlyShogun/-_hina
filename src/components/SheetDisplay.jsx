@@ -502,6 +502,14 @@ const SheetDisplay = memo(({
 
   useEffect(() => {
     if (normalizedScore && playbackController) {
+      if (playbackController.getState().isPlaying) {
+        syncPlayheadPosition(playbackController.getCurrentTick());
+        return;
+      }
+      if (playbackController.hasLoadedScore(normalizedScore.events, normalizedScore.maxTime, normalizedScore.playback)) {
+        syncPlayheadPosition(playbackController.getCurrentTick());
+        return;
+      }
       playbackController.load(normalizedScore.events, normalizedScore.maxTime, normalizedScore.playback);
       syncPlayheadPosition(0);
     }

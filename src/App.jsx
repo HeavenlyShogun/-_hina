@@ -25,6 +25,7 @@ import { applyScoreRecommendation } from './utils/scoreRecommendations';
 import { normalizeScoreSource } from './utils/score';
 import { scoreJsonToMidiBytes } from './utils/scoreToMidi';
 import { downloadTrack01Wav } from './services/audioOfflineRenderer';
+import playbackController from './services/playbackController';
 
 function getFileTitle(filename) {
   return filename.replace(/\.[^/.]+$/, '');
@@ -260,6 +261,7 @@ function AppContent({
   const visualFlushFrameRef = useRef(0);
   const featuredRequestIdRef = useRef(0);
   const playlistActionsRef = useRef(null);
+  const mediaSessionHandlersRef = useRef({});
   const showToast = useCallback((message, type = 'info') => {
     if (toastTimerRef.current) {
       window.clearTimeout(toastTimerRef.current);
@@ -569,6 +571,7 @@ function AppContent({
     playbackState,
     seekToTick,
     resumePlayback: resumeScoreAction,
+    stopPlayback: stopAll,
   });
 
   useMidiInput({
@@ -1063,10 +1066,12 @@ function AppContent({
 
     loadScoreSource(applyScoreRecommendation(source, { force: true }));
     stopAll();
+    let playbackResult = null;
     if (autoPlay) {
-      await playScoreSourceAction(source);
+      playbackResult = await playScoreSourceAction(source);
     }
     showToast(`已載入 ${nextScore.displayTitle ?? nextScore.title}`, 'success');
+    return playbackResult;
     } catch (error) {
       console.error(error);
       if (featuredRequestIdRef.current === requestId) {
@@ -1107,6 +1112,120 @@ function AppContent({
       await handleSelectQueueItem(0);
     }
   }, [currentQueueIndex, handleSelectQueueItem, playlist.playMode, selectableScores]);
+
+  const playLibraryPrevious = useCallback(async () => {
+    if (Number(playbackState.currentTime) > 3) {
+      await seekToTime(0);
+      return;
+    }
+    if (currentQueueIndex > 0) {
+      await handleSelectQueueItem(currentQueueIndex - 1);
+      return;
+    }
+    if (playlist.playMode === 'loop-all' && selectableScores.length) {
+      await handleSelectQueueItem(selectableScores.length - 1);
+      return;
+    }
+    await restartScoreAction();
+  }, [currentQueueIndex, handleSelectQueueItem, playbackState.currentTime, playlist.playMode, restartScoreAction, seekToTime, selectableScores.length]);
+
+  const runTrackChangeAndEnsurePlayback = useCallback(async (changeTrack) => {
+    return changeTrack();
+  }, []);
+
+  const playPlaylistTrack = useCallback((index) => (
+    runTrackChangeAndEnsurePlayback(() => playlist.playQueueIndex(index))
+  ), [playlist.playQueueIndex, runTrackChangeAndEnsurePlayback]);
+
+  const playPlaylistNext = useCallback(() => runTrackChangeAndEnsurePlayback(() => (
+    playlist.queue.length ? playlist.playNextScore() : playLibraryNext()
+  )), [playLibraryNext, playlist.playNextScore, playlist.queue.length, runTrackChangeAndEnsurePlayback]);
+
+  const playPlaylistPrevious = useCallback(() => (
+    runTrackChangeAndEnsurePlayback(() => (
+      playlist.queue.length ? playlist.playPrevScore() : playLibraryPrevious()
+    ))
+  ), [playLibraryPrevious, playlist.playPrevScore, playlist.queue.length, runTrackChangeAndEnsurePlayback]);
+
+  const togglePlaylistPlayback = useCallback(() => {
+    if (isPlaying) pauseScoreAction();
+    else if (isPaused) resumeScoreAction();
+    else playScoreAction();
+  }, [isPaused, isPlaying, pauseScoreAction, playScoreAction, resumeScoreAction]);
+
+  mediaSessionHandlersRef.current = {
+    play: () => {
+      if (isPaused) resumeScoreAction();
+      else if (!isPlaying) playScoreAction();
+    },
+    pause: () => {
+      if (isPlaying) pauseScoreAction();
+    },
+    previoustrack: () => playPlaylistPrevious()?.catch((error) => console.error('Media previous-track action failed.', error)),
+    nexttrack: () => playPlaylistNext()?.catch((error) => console.error('Media next-track action failed.', error)),
+    seekto: (details) => seekToTime(details.seekTime),
+    seekbackward: (details) => seekToTime(Math.max(0, Number(playbackState.currentTime) - (details.seekOffset || 10))),
+    seekforward: (details) => seekToTime(Math.min(Number(playbackState.maxTime) || Infinity, Number(playbackState.currentTime) + (details.seekOffset || 10))),
+  };
+
+  useEffect(() => {
+    const mediaSession = navigator.mediaSession;
+    if (!mediaSession?.setActionHandler) return undefined;
+
+    const actionNames = ['play', 'pause', 'previoustrack', 'nexttrack', 'seekto', 'seekbackward', 'seekforward'];
+    actionNames.forEach((actionName) => {
+      try {
+        mediaSession.setActionHandler(actionName, (details) => mediaSessionHandlersRef.current[actionName]?.(details));
+      } catch {}
+    });
+
+    return () => actionNames.forEach((actionName) => {
+      try { mediaSession.setActionHandler(actionName, null); } catch {}
+    });
+  }, []);
+
+  const mediaTrack = playlist.queue[playlist.currentIndex]
+    ?? selectableScores[currentQueueIndex]
+    ?? null;
+  const mediaTrackTitle = mediaTrack?.displayTitle ?? mediaTrack?.title ?? mediaTrack?.filename ?? scoreTitle;
+
+  useEffect(() => {
+    const mediaSession = navigator.mediaSession;
+    if (!mediaSession) return;
+
+    if (typeof window.MediaMetadata === 'function' && mediaTrackTitle) {
+      mediaSession.metadata = new window.MediaMetadata({
+        title: mediaTrackTitle,
+        artist: mediaTrack?.artist ?? 'Universe Rhythm Recorder',
+        album: playlist.currentIndex >= 0 ? '我的歌單' : '曲庫',
+      });
+    }
+
+    mediaSession.playbackState = isPlaying ? 'playing' : isPaused ? 'paused' : 'none';
+  }, [isPaused, isPlaying, mediaTrack, mediaTrackTitle, playbackState.currentTime, playbackState.maxTime, playlist.currentIndex]);
+
+  useEffect(() => {
+    const mediaSession = navigator.mediaSession;
+    if (!mediaSession?.setPositionState || !Number(playbackState.maxTime)) return undefined;
+
+    const updatePosition = () => {
+      const state = playbackController.getState();
+      const duration = Math.max(0, Number(state.maxTime) || 0);
+      if (!duration) return;
+      try {
+        mediaSession.setPositionState({
+          duration,
+          playbackRate: state.playbackRate || 1,
+          position: Math.min(Math.max(0, Number(state.currentTime) || 0), duration),
+        });
+      } catch {}
+    };
+
+    updatePosition();
+    if (!isPlaying) return undefined;
+    const intervalId = window.setInterval(updatePosition, 1000);
+    return () => window.clearInterval(intervalId);
+  }, [isPlaying, playbackState.generation, playbackState.maxTime]);
 
   playlistActionsRef.current = { playlist, playLibraryNext };
 
@@ -1275,12 +1394,20 @@ function AppContent({
             queue: playlist.queue,
             currentIndex: playlist.currentIndex,
             playMode: playlist.playMode,
+            isLoading: playlist.isLoading,
+            isPlaying,
+            isPaused,
+            currentTitle: scoreTitle,
+            bpm,
             removeFromQueue: playlist.removeFromQueue,
+            reorderQueue: playlist.reorderQueue,
             clearQueue: playlist.clearQueue,
-            playTrack: playlist.playQueueIndex,
-            playNext: () => playlist.playNextScore().catch((error) => console.error('Failed to play next playlist item.', error)),
-            playPrevious: () => playlist.playPrevScore().catch((error) => console.error('Failed to play previous playlist item.', error)),
+            playTrack: playPlaylistTrack,
+            playNext: () => playPlaylistNext().catch((error) => console.error('Failed to play next playlist item.', error)),
+            playPrevious: () => playPlaylistPrevious().catch((error) => console.error('Failed to play previous playlist item.', error)),
             changePlayMode: playlist.changePlayMode,
+            onTogglePlayback: togglePlaylistPlayback,
+            onSeekToTime: seekToTime,
             addTrack: playlist.addToQueue,
           }}
           onAddDefaultsToPlaylist={handleAddDefaultsToPlaylist}
