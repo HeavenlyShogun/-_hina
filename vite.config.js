@@ -157,12 +157,29 @@ export default defineConfig(({ command, mode }) => {
     build: {
       outDir: buildOutDir,
       emptyOutDir: true,
+      chunkSizeWarningLimit: 600,
       rollupOptions: {
         output: {
-          manualChunks: {
-            'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-            'firebase-vendor': ['firebase'],
-            'tone-vendor': ['@tonejs/midi'],
+          manualChunks(id) {
+            if (!id.includes('/node_modules/')) return undefined;
+
+            const packagePath = id.slice(id.lastIndexOf('/node_modules/') + '/node_modules/'.length);
+            const packageName = packagePath.startsWith('@')
+              ? packagePath.split('/').slice(0, 2).join('/')
+              : packagePath.split('/')[0];
+
+            if (['react', 'react-dom', 'scheduler', 'react-router', 'react-router-dom'].includes(packageName)) {
+              return 'react-vendor';
+            }
+            if (packageName === 'firebase' || packageName.startsWith('@firebase/')) {
+              return 'firebase-vendor';
+            }
+            if (packageName === 'tone') return 'tone-vendor';
+            if (packageName === '@tonejs/midi') return 'midi-vendor';
+            if (packageName === 'lucide-react') return 'icons-vendor';
+            if (packageName === 'zustand') return 'state-vendor';
+
+            return undefined;
           },
         },
       },

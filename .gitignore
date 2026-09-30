@@ -8,4 +8,11 @@ __pycache__/
 node_modules
 
 # local env files
+.env
 .env.local
+.env.*.local
+
+# Firebase Admin credentials must stay outside the repository.
+*-firebase-adminsdk-*.json
+firebase-admin*.json
+service-account*.json

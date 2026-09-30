@@ -26,6 +26,7 @@ import { normalizeScoreSource } from './utils/score';
 import { scoreJsonToMidiBytes } from './utils/scoreToMidi';
 import { downloadTrack01Wav } from './services/audioOfflineRenderer';
 import playbackController from './services/playbackController';
+import WelcomeGate from './components/WelcomeGate';
 
 function getFileTitle(filename) {
   return filename.replace(/\.[^/.]+$/, '');
@@ -1661,6 +1662,8 @@ function AppContent({
 }
 
 export default function App() {
+  const [hasEnteredWorkspace, setHasEnteredWorkspace] = useState(false);
+  const [isEnteringWorkspace, setIsEnteringWorkspace] = useState(false);
   const {
     score,
     setScore,
@@ -1729,6 +1732,13 @@ export default function App() {
     }
   }, [updateScoreDocument]);
 
+  const enterWorkspace = useCallback(async () => {
+    setIsEnteringWorkspace(true);
+    await ensureCloudConnection();
+    setHasEnteredWorkspace(true);
+    setIsEnteringWorkspace(false);
+  }, [ensureCloudConnection]);
+
   const initialAudioConfig = useMemo(() => ({
     ...(scoreDocument.vol === undefined ? {} : { vol: scoreDocument.vol }),
     tone: scoreDocument.tone,
@@ -1744,6 +1754,9 @@ export default function App() {
   ]);
 
   return (
+    !hasEnteredWorkspace ? (
+      <WelcomeGate onEnter={enterWorkspace} isLoading={isEnteringWorkspace} />
+    ) : (
     <AudioConfigProvider
       initialConfig={initialAudioConfig}
       onConfigChange={handleAudioConfigChange}
@@ -1789,6 +1802,7 @@ export default function App() {
         updateScoreDocument={updateScoreDocument}
       />
     </AudioConfigProvider>
+    )
   );
 }
 

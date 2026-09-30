@@ -6,6 +6,7 @@ const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 const scoreDirectory = path.join(projectRoot, '風物之琴譜', '風物之譜面', 'slim-json');
 const destinationRoot = 'score-library/slim-json';
 const dryRun = process.argv.includes('--dry-run');
+const expectedProjectId = 'guilty-corn';
 
 async function collectScores() {
   const filenames = (await fs.readdir(scoreDirectory))
@@ -31,9 +32,19 @@ async function collectScores() {
 }
 
 async function uploadScores(scores) {
+  const projectId = process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID;
+  if (projectId !== expectedProjectId) {
+    throw new Error(`Set FIREBASE_PROJECT_ID to the production Firebase project (${expectedProjectId}).`);
+  }
+
   const bucketName = process.env.FIREBASE_STORAGE_BUCKET || process.env.VITE_FIREBASE_STORAGE_BUCKET;
   if (!bucketName) {
     throw new Error('Set FIREBASE_STORAGE_BUCKET to the Firebase Storage bucket name.');
+  }
+
+  const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  if (credentialsPath && !(await fs.stat(credentialsPath).catch(() => null))?.isFile()) {
+    throw new Error('GOOGLE_APPLICATION_CREDENTIALS must point to a readable service account JSON file.');
   }
 
   const [{ applicationDefault, initializeApp }, { getStorage }] = await Promise.all([
@@ -42,9 +53,15 @@ async function uploadScores(scores) {
   ]);
   const app = initializeApp({
     credential: applicationDefault(),
+    projectId,
     storageBucket: bucketName,
   });
   const bucket = getStorage(app).bucket();
+  const [metadata] = await bucket.getMetadata();
+  if (metadata.name !== bucketName) {
+    throw new Error(`Resolved Storage bucket ${metadata.name} does not match configured bucket ${bucketName}.`);
+  }
+  console.log(`Uploading to Firebase project ${projectId}, bucket ${bucketName}.`);
   const concurrency = 4;
 
   for (let offset = 0; offset < scores.length; offset += concurrency) {
