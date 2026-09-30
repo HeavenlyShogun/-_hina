@@ -788,7 +788,7 @@ class PlaybackController {
       const event = this.events[this.visualAttackIndex];
       this.visualAttackIndex += 1;
 
-      if (!event.k) {
+      if (!KEY_INFO_MAP[event.k] || event.isPercussion || event.channel === 9 || event.channel === 10) {
         continue;
       }
 
@@ -803,7 +803,7 @@ class PlaybackController {
       const event = this.events[this.visualReleaseIndex];
       this.visualReleaseIndex += 1;
 
-      if (!event.k) {
+      if (!KEY_INFO_MAP[event.k] || event.isPercussion || event.channel === 9 || event.channel === 10) {
         continue;
       }
 
@@ -857,8 +857,8 @@ class PlaybackController {
     }
 
     this.audioEngine.scheduleNote(frequency, absoluteTime, durationSec, {
-      tone: this.snapshot.tone,
-      ...(this.snapshot.tone === 'midi-original' && event.midiSampleSet
+      tone: event.tone ?? this.snapshot.tone,
+      ...((event.tone ?? this.snapshot.tone) === 'midi-original' && event.midiSampleSet
         ? {
           engine: 'sampler',
           sampleSet: event.midiSampleSet,
@@ -866,7 +866,7 @@ class PlaybackController {
         : {}),
       mode: 'scheduled',
       importance: event.importance ?? 100,
-      outputGain: this.snapshot.vol,
+      outputGain: this.snapshot.vol * (Number.isFinite(Number(event.channelGain)) ? Math.max(0, Math.min(1, Number(event.channelGain))) : 1),
       reverb: this.snapshot.reverb,
       velocity: Number.isFinite(Number(event.v)) ? Number(event.v) : 0.85,
       simultaneousNotes: event.simultaneousNotes ?? 1,

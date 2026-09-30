@@ -3,6 +3,7 @@ import { DEFAULT_SCORE_PARAMS, KEY_INFO_MAP } from '../constants/music';
 import audioEngine from '../services/audioEngine';
 import playbackController from '../services/playbackController';
 import { normalizeScoreSource } from '../utils/score';
+import { applyPlaybackMode } from '../utils/scoreModeFilter';
 
 const LIVE_NOTE_MIN_HOLD_SEC = 0.22;
 const LIVE_NOTE_RELEASE_SEC = 0.16;
@@ -48,6 +49,8 @@ export function useScorePlayback({
   timeSigDen,
   charResolution,
   audioConfig,
+  playbackMode = 'solo',
+  instrumentConfig = {},
   accidentals,
   showToast,
   onKeyVisualAttack,
@@ -64,6 +67,7 @@ export function useScorePlayback({
   const queuedSeekJobRef = useRef(null);
   const seekLoopPromiseRef = useRef(null);
   const busyOperationIdRef = useRef(0);
+  const lastOrchestraVisualAtRef = useRef(0);
   const playbackConfigRef = useRef({
     score,
     bpm,
@@ -71,6 +75,8 @@ export function useScorePlayback({
     timeSigDen,
     charResolution,
     audioConfig,
+    playbackMode,
+    instrumentConfig,
     accidentals,
   });
 
@@ -82,9 +88,11 @@ export function useScorePlayback({
       timeSigDen,
       charResolution,
       audioConfig,
+      playbackMode,
+      instrumentConfig,
       accidentals,
     };
-  }, [accidentals, audioConfig, bpm, charResolution, score, timeSigDen, timeSigNum]);
+  }, [accidentals, audioConfig, bpm, charResolution, instrumentConfig, playbackMode, score, timeSigDen, timeSigNum]);
 
   useEffect(() => {
     isPlayingRef.current = playbackState.isPlaying;
@@ -96,7 +104,14 @@ export function useScorePlayback({
 
   useEffect(() => {
     const unregister = playbackController.setCallbacks({
-      onVisualAttack: onKeyVisualAttack,
+      onVisualAttack: (key, event) => {
+        if (playbackConfigRef.current.playbackMode === 'orchestra') {
+          const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+          if (now - lastOrchestraVisualAtRef.current < 40) return;
+          lastOrchestraVisualAtRef.current = now;
+        }
+        onKeyVisualAttack?.(key, event);
+      },
       onVisualRelease: onKeyVisualRelease,
       onVisualReset,
       onProgressUpdate: (progress) => {
@@ -134,9 +149,10 @@ export function useScorePlayback({
       ...current.audioConfig,
       ...(overrides.audioConfig ?? {}),
     };
+    const playbackMode = overrides.playbackMode ?? current.playbackMode;
 
     return deepFreeze(cloneValue({
-      tone: nextAudioConfig?.tone,
+      tone: playbackMode === 'orchestra' || playbackMode === 'band' ? 'midi-original' : nextAudioConfig?.tone,
       vol: nextAudioConfig?.vol,
       reverb: nextAudioConfig?.reverb,
       globalKeyOffset: nextAudioConfig?.globalKeyOffset,
@@ -185,7 +201,7 @@ export function useScorePlayback({
   const loadCurrentScore = useCallback(() => {
     const current = playbackConfigRef.current;
     const normalizedBpm = Number(current.bpm) || DEFAULT_SCORE_PARAMS.bpm;
-    const { events, maxTime, playback } = normalizeScoreSource(current.score, {
+    const normalized = normalizeScoreSource(current.score, {
       bpm: normalizedBpm,
       timeSigNum: current.timeSigNum,
       timeSigDen: current.timeSigDen,
@@ -193,6 +209,8 @@ export function useScorePlayback({
       globalKeyOffset: current.audioConfig?.globalKeyOffset,
       scaleMode: current.audioConfig?.scaleMode,
     });
+    const filtered = applyPlaybackMode(normalized, current.playbackMode, current.audioConfig?.tone, current.instrumentConfig);
+    const { events, maxTime, playback } = filtered;
 
     playbackController.load(events, maxTime, playback);
     return { events, maxTime, playback };
@@ -229,10 +247,25 @@ export function useScorePlayback({
           ?? source?.scaleMode
           ?? DEFAULT_SCORE_PARAMS.scaleMode,
       });
-    const { events, maxTime, playback } = normalized;
+    const savedPlayback = parsedSource && typeof parsedSource === 'object' ? parsedSource.playback ?? {} : {};
+    const resolvedPlaybackMode = source?.playbackMode
+      ?? source?.performanceMode
+      ?? savedPlayback.playbackMode
+      ?? savedPlayback.performanceMode
+      ?? playbackConfigRef.current.playbackMode;
+    const resolvedInstrumentConfig = source?.instrumentConfig
+      ?? savedPlayback.instrumentConfig
+      ?? playbackConfigRef.current.instrumentConfig;
+    const filtered = applyPlaybackMode(
+      normalized,
+      resolvedPlaybackMode,
+      source?.audioConfig?.tone ?? playbackConfigRef.current.audioConfig?.tone,
+      resolvedInstrumentConfig,
+    );
+    const { events, maxTime, playback } = filtered;
 
     playbackController.load(events, maxTime, playback);
-    return { events, maxTime, playback };
+    return { events, maxTime, playback, playbackMode: resolvedPlaybackMode, instrumentConfig: resolvedInstrumentConfig };
   }, []);
 
   const stopAll = useCallback(() => {
@@ -310,7 +343,7 @@ export function useScorePlayback({
     }
 
     await audioEngine.resume();
-    await audioEngine.prepareTone(playbackConfigRef.current.audioConfig?.tone, playback);
+    await audioEngine.prepareTone(playback?.tone ?? playbackConfigRef.current.audioConfig?.tone, playback);
     await playbackController.play(audioEngine.audioContext, buildSnapshot());
   }, [buildSnapshot, loadCurrentScore, showToast, stopAll]);
 
@@ -327,9 +360,10 @@ export function useScorePlayback({
 
       if (playbackState.isPaused) {
         await runBusyTask('重新接續播放中...', async () => {
+          const playback = playbackController.playback;
           await audioEngine.prepareTone(
-            playbackConfigRef.current.audioConfig?.tone,
-            playbackController.playback,
+            playback?.tone ?? playbackConfigRef.current.audioConfig?.tone,
+            playback,
           );
           await audioEngine.resume();
           await playbackController.resume(buildSnapshot());
@@ -367,7 +401,7 @@ export function useScorePlayback({
   const playScoreSourceAction = useCallback(async (source) => {
     try {
       stopAll();
-      const { events, playback } = loadProvidedScore(source);
+      const { events, playback, playbackMode } = loadProvidedScore(source);
 
       if (!events.length) {
         showToast('沒有可播放的音符。', 'error');
@@ -376,7 +410,7 @@ export function useScorePlayback({
 
       await audioEngine.resume();
       await audioEngine.prepareTone(
-        source?.audioConfig?.tone ?? playbackConfigRef.current.audioConfig?.tone,
+        playback?.tone ?? source?.audioConfig?.tone ?? playbackConfigRef.current.audioConfig?.tone,
         playback,
       );
       audioEngine.setReverbEnabled(
@@ -388,6 +422,7 @@ export function useScorePlayback({
       await playbackController.play(audioEngine.audioContext, buildSnapshot({
         audioConfig: source?.audioConfig,
         accidentals: source?.accidentals,
+        playbackMode,
       }));
       return playbackController.getState();
     } catch (error) {
@@ -409,9 +444,10 @@ export function useScorePlayback({
       }
 
       await runBusyTask('重新接續播放中...', async () => {
+        const playback = playbackController.playback;
         await audioEngine.prepareTone(
-          playbackConfigRef.current.audioConfig?.tone,
-          playbackController.playback,
+          playback?.tone ?? playbackConfigRef.current.audioConfig?.tone,
+          playback,
         );
         await audioEngine.resume();
         await playbackController.resume(buildSnapshot());

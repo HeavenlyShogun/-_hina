@@ -32,6 +32,32 @@ function getFileTitle(filename) {
   return filename.replace(/\.[^/.]+$/, '');
 }
 
+function filterPercussionTracks(payload) {
+  if (!payload || typeof payload !== 'object' || !Array.isArray(payload.tracks)) return payload;
+  const isPercussion = (track) => {
+    const channel = Array.isArray(track) ? Number(track[1]) : Number(track?.channel);
+    return channel === 9 || channel === 10;
+  };
+  const retainedIndexes = payload.tracks.map((track, index) => ({ track, index })).filter(({ track }) => !isPercussion(track));
+  const next = typeof structuredClone === 'function' ? structuredClone(payload) : JSON.parse(JSON.stringify(payload));
+  const remap = new Map(retainedIndexes.map(({ index }, nextIndex) => [index, nextIndex]));
+  next.tracks = retainedIndexes.map(({ track }) => track);
+  if (Array.isArray(next.notes)) {
+    next.notes = next.notes.flatMap((entry) => {
+      if (!Array.isArray(entry) || entry.length < 5) return [entry];
+      const nextTrackIndex = remap.get(Number(entry[4]));
+      return nextTrackIndex === undefined ? [] : [[...entry.slice(0, 4), nextTrackIndex, ...entry.slice(5)]];
+    });
+  }
+  next.tracks = next.tracks.map((track) => {
+    if (!Array.isArray(track) && Array.isArray(track?.events)) {
+      return { ...track, events: track.events.filter((event) => Number(event?.channel) !== 9 && Number(event?.channel) !== 10) };
+    }
+    return track;
+  });
+  return next;
+}
+
 async function readImportedScore(file) {
   const raw = await file.text();
   const isJsonFile = file.name.toLowerCase().endsWith('.json');
@@ -241,6 +267,7 @@ function AppContent({
   const [activeKeys, setActiveKeys] = useState(() => new Set());
   const [featuredLoadState, setFeaturedLoadState] = useState({ isLoading: false, message: '' });
   const [performanceMode, setPerformanceMode] = useState('solo');
+  const [instrumentConfig, setInstrumentConfig] = useState({ band: {}, orchestra: {} });
   const [uiMode, setUiMode] = useState('normal');
   const [panelModes, setPanelModes] = useState({});
   const [pendingConvertedScores, setPendingConvertedScores] = useState([]);
@@ -297,6 +324,18 @@ function AppContent({
       window.cancelAnimationFrame(visualFlushFrameRef.current);
     }
   }, []);
+
+  useEffect(() => {
+    const playback = scoreDocument?.content?.playback ?? {};
+    const storedMode = scoreDocument?.playbackMode ?? playback.playbackMode ?? playback.performanceMode;
+    if (['solo', 'band', 'orchestra'].includes(storedMode)) {
+      setPerformanceMode(storedMode);
+    }
+    const storedConfig = scoreDocument?.instrumentConfig ?? playback.instrumentConfig;
+    if (storedConfig && typeof storedConfig === 'object' && !Array.isArray(storedConfig)) {
+      setInstrumentConfig(storedConfig);
+    }
+  }, [scoreDocument?.content, scoreDocument?.instrumentConfig, scoreDocument?.playbackMode]);
 
   useEffect(() => {
     const blockDefault = (event) => {
@@ -404,11 +443,13 @@ function AppContent({
   const getPanelMode = useCallback((panelId) => panelModes[panelId] ?? uiMode, [panelModes, uiMode]);
 
   const scrollToSection = useCallback((sectionId) => {
-    document.getElementById(sectionId)?.scrollIntoView({
-      behavior: 'smooth',
-      block: 'start',
-    });
-  }, []);
+    if (sectionId === 'converter' && libraryImportTab !== 'converter') {
+      setLibraryImportTab('converter');
+      window.setTimeout(() => document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+      return;
+    }
+    document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [libraryImportTab]);
 
   const handleLibraryImportTabKeyDown = useCallback((event) => {
     const tabs = ['library', 'converter'];
@@ -485,9 +526,11 @@ function AppContent({
     { id: 'main-screen', label: '\u4e3b\u756b\u9762', shortLabel: '\u4e3b\u756b\u9762', caption: '\u66f2\u5eab\u8207\u64ad\u653e\u5165\u53e3' },
     { id: 'lyre-keyboard', label: '\u9375\u76e4', shortLabel: '\u9375\u76e4', caption: '\u5373\u6642\u6f14\u594f\u9375\u76e4' },
     { id: 'rhythm-controls', label: '\u7bc0\u594f\u8207\u8abf\u6027\u8abf\u6574', shortLabel: '\u7bc0\u594f\u8abf\u6027', caption: 'BPM\u3001\u62cd\u865f\u3001\u97f3\u8272\u8207\u8abf\u6027' },
+    { id: 'performance-setup', label: '\u6a02\u5668\u8207\u8072\u90e8\u914d\u7f6e', shortLabel: '\u8072\u90e8\u914d\u7f6e', caption: 'Instrument count / multi-track routing' },
     { id: 'playlist-manager', label: '\u6211\u7684\u6b4c\u55ae', shortLabel: '\u6211\u7684\u6b4c\u55ae', caption: 'Playlist Manager', icon: ListMusic },
-    { id: 'editor', label: '\u8b5c\u9762\u7de8\u8f2f', shortLabel: '\u8b5c\u9762\u7de8\u8f2f', caption: 'Score Editor' },
-    { id: 'library-and-import', label: '\u66f2\u5eab\u8207\u8f49\u6a94', shortLabel: '\u66f2\u5eab\u8f49\u6a94', caption: 'Score Library / Import', icon: Library },
+    { id: 'editor', label: '\u8b5c\u9762\u7de8\u8f2f', shortLabel: '\u8b5c\u9762\u7de8\u8f2f', caption: 'Local editing / Firebase save and share', requiresCloud: true },
+    { id: 'converter', label: '\u8b5c\u9762\u8f49\u63db\u8207\u532f\u5165', shortLabel: '\u8f49\u63db\u532f\u5165', caption: 'MIDI / MusicXML multi-track conversion', requiresCloud: true },
+    { id: 'library-and-import', label: '\u66f2\u5eab\u8207\u8f49\u6a94', shortLabel: '\u66f2\u5eab\u8207\u66f2\u8b5c\u532f\u5165', caption: 'Cloud library / Local imports', icon: Library, requiresCloud: true },
   ]), []);
 
   const playbackScore = useMemo(() => {
@@ -534,6 +577,8 @@ function AppContent({
     timeSigDen,
     charResolution,
     audioConfig,
+    playbackMode: performanceMode,
+    instrumentConfig,
     accidentals,
     showToast,
     onKeyVisualAttack,
@@ -558,6 +603,8 @@ function AppContent({
       charResolution: loadedScore?.charResolution ?? content?.transport?.resolution,
       globalKeyOffset: loadedScore?.globalKeyOffset ?? content?.playback?.globalKeyOffset,
       scaleMode: loadedScore?.scaleMode ?? content?.playback?.scaleMode,
+      playbackMode: loadedScore?.playbackMode ?? content?.playback?.playbackMode ?? content?.playback?.performanceMode,
+      instrumentConfig: loadedScore?.instrumentConfig ?? content?.playback?.instrumentConfig,
       tone: audioConfig.tone,
       reverb: loadedScore?.reverb ?? content?.playback?.reverb,
     };
@@ -636,6 +683,8 @@ function AppContent({
       reverb: audioConfig.reverb,
       globalKeyOffset: audioConfig.globalKeyOffset,
       scaleMode: audioConfig.scaleMode,
+      playbackMode: performanceMode,
+      instrumentConfig,
     };
 
     const currentContent = effectiveScoreDocument.content ?? parseScoreContent(
@@ -663,6 +712,8 @@ function AppContent({
     audioConfig.vol,
     bpm,
     charResolution,
+    instrumentConfig,
+    performanceMode,
     scoreDocument,
     scoreTitle,
     timeSigDen,
@@ -1007,6 +1058,8 @@ function AppContent({
         tone: audioConfig.tone,
         globalKeyOffset: audioConfig.globalKeyOffset,
         scaleMode: audioConfig.scaleMode,
+        playbackMode: performanceMode,
+        instrumentConfig,
         reverb: audioConfig.reverb,
         accidentals,
       },
@@ -1047,6 +1100,7 @@ function AppContent({
     if (featuredRequestIdRef.current !== requestId) {
       return;
     }
+    const storedPlayback = nextScore?.content?.playback ?? {};
     const source = {
       title: nextScore.title,
       rawText: nextScore.rawText,
@@ -1063,7 +1117,12 @@ function AppContent({
       reverb: nextScore.reverb,
       tone: audioConfig.tone,
       accidentals: nextScore.accidentals,
+      playbackMode: nextScore.playbackMode ?? storedPlayback.playbackMode ?? storedPlayback.performanceMode,
+      instrumentConfig: nextScore.instrumentConfig ?? storedPlayback.instrumentConfig,
     };
+
+    if (['solo', 'band', 'orchestra'].includes(source.playbackMode)) setPerformanceMode(source.playbackMode);
+    if (source.instrumentConfig && typeof source.instrumentConfig === 'object') setInstrumentConfig(source.instrumentConfig);
 
     loadScoreSource(applyScoreRecommendation(source, { force: true }));
     stopAll();
@@ -1232,7 +1291,7 @@ function AppContent({
 
   const handleLoadLocalConvertedScore = useCallback((payload, options = {}) => {
     const { mode = 'replace' } = options;
-    let nextPayload = payload;
+    let nextPayload = options.filterChannel10 ? filterPercussionTracks(payload) : payload;
 
     if (mode === 'append' && scoreDocument.sourceType === SCORE_SOURCE_TYPES.JSON) {
       try {
@@ -1280,6 +1339,12 @@ function AppContent({
 
     return score;
   }, [score, scoreDocument.content, scoreDocument.rawText, scoreDocument.sourceType]);
+
+  const editorTrackCount = Array.isArray(editorScore?.tracks)
+    ? editorScore.tracks.length
+    : Array.isArray(editorScore?.events)
+      ? new Set(editorScore.events.map((event) => String(event?.trackId ?? '0'))).size
+      : 0;
 
   const playbackValue = useMemo(() => ({
     bpm,
@@ -1367,6 +1432,7 @@ function AppContent({
           scoreGroups={selectableScoreGroups}
           isScoreLibraryLoading={isScoreLibraryLoading}
           scoreLibraryError={scoreLibraryError}
+          cloudStatus={cloudStatus}
           onPlayFeaturedScore={handlePlayFeaturedScore}
           activeKeys={activeKeys}
           accidentals={accidentals}
@@ -1386,6 +1452,8 @@ function AppContent({
           isRenderingTrack={isRenderingTrack}
           performanceMode={performanceMode}
           onPerformanceModeChange={setPerformanceMode}
+          instrumentConfig={instrumentConfig}
+          onInstrumentConfigChange={setInstrumentConfig}
           uiMode={uiMode}
           onPanelPointerDown={handlePanelPointerDown}
           queue={selectableScores}
@@ -1415,6 +1483,8 @@ function AppContent({
         />
 
         <section id="editor" className="z-20 mt-8 w-full max-w-6xl scroll-mt-6 px-4">
+          {editorTrackCount > 0 ? <div className="mb-3 rounded-2xl border border-violet-300/20 bg-violet-950/30 px-4 py-3 text-xs font-semibold text-violet-100/85">Multi-track editor: {editorTrackCount} source tracks retained. Playback routing is currently <strong className="uppercase">{performanceMode}</strong>; track instrument overrides are managed in Performance Setup.</div> : null}
+          {cloudStatus !== 'ready' ? <div role="status" className="mb-3 rounded-2xl border border-rose-300/20 bg-rose-950/35 px-4 py-3 text-xs font-semibold text-rose-100/85">Firebase cloud save/share is paused ({cloudStatus === 'error' || cloudStatus === 'unavailable' ? 'connection unavailable' : 'not connected'}). Local editing and file import/export remain available.</div> : null}
           <details data-ui-panel="true" data-panel-mode={getPanelMode('editor')} onPointerDown={handlePanelPointerDown} className="group ui-panel rounded-[32px] border border-white/10 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] transition-colors duration-300 md:p-6">
             <summary className="cursor-pointer list-none px-1 text-sm font-semibold text-violet-50">
               <span className="text-[10px] font-black uppercase tracking-[0.34em] text-violet-100">Score Editor</span>
@@ -1485,6 +1555,7 @@ function AppContent({
                       <span className="min-w-0">
                         <span className="block text-xs font-bold text-sky-50">{section.label}</span>
                         <span className="block text-[10px] uppercase tracking-[0.24em] text-sky-100/80">{section.caption}</span>
+                        {section.requiresCloud && cloudStatus !== 'ready' ? <span className="mt-1 inline-flex rounded-full border border-rose-300/20 bg-rose-400/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-rose-100/80">{cloudStatus === 'error' || cloudStatus === 'unavailable' ? 'Firebase unavailable · cloud paused' : 'Firebase not connected · cloud paused'}</span> : null}
                       </span>
                       <span className="ml-3 text-[10px] font-black text-sky-200">{String(index + 1).padStart(2, '0')}</span>
                     </button>
@@ -1598,6 +1669,7 @@ function AppContent({
                   cloudError={cloudError}
                 />}
               {libraryImportTab === 'converter' && <div id="converter" data-ui-panel="true" data-panel-mode={getPanelMode('converter')} onPointerDown={handlePanelPointerDown} className="ui-panel scroll-mt-6 rounded-[36px] border border-white/10 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22)] transition-colors duration-300 md:p-6">
+                {cloudStatus !== 'ready' ? <div role="status" className="mb-4 rounded-2xl border border-rose-300/20 bg-rose-950/35 px-4 py-3 text-xs font-semibold text-rose-100/85">Firebase batch upload is paused ({cloudStatus === 'error' || cloudStatus === 'unavailable' ? 'connection unavailable' : 'not connected'}). Local conversion, multi-track import, and export are available.</div> : null}
                 <div role="button" tabIndex={0} onClick={() => togglePanelMode('converter')} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') togglePanelMode('converter'); }} className="mb-5 flex flex-col gap-2 px-1">
                   <div className="text-[10px] font-black uppercase tracking-[0.34em] text-amber-100">
                     Converter
@@ -1621,6 +1693,8 @@ function AppContent({
                   charResolution={charResolution}
                   audioConfig={audioConfig}
                   accidentals={accidentals}
+                  playbackMode={performanceMode}
+                  cloudStatus={cloudStatus}
                   references={references}
                   referenceNotes={referenceNotes}
                   showToast={showToast}
@@ -1734,9 +1808,9 @@ export default function App() {
 
   const enterWorkspace = useCallback(async () => {
     setIsEnteringWorkspace(true);
-    await ensureCloudConnection();
     setHasEnteredWorkspace(true);
     setIsEnteringWorkspace(false);
+    void ensureCloudConnection();
   }, [ensureCloudConnection]);
 
   const initialAudioConfig = useMemo(() => ({

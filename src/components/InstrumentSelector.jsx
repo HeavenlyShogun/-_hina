@@ -31,11 +31,71 @@ const PERFORMANCE_MODES = [
   { id: 'orchestra', label: '管弦樂團 Orchestra' },
 ];
 
-const InstrumentSelector = memo(({ disabled = false, performanceMode = 'solo', onPerformanceModeChange }) => {
+const BAND_PARTS = [
+  { id: 'melody', label: 'Melody' },
+  { id: 'chords', label: 'Chords' },
+  { id: 'bass', label: 'Bass' },
+  { id: 'drums', label: 'Drums' },
+];
+
+function getScoreTracks(score) {
+  const tracks = Array.isArray(score?.tracks) ? score.tracks : [];
+  const isSlim = score?.version === '3.2-ultra-slim';
+  const entries = tracks.map((track, index) => Array.isArray(track)
+    ? { id: String(index), name: track[0] ?? `Track ${index + 1}`, channel: track[1] }
+    : {
+      id: String(isSlim ? index : (track?.id || `track-${index + 1}`)),
+      name: track?.name ?? track?.id ?? `Track ${index + 1}`,
+      channel: track?.channel,
+    });
+  if (score?.version === '3.0' && Array.isArray(score.events)) {
+    score.events.forEach((event) => {
+      const id = String(event?.trackId ?? '0');
+      if (!entries.some((track) => track.id === id)) entries.push({ id, name: `Track ${id}`, channel: event?.channel });
+    });
+  }
+  return entries;
+}
+
+const InstrumentSelector = memo(({ disabled = false, performanceMode = 'solo', onPerformanceModeChange, score, instrumentConfig = { band: {}, orchestra: {} }, onInstrumentConfigChange }) => {
   const { tone, setTone } = useAudioConfig();
   const selectedTones = useMemo(() => normalizeToneList(tone), [tone]);
   const [isBlendMode, setIsBlendMode] = useState(Array.isArray(tone) && tone.length > 1);
   const savedToneRef = useRef(null);
+  const orchestraTracks = useMemo(() => getScoreTracks(score), [score]);
+
+  const updateChannelConfig = useCallback((group, channelId, field, value) => {
+    onInstrumentConfigChange?.((previous) => ({
+      ...previous,
+      [group]: {
+        ...(previous?.[group] ?? {}),
+        [channelId]: {
+          ...(previous?.[group]?.[channelId] ?? {}),
+          [field]: value,
+        },
+      },
+    }));
+  }, [onInstrumentConfigChange]);
+
+  const renderChannelConfig = (group, channelId, label) => {
+    const config = instrumentConfig?.[group]?.[channelId] ?? {};
+    return (
+      <div className="channel-config-row" key={channelId}>
+        <label className="channel-config-name" title={label}>
+          <input type="checkbox" checked={config.active !== false} disabled={disabled} onChange={(event) => updateChannelConfig(group, channelId, 'active', event.target.checked)} />
+          <span>{label}</span>
+        </label>
+        <select aria-label={`${label} instrument`} disabled={disabled || config.active === false} value={config.tone ?? ''} onChange={(event) => updateChannelConfig(group, channelId, 'tone', event.target.value)}>
+          <option value="">Default / source GM</option>
+          {INSTRUMENTS.map((instrument) => <option key={instrument.id} value={instrument.id}>{instrument.label}</option>)}
+        </select>
+        <label className="channel-volume">
+          <span>VOL</span>
+          <input aria-label={`${label} volume`} type="range" min="0" max="1" step="0.05" disabled={disabled || config.active === false} value={config.volume ?? 1} onChange={(event) => updateChannelConfig(group, channelId, 'volume', Number(event.target.value))} />
+        </label>
+      </div>
+    );
+  };
 
   const handlePerformanceModeChange = useCallback((nextMode) => {
     if (nextMode === performanceMode) return;
@@ -102,19 +162,19 @@ const InstrumentSelector = memo(({ disabled = false, performanceMode = 'solo', o
             </button>
           ))}
         </div>
-        {performanceMode === 'band' ? <label className="blend-toggle">
-          <input
-            type="checkbox"
-            checked={isBlendMode}
-            disabled={disabled}
-            onChange={handleToggleBlendMode}
-          />
-          <span className="blend-toggle-track" aria-hidden="true" />
-          <span className="blend-toggle-label">Blend</span>
-        </label> : null}
       </div>
+      {performanceMode === 'band' ? <div className="channel-config-list" aria-label="Band instrument channels">
+        <div className="channel-count">Active instruments: {BAND_PARTS.filter((part) => instrumentConfig?.band?.[part.id]?.active !== false).length} / {BAND_PARTS.length}</div>
+        {BAND_PARTS.map((part) => renderChannelConfig('band', part.id, part.label))}
+      </div> : null}
+      {performanceMode === 'orchestra' ? <div className="channel-config-list" aria-label="Orchestra track instruments">
+        <div className="channel-count">Active instruments: {orchestraTracks.filter((track) => instrumentConfig?.orchestra?.[track.id]?.active !== false).length} / {orchestraTracks.length}</div>
+        {orchestraTracks.length
+          ? orchestraTracks.map((track) => renderChannelConfig('orchestra', track.id, `${track.name}${track.channel == null ? '' : ` · CH ${Number(track.channel) + 1}`}`))
+          : <p className="orchestra-mode-note">Load a multi-track MIDI score to configure instruments per track.</p>}
+      </div> : null}
       {performanceMode === 'orchestra' ? <p className="orchestra-mode-note">依 MIDI 軌道原始樂器演奏</p> : null}
-      {performanceMode !== 'orchestra' ? <div className="instrument-selector">
+      {performanceMode === 'solo' ? <div className="instrument-selector">
         {INSTRUMENTS.map(({ id, label, Icon, sub }) => {
           const active = selectedTones.includes(id);
 
@@ -185,6 +245,66 @@ const InstrumentSelector = memo(({ disabled = false, performanceMode = 'solo', o
           color: rgba(219,234,254,0.72);
           font-size: 11px;
         }
+        .channel-config-list {
+          display: grid;
+          width: min(100%, 980px);
+          grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+          gap: 8px;
+          padding: 4px 16px;
+        }
+        .channel-config-row {
+          display: grid;
+          grid-template-columns: minmax(72px, 1fr) minmax(130px, 1.2fr) minmax(90px, 0.9fr);
+          align-items: center;
+          gap: 10px;
+          min-width: 0;
+          padding: 8px 10px;
+          border: 1px solid rgba(219,234,254,0.14);
+          border-radius: 12px;
+          background: rgba(5, 8, 28, 0.58);
+          color: rgba(219,234,254,0.78);
+        }
+        .channel-config-name {
+          display: flex;
+          align-items: center;
+          gap: 7px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          font-size: 10px;
+          font-weight: 900;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+        .channel-config-name input { accent-color: #2dd4bf; }
+        .channel-count {
+          grid-column: 1 / -1;
+          padding: 1px 3px;
+          color: rgba(153,246,228,0.8);
+          font-size: 9px;
+          font-weight: 900;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
+        }
+        .channel-config-row select {
+          min-width: 0;
+          min-height: 32px;
+          border: 1px solid rgba(219,234,254,0.2);
+          border-radius: 8px;
+          background: #10152e;
+          padding: 0 8px;
+          color: #e0f2fe;
+          font-size: 10px;
+        }
+        .channel-volume {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 8px;
+          font-weight: 900;
+          letter-spacing: 0.12em;
+        }
+        .channel-volume input { width: 100%; min-width: 32px; accent-color: #2dd4bf; }
         .blend-toggle {
           display: inline-flex;
           align-items: center;

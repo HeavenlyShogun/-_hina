@@ -1440,6 +1440,7 @@ function createNormalizedNoteEvent({
   midiInstrument = null,
   midiProgramNumber = null,
   midiSampleSet = null,
+  channel = null,
 }) {
   const safeTick = Math.max(0, Math.round(Number(tick) || 0));
   const safeDurationTicks = Math.max(1, Math.round(Number(durationTicks) || 0));
@@ -1465,6 +1466,8 @@ function createNormalizedNoteEvent({
     midiInstrument: midiInstrument ?? null,
     midiProgramNumber: toFiniteOrNull(midiProgramNumber),
     midiSampleSet: midiSampleSet ?? null,
+    channel: toFiniteOrNull(channel),
+    isPercussion: Number(channel) === 9 || Number(channel) === 10,
   };
 }
 
@@ -1965,6 +1968,7 @@ function normalizeJsonEvent(event, context) {
     midiInstrument: event?.midiInstrument ?? context.midiInstrument ?? null,
     midiProgramNumber: event?.midiProgramNumber ?? context.midiProgramNumber ?? null,
     midiSampleSet: event?.midiSampleSet ?? context.midiSampleSet ?? null,
+    channel: event?.channel ?? context.channel ?? null,
   })];
 }
 
@@ -2036,6 +2040,7 @@ export function parseScoreJson(scoreJson, config = {}) {
           midiInstrument: trackMeta?.instrument,
           midiProgramNumber: trackMeta?.programNumber,
           midiSampleSet: trackMeta?.midiSampleSet,
+          channel: trackMeta?.channel,
         })];
       })
       : [];
@@ -2122,6 +2127,7 @@ export function parseScoreJson(scoreJson, config = {}) {
         midiInstrument: trackMeta?.instrument,
         midiProgramNumber: trackMeta?.programNumber,
         midiSampleSet: trackMeta?.midiSampleSet,
+        channel: trackMeta?.channel,
       }));
     });
   });

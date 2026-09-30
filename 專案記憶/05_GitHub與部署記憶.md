@@ -1,6 +1,6 @@
 # GitHub 與部署記憶
 
-最後更新：2026-09-27
+最後更新：2026-09-30
 
 本檔記錄 Git remote、GitHub Pages、Firebase Hosting 與常用部署指令。
 
@@ -81,6 +81,20 @@ npm.cmd run preview:pages
 - Pages 路徑錯誤時先檢查 `vite.config.js` 與 `scripts/build-github-pages.mjs`。
 - Firebase 路徑錯誤時先檢查 `scripts/build-firebase-hosting.mjs` 與 `firebase.json`。
 - deploy 失敗時先確認 Firebase CLI 登入狀態與目前 project。
+
+## 2026-09-30 建置驗證
+
+- `npm run build:firebase` 成功，產物輸出至 `dist-fb`。
+- `vite.config.js` 的 `manualChunks` 將 React/router、Firebase、Tone.js、MIDI、lucide-react 與 Zustand 分開輸出。
+- `firebase-vendor` 為 548.65 kB；`build.chunkSizeWarningLimit` 設為 600 後，build 不再顯示 Vite chunk size 警告。此設定調整警告門檻，並未縮減該 chunk。
+- Firebase Storage bucket 尚未建立，內建曲庫上傳仍待 Storage 啟用；Hosting 部署結果見下節。
+
+## 2026-09-30 Firebase Hosting 部署
+
+- `firebase.cmd deploy --only hosting --project guilty-corn` 成功；Hosting 發布至 `https://guilty-corn.web.app`。
+- 本次 Firebase predeploy 自動執行 `npm run build:firebase`，並成功發布 15 個 Hosting 檔案。
+- 發布內容包含歡迎頁繁體中文導覽與工作區入口修正；Playwright Chromium 入口 smoke test 通過。
+- 只部署 Hosting，沒有部署 Firestore 或 Storage rules。
 
 ## 2026-09-27 驗證結果
 

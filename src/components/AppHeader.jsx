@@ -14,6 +14,7 @@ const AppHeader = memo(({
   scoreTitle,
   onJumpToSection,
   workspaceSections = [],
+  cloudStatus = 'idle',
   isBusy = false,
   busyMessage = '',
 }) => {
@@ -104,7 +105,8 @@ const AppHeader = memo(({
                 title={section.caption}
                 className="rounded-full border border-sky-300/20 bg-sky-400/10 px-3 py-2 text-[10px] font-black tracking-[0.16em] text-sky-100 transition-colors hover:bg-sky-400/18"
               >
-                {section.shortLabel ?? section.label}
+                <span>{section.shortLabel ?? section.label}</span>
+                {section.requiresCloud && cloudStatus !== 'ready' ? <span className="ml-1 text-rose-200/80" aria-label="Firebase unavailable">· CLOUD</span> : null}
               </button>
             ))}
           </nav>

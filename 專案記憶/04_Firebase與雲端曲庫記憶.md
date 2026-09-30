@@ -1,6 +1,6 @@
 # Firebase 與雲端曲庫記憶
 
-最後更新：2026-09-27
+最後更新：2026-09-30
 
 本檔記錄 Firebase 設定、Auth、Firestore 曲庫、分享連結、離線快取、自動同步與上傳限制。
 
@@ -71,9 +71,11 @@
 - 47 首內建 Slim JSON 來源為 `風物之琴譜/風物之譜面/slim-json/`，上傳至 `score-library/slim-json/{filename}`。
 - `scripts/upload-scores-to-storage.mjs` 使用 Firebase Admin SDK 與 Application Default Credentials；先以 `npm run scores:upload:storage -- --dry-run` 驗證，再設定 `FIREBASE_STORAGE_BUCKET`、`GOOGLE_APPLICATION_CREDENTIALS` 正式上傳。
 - `storage.rules` 僅允許 `score-library/slim-json/` 公開讀取，拒絕用戶端寫入。
+- 2026-09-30 dry-run 驗證 47 份 Slim JSON（3,193,132 bytes）。正式上傳以 Admin SDK 驗證服務帳戶後，回報 bucket 不存在；`guilty-corn.firebasestorage.app` 與 `guilty-corn.appspot.com` 均不存在。使用者規劃稍後綁定信用卡以啟用 Cloud Storage。啟用後需確認 Console 顯示的實際 bucket 名稱，再設定 `FIREBASE_STORAGE_BUCKET` 執行 `npm run scores:upload:storage`。
+- 上傳尚未成功前，不能視為 Firebase Storage 曲庫讀取已驗證；上傳後需再確認 Storage rules 與前端下載流程。
 - Firebase Hosting build 於 `vite.config.js` 產出 `localPath: null` 的 manifest 並移除 `dist-fb/score-library/slim-json/`；Pages/local build 保留本機路徑。
 - `scoreLibraryService.js` 先讀 CacheStorage，再以 Storage SDK `getDownloadURL()` 取得曲譜；manifest 的 `localPath` 或 `downloadUrl` 仍可供其他部署模式使用。
-- 這個搬移可排除 Hosting 的 47 份曲譜靜態檔，但不會消除 Vite 主 JS chunk 的 >500kB 警告；該警告需另行拆分 JavaScript。
+- 這個搬移可排除 Hosting 的 47 份曲譜靜態檔。JavaScript vendor chunks 已在 `vite.config.js` 分割；Firebase vendor 為 548.65 kB。`build.chunkSizeWarningLimit: 600` 令 build 不再顯示 chunk size 警告，但只提高警告門檻，不代表 bundle 已縮小。
 
 ## 分享與社群譜庫
 

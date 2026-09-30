@@ -164,6 +164,10 @@ export function createScorePlaybackConfig(source = {}) {
     resolution: Number.isFinite(Number(base.resolution)) ? Math.max(1, Math.round(Number(base.resolution))) : undefined,
     tempoMap: Array.isArray(base.tempoMap) ? base.tempoMap : undefined,
     articulationRatio: Number.isFinite(Number(base.articulationRatio)) ? Number(base.articulationRatio) : undefined,
+    playbackMode: ['solo', 'band', 'orchestra'].includes(base.playbackMode ?? base.performanceMode)
+      ? (base.playbackMode ?? base.performanceMode)
+      : undefined,
+    instrumentConfig: isPlainObject(base.instrumentConfig) ? cloneJsonValue(base.instrumentConfig) : undefined,
   };
 }
 
@@ -412,6 +416,12 @@ function buildPlaybackPatch(settings = {}) {
   }
   if (settings.accidentals && typeof settings.accidentals === 'object' && !Array.isArray(settings.accidentals)) {
     patch.accidentals = { ...settings.accidentals };
+  }
+  if (['solo', 'band', 'orchestra'].includes(settings.playbackMode)) {
+    patch.playbackMode = settings.playbackMode;
+  }
+  if (isPlainObject(settings.instrumentConfig)) {
+    patch.instrumentConfig = cloneJsonValue(settings.instrumentConfig);
   }
 
   return patch;

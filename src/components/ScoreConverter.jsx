@@ -104,6 +104,8 @@ const ScoreConverter = memo(({
   timeSigNum,
   timeSigDen,
   audioConfig,
+  playbackMode = 'solo',
+  cloudStatus = 'idle',
   accidentals,
   showToast,
   onLoadLocalScore,
@@ -121,7 +123,7 @@ const ScoreConverter = memo(({
   const [isBatchUploading, setIsBatchUploading] = useState(false);
   const [shouldMergeMusicXmlBatch, setShouldMergeMusicXmlBatch] = useState(true);
   const [gridSize, setGridSize] = useState(null);
-  const [filterChannel10, setFilterChannel10] = useState(true);
+  const [filterChannel10, setFilterChannel10] = useState(false);
 
   const isImporting = isImportingMidi || isImportingMusicXml;
   const convertedResults = controlledConvertedResults ?? localConvertedResults;
@@ -475,6 +477,9 @@ const ScoreConverter = memo(({
   return (
     <section className="rounded-[32px] border border-amber-300/15 bg-amber-500/[0.04] p-6 shadow-[0_12px_40px_rgba(0,0,0,0.22)]">
       <div className="flex flex-col gap-5">
+        <div className="rounded-2xl border border-cyan-300/15 bg-cyan-400/[0.06] px-4 py-3 text-xs leading-relaxed text-cyan-50/80">
+          Import keeps source tracks, channels, and MIDI programs. Current playback routing: <strong className="uppercase">{playbackMode}</strong>; Solo/Band/Orchestra mapping is applied during playback. {cloudStatus === 'ready' ? 'Firebase uploads are available.' : 'Firebase upload is paused until connected; local conversion and import remain available.'}
+        </div>
         <div className="space-y-2">
           <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.28em] text-amber-200/60">
             <Music2 size={15} />
@@ -557,7 +562,7 @@ const ScoreConverter = memo(({
                 onChange={(event) => setFilterChannel10(event.target.checked)}
                 className="h-4 w-4 rounded border-amber-300/40 bg-slate-950 text-amber-400 focus:ring-2 focus:ring-amber-400/25"
               />
-              <span>自動過濾 Channel 10 爵士鼓伴奏軌（強烈建議）</span>
+              <span>Remove percussion Channel 10 from the editor copy (off by default; playback modes can route it).</span>
             </label>
 
             <label className="flex min-h-11 items-center gap-3 rounded-2xl border border-amber-300/15 bg-black/20 px-4 py-3 text-sm font-semibold text-amber-50/85 md:col-span-2">

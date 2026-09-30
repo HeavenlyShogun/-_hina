@@ -899,8 +899,12 @@ class AudioEngine {
 
   async prepareTone(tone, playback = {}) {
     const context = this.init();
-    const toneNames = this.normalizeToneList(tone);
-    const midiOriginalSampleSets = toneNames.includes('midi-original')
+    const requestedToneNames = this.normalizeToneList(tone);
+    const toneNames = [...new Set([
+      ...requestedToneNames,
+      ...(Array.isArray(playback?.extraToneNames) ? playback.extraToneNames : []),
+    ].filter((toneName) => getInstrumentDefinition(toneName) || TONE_PRESETS[toneName]))];
+    const midiOriginalSampleSets = requestedToneNames.includes('midi-original')
       ? [...new Set((playback?.midiOriginalSampleSets ?? []).filter(Boolean))]
       : [];
 
