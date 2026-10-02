@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useMemo, useRef, useState } from 'react';
-import { AudioLines, Drum, Guitar, Music2, Piano, Waves } from 'lucide-react';
+import { AudioLines, Drum, Guitar, Music2, Piano, Upload, Waves, X } from 'lucide-react';
 import { useAudioConfig } from '../contexts/AudioConfigContext';
 import { SUPPORTED_TONES, listAvailableInstruments } from '../constants/instruments';
 
@@ -37,6 +37,7 @@ const BAND_PARTS = [
   { id: 'bass', label: 'Bass' },
   { id: 'drums', label: 'Drums' },
 ];
+const BAND_SLOT_LABELS = ['Melody', 'Chords', 'Bass', 'Drums', 'Keys 2', 'Texture', 'Counterline', 'Accent', 'Pulse', 'Pad', 'Arp', 'Low Layer', 'High Layer', 'Percussion 2', 'Support', 'FX'];
 
 function getScoreTracks(score) {
   const tracks = Array.isArray(score?.tracks) ? score.tracks : [];
@@ -57,12 +58,15 @@ function getScoreTracks(score) {
   return entries;
 }
 
-const InstrumentSelector = memo(({ disabled = false, performanceMode = 'solo', onPerformanceModeChange, score, instrumentConfig = { band: {}, orchestra: {} }, onInstrumentConfigChange }) => {
+const InstrumentSelector = memo(({ disabled = false, performanceMode = 'solo', onPerformanceModeChange, score, instrumentConfig = { band: {}, orchestra: {} }, onInstrumentConfigChange, onImportOrchestraScore }) => {
   const { tone, setTone } = useAudioConfig();
   const selectedTones = useMemo(() => normalizeToneList(tone), [tone]);
   const [isBlendMode, setIsBlendMode] = useState(Array.isArray(tone) && tone.length > 1);
   const savedToneRef = useRef(null);
+  const orchestraFileInputRef = useRef(null);
   const orchestraTracks = useMemo(() => getScoreTracks(score), [score]);
+  const orchestraSources = Object.values(instrumentConfig?.orchestraSources ?? {});
+  const bandCount = Math.max(1, Math.min(16, Number(instrumentConfig?.bandCount) || BAND_PARTS.length));
 
   const updateChannelConfig = useCallback((group, channelId, field, value) => {
     onInstrumentConfigChange?.((previous) => ({
@@ -76,6 +80,51 @@ const InstrumentSelector = memo(({ disabled = false, performanceMode = 'solo', o
       },
     }));
   }, [onInstrumentConfigChange]);
+
+  const updateSourceConfig = useCallback((sourceId, field, value) => {
+    onInstrumentConfigChange?.((previous) => ({
+      ...previous,
+      orchestraSources: {
+        ...(previous?.orchestraSources ?? {}),
+        [sourceId]: {
+          ...(previous?.orchestraSources?.[sourceId] ?? {}),
+          [field]: value,
+        },
+      },
+    }));
+  }, [onInstrumentConfigChange]);
+
+  const removeSource = useCallback((sourceId) => {
+    onInstrumentConfigChange?.((previous) => {
+      const nextSources = { ...(previous?.orchestraSources ?? {}) };
+      delete nextSources[sourceId];
+      return { ...previous, orchestraSources: nextSources };
+    });
+  }, [onInstrumentConfigChange]);
+
+  const renderSourceConfig = (source) => {
+    const sourceTracks = getScoreTracks(source.content);
+    return (
+      <React.Fragment key={source.id}>
+        <div className="orchestra-source-row">
+      <label className="channel-config-name" title={source.title}>
+        <input type="checkbox" checked={source.active !== false} disabled={disabled} onChange={(event) => updateSourceConfig(source.id, 'active', event.target.checked)} />
+        <span>{source.title}</span>
+      </label>
+      <select aria-label={`${source.title} source instrument`} disabled={disabled || source.active === false} value={source.tone ?? ''} onChange={(event) => updateSourceConfig(source.id, 'tone', event.target.value)}>
+        <option value="">Original / source GM</option>
+        {INSTRUMENTS.map((instrument) => <option key={instrument.id} value={instrument.id}>{instrument.label}</option>)}
+      </select>
+      <label className="channel-volume">
+        <span>VOL</span>
+        <input aria-label={`${source.title} source volume`} type="range" min="0" max="1" step="0.05" disabled={disabled || source.active === false} value={source.volume ?? 1} onChange={(event) => updateSourceConfig(source.id, 'volume', Number(event.target.value))} />
+      </label>
+      <button type="button" className="remove-source-button" title="移除匯入譜面" disabled={disabled} onClick={() => removeSource(source.id)}><X size={14} /></button>
+        </div>
+        {sourceTracks.map((track) => renderChannelConfig('orchestra', `imported:${source.id}:${track.id}`, `${source.title} · ${track.name}`))}
+      </React.Fragment>
+    );
+  };
 
   const renderChannelConfig = (group, channelId, label) => {
     const config = instrumentConfig?.[group]?.[channelId] ?? {};
@@ -162,13 +211,32 @@ const InstrumentSelector = memo(({ disabled = false, performanceMode = 'solo', o
             </button>
           ))}
         </div>
+        {performanceMode === 'solo' ? (
+          <label className="blend-toggle" title="允許同時選取多種音色">
+            <input type="checkbox" checked={isBlendMode} disabled={disabled} onChange={handleToggleBlendMode} />
+            <span className="blend-toggle-track" aria-hidden="true" />
+            <span>Blend / 合成</span>
+          </label>
+        ) : null}
       </div>
       {performanceMode === 'band' ? <div className="channel-config-list" aria-label="Band instrument channels">
-        <div className="channel-count">Active instruments: {BAND_PARTS.filter((part) => instrumentConfig?.band?.[part.id]?.active !== false).length} / {BAND_PARTS.length}</div>
-        {BAND_PARTS.map((part) => renderChannelConfig('band', part.id, part.label))}
+        <div className="channel-count">
+          <span>Active instruments: {Array.from({ length: bandCount }, (_, index) => instrumentConfig?.bandSlots?.[`slot-${index + 1}`]?.active !== false).filter(Boolean).length} / {bandCount}</span>
+          <label className="channel-count-control">聲部數量 <input type="number" min="1" max="16" value={bandCount} disabled={disabled} onChange={(event) => onInstrumentConfigChange?.((previous) => ({ ...previous, bandCount: Math.max(1, Math.min(16, Number(event.target.value) || 1)) }))} /></label>
+        </div>
+        {Array.from({ length: bandCount }, (_, index) => {
+          const slotId = `slot-${index + 1}`;
+          const fallbackPart = BAND_PARTS[index] ?? BAND_PARTS[0];
+          return renderChannelConfig('bandSlots', slotId, BAND_SLOT_LABELS[index] ?? fallbackPart.label);
+        })}
       </div> : null}
       {performanceMode === 'orchestra' ? <div className="channel-config-list" aria-label="Orchestra track instruments">
-        <div className="channel-count">Active instruments: {orchestraTracks.filter((track) => instrumentConfig?.orchestra?.[track.id]?.active !== false).length} / {orchestraTracks.length}</div>
+        <div className="source-import-toolbar">
+          <button type="button" className="source-import-button" disabled={disabled} onClick={() => orchestraFileInputRef.current?.click()}><Upload size={14} /> 匯入另一份多軌譜面</button>
+          <input ref={orchestraFileInputRef} type="file" accept=".json" hidden onChange={(event) => { const [file] = event.target.files ?? []; onImportOrchestraScore?.(file); event.target.value = ''; }} />
+        </div>
+        {orchestraSources.length ? <div className="orchestra-source-list">{orchestraSources.map(renderSourceConfig)}</div> : null}
+        <div className="channel-count">Active tracks: {orchestraTracks.filter((track) => instrumentConfig?.orchestra?.[track.id]?.active !== false).length + orchestraSources.filter((source) => source.active !== false).length} / {orchestraTracks.length + orchestraSources.length}</div>
         {orchestraTracks.length
           ? orchestraTracks.map((track) => renderChannelConfig('orchestra', track.id, `${track.name}${track.channel == null ? '' : ` · CH ${Number(track.channel) + 1}`}`))
           : <p className="orchestra-mode-note">Load a multi-track MIDI score to configure instruments per track.</p>}
@@ -286,6 +354,73 @@ const InstrumentSelector = memo(({ disabled = false, performanceMode = 'solo', o
           letter-spacing: 0.16em;
           text-transform: uppercase;
         }
+        .channel-count-control {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          margin-left: 12px;
+          text-transform: none;
+          letter-spacing: 0;
+        }
+        .channel-count-control input {
+          width: 48px;
+          min-height: 24px;
+          border: 1px solid rgba(219,234,254,0.2);
+          border-radius: 7px;
+          background: #10152e;
+          padding: 0 5px;
+          color: #e0f2fe;
+          font-size: 10px;
+        }
+        .source-import-toolbar {
+          grid-column: 1 / -1;
+          display: flex;
+          justify-content: flex-start;
+        }
+        .source-import-button {
+          display: inline-flex;
+          align-items: center;
+          gap: 7px;
+          min-height: 30px;
+          border: 1px solid rgba(45,212,191,0.35);
+          border-radius: 8px;
+          background: rgba(45,212,191,0.12);
+          padding: 0 10px;
+          color: #ccfbf1;
+          font-size: 10px;
+          font-weight: 800;
+          cursor: pointer;
+        }
+        .source-import-button:disabled { cursor: wait; opacity: 0.55; }
+        .orchestra-source-list {
+          display: grid;
+          grid-column: 1 / -1;
+          gap: 8px;
+        }
+        .orchestra-source-row {
+          display: grid;
+          grid-template-columns: minmax(100px, 1fr) minmax(130px, 1.2fr) minmax(90px, 0.9fr) 28px;
+          align-items: center;
+          gap: 10px;
+          min-width: 0;
+          padding: 8px 10px;
+          border: 1px solid rgba(45,212,191,0.2);
+          border-radius: 12px;
+          background: rgba(5, 8, 28, 0.48);
+        }
+        .remove-source-button {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 28px;
+          height: 28px;
+          border: 1px solid rgba(251,113,133,0.3);
+          border-radius: 7px;
+          background: rgba(251,113,133,0.1);
+          color: #fecdd3;
+          cursor: pointer;
+        }
+        .remove-source-button:disabled { cursor: wait; opacity: 0.55; }
         .channel-config-row select {
           min-width: 0;
           min-height: 32px;

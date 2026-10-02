@@ -6,6 +6,7 @@ const LYRE_KEYS = {
   C4: 'a', D4: 's', E4: 'd', F4: 'f', G4: 'g', A4: 'h', B4: 'j',
   C5: 'q', D5: 'w', E5: 'e', F5: 'r', G5: 't', A5: 'y', B5: 'u',
 };
+const BAND_SLOT_FAMILIES = ['melody', 'chords', 'bass', 'drums', 'melody', 'melody', 'melody', 'melody', 'melody', 'melody', 'melody', 'bass', 'melody', 'drums', 'chords', 'melody'];
 
 function foldMidiIntoLyreRange(value) {
   if (value === null || value === undefined || value === '') return null;
@@ -62,25 +63,35 @@ export function applyPlaybackMode(normalized, mode = 'solo', selectedTone = 'pia
   }
 
   if (safeMode === 'band') {
-    events = events.map((event) => {
+    events = events.flatMap((event) => {
       const part = family(event);
-      const channelConfig = instrumentConfig.band?.[part] ?? {};
-      if (channelConfig.active === false) return null;
       const sampleSets = {
         melody: 'gm:acoustic_grand_piano',
         chords: 'gm:electric_guitar_clean',
         bass: 'gm:electric_bass_pick',
         drums: 'pearl-acoustic-drums',
       };
-      return {
+      const bandCount = Math.max(1, Math.min(16, Number(instrumentConfig.bandCount) || 4));
+      const slots = Array.from({ length: bandCount }, (_, index) => {
+        const slotId = `slot-${index + 1}`;
+        const slotConfig = instrumentConfig.bandSlots?.[slotId]
+          ?? instrumentConfig.band?.[BAND_SLOT_FAMILIES[index]]
+          ?? {};
+        return [slotId, slotConfig, BAND_SLOT_FAMILIES[index]];
+      });
+      const matchingSlots = slots.filter(([, slotConfig, defaultFamily]) => (
+        slotConfig?.active !== false
+        && (slotConfig?.family ?? defaultFamily) === part
+      ));
+      return matchingSlots.map(([slotId, slotConfig]) => ({
         ...event,
-        trackId: `band-${part}`,
+        trackId: `band-${slotId}`,
         midiInstrument: part,
         midiSampleSet: sampleSets[part],
         isPercussion: part === 'drums',
-        ...(channelConfig.tone ? { tone: channelConfig.tone, midiSampleSet: null } : {}),
-        channelGain: Number.isFinite(Number(channelConfig.volume)) ? Math.max(0, Math.min(1, Number(channelConfig.volume))) : 1,
-      };
+        ...(slotConfig.tone ? { tone: slotConfig.tone, midiSampleSet: null } : {}),
+        channelGain: Number.isFinite(Number(slotConfig.volume)) ? Math.max(0, Math.min(1, Number(slotConfig.volume))) : 1,
+      }));
     }).filter(Boolean);
     events = countSimultaneous(events);
     return {
@@ -96,12 +107,18 @@ export function applyPlaybackMode(normalized, mode = 'solo', selectedTone = 'pia
   }
 
   events = events.map((event) => {
-    const channelConfig = instrumentConfig.orchestra?.[event.trackId] ?? {};
+    const sourceConfig = event.sourceId
+      ? instrumentConfig.orchestraSources?.[event.sourceId] ?? {}
+      : {};
+    if (sourceConfig.active === false) return null;
+    const channelConfig = instrumentConfig.orchestra?.[event.trackId] ?? sourceConfig;
     if (channelConfig.active === false) return null;
+    const sourceVolume = Number.isFinite(Number(sourceConfig.volume)) ? Number(sourceConfig.volume) : 1;
+    const channelVolume = Number.isFinite(Number(channelConfig.volume)) ? Number(channelConfig.volume) : 1;
     return {
       ...event,
       ...(channelConfig.tone ? { tone: channelConfig.tone, midiSampleSet: null } : {}),
-      channelGain: Number.isFinite(Number(channelConfig.volume)) ? Math.max(0, Math.min(1, Number(channelConfig.volume))) : 1,
+      channelGain: Math.max(0, Math.min(1, sourceVolume * channelVolume)),
     };
   }).filter(Boolean);
   return {

@@ -29,10 +29,12 @@ const PianoRoom = memo(({
   isBusy,
   busyMessage,
   isPlaybackActive = false,
+  isPlaying = false,
   performanceMode = 'solo',
   onPerformanceModeChange,
   instrumentConfig = { band: {}, orchestra: {} },
   onInstrumentConfigChange,
+  onImportOrchestraScore,
   onDownloadTrack01,
   isRenderingTrack = false,
   uiMode = 'normal',
@@ -75,12 +77,13 @@ const PianoRoom = memo(({
       <DynamicTransport title={scoreTitle} queue={queue} currentIndex={currentQueueIndex} onSelectQueueItem={onSelectQueueItem} bpm={bpm} />
       <div id="performance-setup" className="scroll-mt-6">
         <InstrumentSelector
-          disabled={isBusy || isPlaybackActive}
+          disabled={isBusy || isPlaying}
           performanceMode={performanceMode}
           onPerformanceModeChange={onPerformanceModeChange}
           score={score}
           instrumentConfig={instrumentConfig}
           onInstrumentConfigChange={onInstrumentConfigChange}
+          onImportOrchestraScore={onImportOrchestraScore}
         />
       </div>
       <ControlPanel embedded compact uiMode={uiMode} onPanelPointerDown={onPanelPointerDown} />

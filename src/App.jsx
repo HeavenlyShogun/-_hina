@@ -1448,6 +1448,7 @@ function AppContent({
           isBusy={isUiBusy}
           busyMessage={uiBusyMessage}
           isPlaybackActive={isPlaying || isPaused}
+          isPlaying={isPlaying}
           onDownloadTrack01={handleDownloadTrack01}
           isRenderingTrack={isRenderingTrack}
           performanceMode={performanceMode}
