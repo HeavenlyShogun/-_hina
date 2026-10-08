@@ -1,8 +1,9 @@
-import { Midi } from '@tonejs/midi';
+import toneMidi from '@tonejs/midi';
 import { ALL_KEYS_FLAT, DEFAULT_SCORE_PARAMS, mapKey } from '../constants/music.js';
 import { PPQ } from './score.js';
 
-const DEFAULT_EXPORT_PPQ = 480;
+const { Midi } = toneMidi;
+
 const DEFAULT_CHANNELS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15];
 const KEY_TO_MIDI = Object.fromEntries(
   ALL_KEYS_FLAT.map((entry) => {
@@ -63,10 +64,11 @@ function resolveMidiNote(event) {
 function resolveVelocity(event) {
   const rawVelocity = Number(event?.velocity ?? event?.v ?? 0.85);
   if (!Number.isFinite(rawVelocity)) {
-    return 0.85;
+    return Math.round(0.85 * 127) / 127;
   }
 
-  return clamp(rawVelocity > 1 ? rawVelocity / 127 : rawVelocity, 0, 1);
+  const normalized = clamp(rawVelocity > 1 ? rawVelocity / 127 : rawVelocity, 0, 1);
+  return Math.round(normalized * 127) / 127;
 }
 
 function normalizeTrackEvents(track, sourcePpq, targetPpq) {
@@ -124,40 +126,68 @@ function normalizeScoreTracks(scoreJson) {
     return Array.isArray(scoreJson.tracks) ? scoreJson.tracks.filter((track) => !track?.mute) : [];
   }
 
-  const trackMetadata = Array.isArray(scoreJson.tracks) ? scoreJson.tracks : [];
-  const grouped = new Map();
+  const metadata = Array.isArray(scoreJson.tracks) ? scoreJson.tracks : [];
+  const grouped = new Map(metadata.map((track, index) => [String(index), []]));
   scoreJson.notes.forEach((entry) => {
     if (!Array.isArray(entry) || entry.length < 3) return;
     const trackId = String(entry[4] ?? 0);
     if (!grouped.has(trackId)) grouped.set(trackId, []);
-    grouped.get(trackId).push({
-      tick: entry[0],
-      durationTicks: entry[1],
-      midi: entry[2],
-      velocity: entry[3],
-    });
+    grouped.get(trackId).push({ tick: entry[0], durationTicks: entry[1], midi: entry[2], velocity: entry[3] });
   });
 
-  return [...grouped.entries()].map(([trackId, events], index) => ({
-    ...(trackMetadata[Number(trackId)] ?? {}),
-    id: trackMetadata[Number(trackId)]?.id ?? `track-${trackId}`,
-    name: trackMetadata[Number(trackId)]?.name ?? `Track ${index + 1}`,
-    events,
-  }));
+  return [...grouped.entries()].map(([trackId, events], index) => {
+    const raw = metadata[Number(trackId)];
+    if (Array.isArray(raw)) {
+      return {
+        id: String(trackId),
+        name: raw[0] || 'Track ' + (index + 1),
+        channel: raw[1],
+        instrument: raw[2],
+        programNumber: raw[3],
+        instrumentFamily: raw[4],
+        events,
+      };
+    }
+    return {
+      ...(raw ?? {}),
+      id: raw?.id ?? 'track-' + trackId,
+      name: raw?.name ?? 'Track ' + (index + 1),
+      events,
+    };
+  });
 }
 
 function resolveTempoEntries(scoreJson, sourcePpq, fallbackBpm) {
   const tempoMap = scoreJson.playback?.tempoMap;
-  if (!Array.isArray(tempoMap) || !tempoMap.length) {
-    return [{ ticks: 0, bpm: fallbackBpm }];
-  }
+  if (!Array.isArray(tempoMap) || !tempoMap.length) return [{ ticks: 0, bpm: fallbackBpm }];
 
-  return tempoMap.map((entry) => ({
-    ticks: Number(entry.startTick) || 0,
-    bpm: Number(entry.bpm) > 0
-      ? Number(entry.bpm)
-      : 60 / (Math.max(Number(entry.secondsPerTick) || 0, Number.EPSILON) * sourcePpq),
-  }));
+  return tempoMap.map((entry) => {
+    const ticks = Array.isArray(entry) ? entry[0] : (entry.startTick ?? entry.ticks ?? entry.tick);
+    const bpm = Array.isArray(entry) ? entry[1] : entry.bpm;
+    const secondsPerTick = Array.isArray(entry) ? null : entry.secondsPerTick;
+    return {
+      ticks: Math.max(0, Math.round(Number(ticks) || 0)),
+      bpm: Number(bpm) > 0 ? Number(bpm) : 60 / (Math.max(Number(secondsPerTick) || 0, Number.EPSILON) * sourcePpq),
+    };
+  });
+}
+
+function resolveTimeSignatureEntries(scoreJson, fallbackNumerator, fallbackDenominator) {
+  const sourceSignatures = scoreJson.source?.midi?.[4];
+  const signatures = Array.isArray(sourceSignatures)
+    ? sourceSignatures.map((entry) => ({
+      ticks: Math.max(0, Math.round(Number(Array.isArray(entry) ? entry[0] : entry?.ticks) || 0)),
+      timeSignature: [
+        Number(Array.isArray(entry) ? entry[1] : entry?.timeSignature?.[0]) || fallbackNumerator,
+        Number(Array.isArray(entry) ? entry[2] : entry?.timeSignature?.[1]) || fallbackDenominator,
+      ],
+    }))
+    : [];
+
+  if (!signatures.length || signatures[0].ticks !== 0) {
+    signatures.unshift({ ticks: 0, timeSignature: [fallbackNumerator, fallbackDenominator] });
+  }
+  return signatures.sort((left, right) => left.ticks - right.ticks);
 }
 
 export function scoreJsonToMidi(scoreJson, options = {}) {
@@ -167,7 +197,7 @@ export function scoreJsonToMidi(scoreJson, options = {}) {
 
   const transport = scoreJson.transport ?? {};
   const sourcePpq = normalizePpq(transport.resolution, PPQ);
-  const targetPpq = normalizePpq(options.ppq, DEFAULT_EXPORT_PPQ);
+  const targetPpq = normalizePpq(options.ppq, sourcePpq);
   const bpm = Number(transport.bpm) || DEFAULT_SCORE_PARAMS.bpm;
   const timeSigNum = Number(transport.timeSigNum) || DEFAULT_SCORE_PARAMS.timeSigNum;
   const timeSigDen = Number(transport.timeSigDen) || DEFAULT_SCORE_PARAMS.timeSigDen;
@@ -180,7 +210,7 @@ export function scoreJsonToMidi(scoreJson, options = {}) {
       ppq: targetPpq,
       meta: [],
       tempos: resolveTempoEntries(scoreJson, sourcePpq, bpm),
-      timeSignatures: [{ ticks: 0, timeSignature: [timeSigNum, timeSigDen] }],
+      timeSignatures: resolveTimeSignatureEntries(scoreJson, timeSigNum, timeSigDen),
       keySignatures: [],
     },
     tracks: tracks.map((track, index) => {
@@ -193,9 +223,9 @@ export function scoreJsonToMidi(scoreJson, options = {}) {
         name: track?.name || track?.id || `Track ${index + 1}`,
         channel,
         instrument: {
-          family: 'piano',
+          family: track?.instrumentFamily || 'piano',
           number: Number.isInteger(Number(track?.programNumber)) ? clamp(Number(track.programNumber), 0, 127) : 0,
-          name: 'acoustic grand piano',
+          name: track?.instrument || 'acoustic grand piano',
         },
         notes: normalized.notes,
         controlChanges: {},

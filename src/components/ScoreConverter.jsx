@@ -7,7 +7,7 @@ import {
   Trash2,
   Wand2,
 } from 'lucide-react';
-import { parseMidiToV2 } from '../utils/midiToV2';
+import { parseMidiToSlim } from '../utils/midiToSlim';
 import { convertMusicXmlToSlim, mergeSlimScores } from '../utils/musicXmlToSlim';
 import { naturalCompareByName, readMusicXmlFile } from '../utils/musicXmlArchive';
 
@@ -155,7 +155,7 @@ const ScoreConverter = memo(({
     setIsImportingMidi(true);
 
     try {
-      const payload = await parseMidiToV2(file, {
+      const payload = await parseMidiToSlim(file, {
         bpm,
         timeSigNum,
         timeSigDen,
@@ -477,6 +477,11 @@ const ScoreConverter = memo(({
   return (
     <section className="rounded-[32px] border border-amber-300/15 bg-amber-500/[0.04] p-6 shadow-[0_12px_40px_rgba(0,0,0,0.22)]">
       <div className="flex flex-col gap-5">
+        <div className="grid gap-2 text-xs text-amber-50/80 md:grid-cols-3">
+          <div className="rounded-xl border border-amber-300/20 bg-black/20 px-3 py-2"><strong className="text-amber-100">主譜面：MIDI</strong><br />匯入後轉成 Slim JSON 供編輯與播放。</div>
+          <div className="rounded-xl border border-cyan-300/20 bg-black/20 px-3 py-2"><strong className="text-cyan-100">快速載入：Slim JSON</strong><br />在譜面編輯區直接載入或匯入 JSON。</div>
+          <div className="rounded-xl border border-white/15 bg-black/20 px-3 py-2"><strong className="text-white/85">舊格式匯入：MusicXML / MXL</strong><br />轉換成 Slim JSON 後進入編輯器。</div>
+        </div>
         <div className="rounded-2xl border border-cyan-300/15 bg-cyan-400/[0.06] px-4 py-3 text-xs leading-relaxed text-cyan-50/80">
           Import keeps source tracks, channels, and MIDI programs. Current playback routing: <strong className="uppercase">{playbackMode}</strong>; Solo/Band/Orchestra mapping is applied during playback. {cloudStatus === 'ready' ? 'Firebase uploads are available.' : 'Firebase upload is paused until connected; local conversion and import remain available.'}
         </div>

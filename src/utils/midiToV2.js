@@ -2,6 +2,8 @@ import { Midi } from '@tonejs/midi';
 import { ALL_KEYS_FLAT, DEFAULT_SCORE_PARAMS } from '../constants/music';
 import { PPQ } from './score';
 
+/** @deprecated MIDI imports now use parseMidiToSlim from ./midiToSlim. */
+
 const NOTE_NAME_TO_KEY = Object.fromEntries(ALL_KEYS_FLAT.map((entry) => [entry.n, entry.k]));
 
 function slugifyFilename(value) {
