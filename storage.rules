@@ -16,10 +16,12 @@ service firebase.storage {
     }
 
     match /artifacts/{appId}/users/{userId}/scores/{scoreId}/{fileName} {
-      allow read, delete: if isOwner(userId);
+      allow read: if isOwner(userId);
+      allow delete: if isOwner(userId);
       allow create, update: if isOwner(userId)
         && fileName == 'score.json'
-        && request.resource.contentType == 'application/json; charset=utf-8'
+        && request.resource.contentType.matches('application/json(; charset=utf-8)?')
+        && request.resource.size > 0
         && request.resource.size <= 20 * 1024 * 1024;
     }
 

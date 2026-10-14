@@ -2,69 +2,38 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    function hasRequiredFields() {
-      return request.resource.data.keys().hasAll(['title', 'updatedAt', 'content']);
-    }
-
-    function hasValidTitle() {
+    function signedIn() { return request.auth != null; }
+    function owner(uid) { return signedIn() && request.auth.uid == uid; }
+    function validTitle() {
       return request.resource.data.title is string
         && request.resource.data.title.size() > 0
         && request.resource.data.title.size() <= 120;
     }
-
-    function hasValidContent() {
-      return request.resource.data.content is string
-        || request.resource.data.content is map;
+    function optionalNumber(field, minValue, maxValue) {
+      return !request.resource.data.keys().hasAny([field])
+        || (request.resource.data[field] is number
+          && request.resource.data[field] >= minValue
+          && request.resource.data[field] <= maxValue);
     }
-
-    function optionalNumber(fieldName, minValue, maxValue) {
-      return !request.resource.data.keys().hasAny([fieldName])
-        || (
-          request.resource.data[fieldName] is number
-          && request.resource.data[fieldName] >= minValue
-          && request.resource.data[fieldName] <= maxValue
-        );
+    function optionalString(field, maxSize) {
+      return !request.resource.data.keys().hasAny([field])
+        || (request.resource.data[field] is string && request.resource.data[field].size() <= maxSize);
     }
-
-    function optionalBool(fieldName) {
-      return !request.resource.data.keys().hasAny([fieldName])
-        || request.resource.data[fieldName] is bool;
+    function optionalBool(field) {
+      return !request.resource.data.keys().hasAny([field]) || request.resource.data[field] is bool;
     }
-
-    function optionalString(fieldName, maxSize) {
-      return !request.resource.data.keys().hasAny([fieldName])
-        || (
-          request.resource.data[fieldName] is string
-          && request.resource.data[fieldName].size() <= maxSize
-        );
+    function optionalMap(field) {
+      return !request.resource.data.keys().hasAny([field]) || request.resource.data[field] is map;
     }
-
-    function optionalMap(fieldName) {
-      return !request.resource.data.keys().hasAny([fieldName])
-        || request.resource.data[fieldName] is map;
+    function optionalList(field, maxSize) {
+      return !request.resource.data.keys().hasAny([field])
+        || (request.resource.data[field] is list && request.resource.data[field].size() <= maxSize);
     }
-
-    function optionalList(fieldName, maxSize) {
-      return !request.resource.data.keys().hasAny([fieldName])
-        || (
-          request.resource.data[fieldName] is list
-          && request.resource.data[fieldName].size() <= maxSize
-        );
-    }
-
-    function hasValidScorePayload() {
-      return hasRequiredFields()
-        && hasValidTitle()
-        && hasValidContent()
-        && request.resource.data.updatedAt is timestamp
+    function validScore() {
+      return request.resource.data.keys().hasAll(['title', 'updatedAt', 'content', 'ownerUid'])
+        && validTitle()
+        && (request.resource.data.content is string || request.resource.data.content is map)
+        && request.resource.data.updatedAt == request.time
         && optionalNumber('bpm', 20, 300)
         && optionalNumber('timeSigNum', 1, 16)
         && optionalNumber('timeSigDen', 1, 32)
@@ -84,11 +53,10 @@ service cloud.firestore {
         && optionalMap('contentStorage')
         && optionalList('references', 8);
     }
-
-    function hasValidScoreSummaryPayload() {
-      return request.resource.data.keys().hasAll(['title', 'updatedAt', 'contentLength'])
-        && hasValidTitle()
-        && request.resource.data.updatedAt is timestamp
+    function validSummary() {
+      return request.resource.data.keys().hasAll(['title', 'updatedAt', 'contentLength', 'ownerUid'])
+        && validTitle()
+        && request.resource.data.updatedAt == request.time
         && request.resource.data.contentLength is number
         && request.resource.data.contentLength >= 0
         && request.resource.data.contentLength <= 20 * 1024 * 1024
@@ -97,6 +65,7 @@ service cloud.firestore {
         && optionalNumber('timeSigDen', 1, 32)
         && optionalNumber('charResolution', 1, 64)
         && optionalNumber('globalKeyOffset', -24, 24)
+        && optionalNumber('copiedCount', 0, 1000000000)
         && optionalString('sourceType', 16)
         && optionalString('scaleMode', 32)
         && optionalString('tone', 32)
@@ -110,55 +79,70 @@ service cloud.firestore {
         && optionalMap('contentStorage')
         && optionalList('references', 8);
     }
-
-    function isPublicScore() {
-      return resource.data.isPublic == true;
+    function immutableOwnerFields() {
+      return request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.get('createdAt', null) == resource.data.get('createdAt', null);
+    }
+    function copyLedgerPath(appId, scoreId, uid) {
+      return /databases/$(database)/documents/artifacts/$(appId)/publicScoreSummaries/$(scoreId)/copies/$(uid);
+    }
+    function validCopyCounterUpdate(appId, scoreId) {
+      return signedIn()
+        && resource.data.isPublic == true
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['copiedCount', 'updatedAt'])
+        && request.resource.data.copiedCount == resource.data.get('copiedCount', 0) + 1
+        && request.resource.data.updatedAt == request.time
+        && !exists(copyLedgerPath(appId, scoreId, request.auth.uid))
+        && existsAfter(copyLedgerPath(appId, scoreId, request.auth.uid));
     }
 
-    function isPublicOwner() {
-      return isSignedIn() && request.resource.data.ownerUid == request.auth.uid;
+    match /artifacts/{appId}/users/{uid}/scores/{scoreId} {
+      allow read, delete: if owner(uid);
+      allow create: if owner(uid) && request.resource.data.ownerUid == uid
+        && request.resource.data.createdAt == request.time && validScore();
+      allow update: if owner(uid) && request.resource.data.ownerUid == uid
+        && immutableOwnerFields() && validScore();
     }
-
-    match /artifacts/{appId}/users/{userId}/scores/{scoreId} {
-      allow read, delete: if isOwner(userId);
-      allow create, update: if isOwner(userId) && hasValidScorePayload();
+    match /artifacts/{appId}/users/{uid}/scoreSummaries/{summaryId} {
+      allow read, delete: if owner(uid);
+      allow create: if owner(uid) && request.resource.data.ownerUid == uid
+        && request.resource.data.createdAt == request.time && validSummary();
+      allow update: if owner(uid) && request.resource.data.ownerUid == uid
+        && immutableOwnerFields() && validSummary();
     }
-
-    match /artifacts/{appId}/users/{userId}/scoreSummaries/{summaryId} {
-      allow read, delete: if isOwner(userId);
-      allow create, update: if isOwner(userId) && hasValidScoreSummaryPayload();
-    }
-
     match /artifacts/{appId}/publicScores/{scoreId} {
-      allow read: if isPublicScore();
-      allow create, update: if isPublicOwner()
-        && request.resource.data.isPublic == true
-        && hasValidScorePayload();
-      allow delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow read: if resource.data.isPublic == true;
+      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.isPublic == true && request.resource.data.createdAt == request.time && validScore();
+      allow update: if signedIn() && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && immutableOwnerFields() && request.resource.data.isPublic == true && validScore();
+      allow delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
     }
+    match /artifacts/{appId}/publicScoreSummaries/{scoreId} {
+      allow read: if resource.data.isPublic == true;
+      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.isPublic == true && request.resource.data.createdAt == request.time
+        && request.resource.data.get('copiedCount', 0) == 0 && validSummary();
+      allow update: if (signedIn() && resource.data.ownerUid == request.auth.uid
+          && request.resource.data.ownerUid == resource.data.ownerUid
+          && immutableOwnerFields()
+          && request.resource.data.get('copiedCount', 0) == resource.data.get('copiedCount', 0)
+          && request.resource.data.isPublic == true && validSummary())
+        || validCopyCounterUpdate(appId, scoreId);
+      allow delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
 
-    match /artifacts/{appId}/publicScoreSummaries/{summaryId} {
-      allow read: if isPublicScore();
-      allow create: if isPublicOwner()
-        && request.resource.data.isPublic == true
-        && hasValidScoreSummaryPayload();
-      allow update: if (
-          isSignedIn()
-          && resource.data.ownerUid == request.auth.uid
-          && request.resource.data.isPublic == true
-          && hasValidScoreSummaryPayload()
-        ) || (
-          isSignedIn()
-          && request.resource.data.diff(resource.data).changedKeys().hasOnly(['copiedCount', 'updatedAt'])
-          && request.resource.data.copiedCount is number
-          && request.resource.data.copiedCount >= resource.data.copiedCount
-          && request.resource.data.updatedAt is timestamp
-        );
-      allow delete: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      match /copies/{uid} {
+        function parentIsPublic() {
+          return get(/databases/$(database)/documents/artifacts/$(appId)/publicScoreSummaries/$(scoreId)).data.isPublic == true;
+        }
+        allow read: if owner(uid);
+        allow create: if owner(uid) && parentIsPublic()
+          && request.resource.data.keys().hasOnly(['copiedAt'])
+          && request.resource.data.copiedAt == request.time;
+        allow update, delete: if false;
+      }
     }
-
-    match /{document=**} {
-      allow read, write: if false;
-    }
+    match /{document=**} { allow read, write: if false; }
   }
 }

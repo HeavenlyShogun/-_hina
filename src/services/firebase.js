@@ -56,6 +56,7 @@ async function createFirebaseContext() {
       doc,
       getDoc,
       setDoc,
+      writeBatch,
       serverTimestamp,
       query,
       orderBy,
@@ -101,6 +102,7 @@ async function createFirebaseContext() {
     doc,
     getDoc,
     setDoc,
+    writeBatch,
     serverTimestamp,
     onAuthStateChanged,
     signInAnonymously,
@@ -204,6 +206,10 @@ function publicScoreSummaryCollection(ctx) {
 
 function publicScoreSummaryDoc(ctx, id) {
   return ctx.doc(ctx.db, 'artifacts', ctx.appId, 'publicScoreSummaries', id);
+}
+
+function publicScoreCopyDoc(ctx, scoreId, uid) {
+  return ctx.doc(ctx.db, 'artifacts', ctx.appId, 'publicScoreSummaries', scoreId, 'copies', uid);
 }
 
 function scoreStoragePath(ctx, uid, id) {
@@ -560,6 +566,10 @@ export async function publishScore(ctx, uid, title, data) {
   const { documentData, storedDocumentData, summaryData } = await prepareStoredScoreDocument(ctx, uid, title, data);
   const privateId = storedDocumentData.id || title;
   const publicId = createPublicScoreId(uid, privateId);
+  const existingPublicSummary = await ctx.getDoc(publicScoreSummaryDoc(ctx, publicId));
+  const preservedCopiedCount = existingPublicSummary.exists()
+    ? Number(existingPublicSummary.data().copiedCount) || 0
+    : 0;
   const sharedAt = ctx.serverTimestamp();
   const publicDocumentData = {
     ...storedDocumentData,
@@ -576,6 +586,7 @@ export async function publishScore(ctx, uid, title, data) {
     ...publicDocumentData,
     rawText: documentData.rawText,
     contentLength: String(documentData.rawText ?? '').length,
+    copiedCount: preservedCopiedCount,
   });
   const privatePublicFields = {
     isPublic: true,
@@ -610,6 +621,8 @@ export async function copyPublicScoreToUser(ctx, uid, publicId) {
   }
 
   const copyTitle = `${publicScore.title ?? DEFAULT_SCORE_NAME} (copy)`;
+  const copyRecordRef = publicScoreCopyDoc(ctx, publicId, uid);
+  const alreadyCounted = (await ctx.getDoc(copyRecordRef)).exists();
   const {
     ownerUid: _ownerUid,
     publicId: _publicId,
@@ -625,10 +638,21 @@ export async function copyPublicScoreToUser(ctx, uid, publicId) {
     isPublic: false,
   });
 
-  await ctx.setDoc(publicScoreSummaryDoc(ctx, publicId), {
-    copiedCount: ctx.increment(1),
-    updatedAt: ctx.serverTimestamp(),
-  }, { merge: true });
+  if (!alreadyCounted) {
+    const batch = ctx.writeBatch(ctx.db);
+    batch.set(copyRecordRef, { copiedAt: ctx.serverTimestamp() });
+    batch.update(publicScoreSummaryDoc(ctx, publicId), {
+      copiedCount: ctx.increment(1),
+      updatedAt: ctx.serverTimestamp(),
+    });
+    try {
+      await batch.commit();
+    } catch (error) {
+      // Concurrent copies can race. If the unique ledger now exists, another request
+      // already performed the one permitted counter increment for this UID.
+      if (!(await ctx.getDoc(copyRecordRef)).exists()) throw error;
+    }
+  }
 
   return copiedId;
 }
