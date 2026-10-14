@@ -891,7 +891,7 @@ function parseMidiJsSoundfont(text, instrument) {
   return soundfont;
 }
 
-class AudioEngine {
+export class AudioEngine {
   static get MAX_VOICES() {
     if (typeof window === 'undefined') return DESKTOP_MAX_VOICES;
     return ('ontouchstart' in window || Number(window.innerWidth) <= 768)
@@ -1173,13 +1173,34 @@ class AudioEngine {
   }
 
   stopAll(releaseTime = LIVE_NOTE_RELEASE_SEC) {
-    if (!this.audioContext || this.activeVoices.size === 0) return;
+    if (!this.audioContext || this.activeVoices.size === 0) {
+      this.activeLiveVoices.clear();
+      return;
+    }
 
     const now = this.audioContext.currentTime;
     const stopAt = now + Math.max(releaseTime, 0.02);
+    const releaseAllInstruments = new Set();
+    this.activeVoices.forEach((voice) => {
+      const instrument = voice?.toneInstrument;
+      if ((voice?.sourceType === TONE_SAMPLER_SOURCE || voice?.sourceType === TONE_POLYSYNTH_SOURCE)
+        && typeof instrument?.releaseAll === 'function') {
+        releaseAllInstruments.add(instrument);
+      }
+    });
+    releaseAllInstruments.forEach((instrument) => {
+      try { instrument.releaseAll(now); } catch {}
+    });
 
     this.activeVoices.forEach((voice) => {
-      this.releaseVoice(voice, now, stopAt, true);
+      if (releaseAllInstruments.has(voice?.toneInstrument)) {
+        voice.isReleased = true;
+        voice.releaseAt = now;
+        voice.endTime = Math.min(voice.endTime ?? stopAt, stopAt);
+        this.scheduleToneVoiceCleanup(voice, stopAt);
+      } else {
+        this.releaseVoice(voice, now, stopAt, true);
+      }
     });
 
     this.activeLiveVoices.clear();

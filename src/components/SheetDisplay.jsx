@@ -122,6 +122,32 @@ function shouldHidePreviewToken(token) {
   return token.isHold && /^-+$/u.test(String(token.displayText ?? token.text ?? '').trim());
 }
 
+const ActiveScoreMap = memo(function ActiveScoreMap({ tokenLines, compactTokenLineGroups, sectionSegments, onPreviewClick }) {
+  const liveState = useLivePlaybackFrame();
+  const tick = liveState.currentTick;
+  const activeTokenIds = useMemo(() => new Set(findActiveTokens(tokenLines, tick).map((token) => token.id)), [tick, tokenLines]);
+  const activeTokenLineId = useMemo(() => findActiveTokenLine(tokenLines, tick)?.id ?? null, [tick, tokenLines]);
+  const activeSegmentIndex = useMemo(() => findActiveSegmentIndex(sectionSegments, tick), [sectionSegments, tick]);
+  return (
+    <div onClick={onPreviewClick} className="custom-scrollbar max-h-[240px] overflow-y-auto rounded-[20px] border border-white/10 bg-black/25 p-3">
+      {compactTokenLineGroups.length ? compactTokenLineGroups.map((group) => (
+        <div key={group.id} className={`mb-4 rounded-2xl border px-4 py-3 transition-colors ${group.lines.some((line) => line.id === activeTokenLineId) ? 'border-amber-300/35 bg-amber-400/10' : 'border-white/8 bg-black/30'}`}>
+          <div className="mb-2 flex items-center justify-between gap-3 text-[10px] uppercase tracking-[0.18em] text-white/35"><span>{group.trackId}</span><span>{Math.round(group.startTick)}-{Math.round(group.endTick)} tick</span></div>
+          <div className="flex flex-wrap items-start gap-2 text-sm leading-relaxed text-emerald-100/80">
+            {group.lines.flatMap((line) => line.tokens).filter((token) => !shouldHidePreviewToken(token)).map((token) => {
+              const active = activeTokenIds.has(token.id);
+              if (token.isBar) return <span key={token.id} className="px-1 text-white/30">{token.text}</span>;
+              return <button key={token.id} type="button" data-seek-tick={token.startTick} className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 font-mono transition-colors ${active ? 'bg-amber-300 text-slate-950 shadow-[0_0_18px_rgba(252,211,77,0.35)]' : token.isRest ? 'bg-slate-500/10 text-slate-200/65 hover:bg-slate-400/15' : 'bg-white/5 text-emerald-100/75 hover:bg-emerald-500/12'}`}><span>{token.displayText ?? token.text}</span>{token.durationLabel && !String(token.displayText ?? token.text).includes(token.durationLabel) ? <span className={`rounded px-1 text-[9px] ${active ? 'bg-slate-950/10 text-slate-950/70' : 'bg-black/25 text-white/45'}`}>{token.durationLabel}</span> : null}</button>;
+            })}
+          </div>
+        </div>
+      )) : sectionSegments.length ? sectionSegments.map((segment, index) => (
+        <button key={segment.id} type="button" data-seek-tick={segment.startTick} className={`mb-2 block w-full rounded-2xl border px-4 py-3 text-left ${index === activeSegmentIndex ? 'border-emerald-300/35 bg-emerald-400/15 text-emerald-50' : 'border-white/8 bg-black/30 text-emerald-100/75'}`}><span>{segment.label}</span><span className="float-right">{Math.round(segment.startTick)} tick</span></button>
+      )) : <div className="rounded-2xl border border-dashed border-white/10 px-4 py-6 text-center text-[11px] text-emerald-100/40">目前沒有可顯示的段落。</div>}
+    </div>
+  );
+});
+
 function countJsonScoreEvents(scoreJson) {
   if (!scoreJson || typeof scoreJson !== 'object') {
     return 0;
@@ -218,7 +244,6 @@ const SheetDisplay = memo(({
     playlist,
   } = usePlayback();
   const audioConfig = useAudioConfig();
-  const livePlaybackState = useLivePlaybackFrame();
   const isJsonScore = typeof score === 'object' && score !== null;
   const jsonScoreEventCount = isJsonScore ? countJsonScoreEvents(score) : 0;
   const shouldSummarizeJsonEditor = isJsonScore && jsonScoreEventCount > LARGE_JSON_EVENT_LIMIT;
@@ -362,19 +387,7 @@ const SheetDisplay = memo(({
       return searchable.includes(query);
     });
   }, [referenceSearch, references]);
-  const activeSegmentIndex = useMemo(
-    () => findActiveSegmentIndex(sectionSegments, playbackState.currentTick),
-    [playbackState.currentTick, sectionSegments],
-  );
-  const activeTokenTick = livePlaybackState.currentTick;
   const displayTimelineTick = timelinePreviewTick ?? playbackState.currentTick;
-  const activeTokenIds = useMemo(() => new Set(
-    findActiveTokens(normalizedScore?.structure?.tokenLines, activeTokenTick).map((token) => token.id),
-  ), [activeTokenTick, normalizedScore?.structure?.tokenLines]);
-  const activeTokenLineId = useMemo(
-    () => findActiveTokenLine(normalizedScore?.structure?.tokenLines, activeTokenTick)?.id ?? null,
-    [activeTokenTick, normalizedScore?.structure?.tokenLines],
-  );
   const compactTokenLineGroups = useMemo(
     () => buildCompactTokenLineGroups(normalizedScore?.structure?.tokenLines),
     [normalizedScore?.structure?.tokenLines],
@@ -785,59 +798,7 @@ const SheetDisplay = memo(({
             <div className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-200/55">譜面預覽</div>
             <div className="text-[10px] text-emerald-100/40">點擊音符或段落可跳轉播放位置</div>
           </div>
-          <div onClick={handlePreviewClick} className="custom-scrollbar max-h-[240px] overflow-y-auto rounded-[20px] border border-white/10 bg-black/25 p-3">
-            {compactTokenLineGroups.length > 0 ? (
-              <div className="space-y-4">
-                {compactTokenLineGroups.map((group) => {
-                  const isGroupActive = group.lines.some((line) => line.id === activeTokenLineId);
-
-                  return (
-                    <div key={group.id} className={`rounded-2xl border px-4 py-3 transition-colors ${isGroupActive ? 'border-amber-300/35 bg-amber-400/10' : 'border-white/8 bg-black/30'}`}>
-                      <div className="mb-2 flex items-center justify-between gap-3 text-[10px] uppercase tracking-[0.18em] text-white/35">
-                        <span>{group.trackId}</span>
-                        <span>{Math.round(group.startTick)}-{Math.round(group.endTick)} tick</span>
-                      </div>
-                      <div className="flex flex-wrap items-start gap-2 text-sm leading-relaxed text-emerald-100/80">
-                        {group.lines.flatMap((line) => line.tokens).filter((token) => !shouldHidePreviewToken(token)).map((token) => {
-                          const isActive = activeTokenIds.has(token.id);
-
-                          if (token.isBar) {
-                            return <span key={token.id} className="px-1 text-white/30">{token.text}</span>;
-                          }
-
-                          return (
-                            <button key={token.id} type="button" data-seek-tick={token.startTick} title={`${token.text}${token.durationLabel ? ` | ${token.durationLabel} 拍` : ''}`} className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 font-mono transition-colors ${isActive ? 'bg-amber-300 text-slate-950 shadow-[0_0_18px_rgba(252,211,77,0.35)]' : token.isRest ? 'bg-slate-500/10 text-slate-200/65 hover:bg-slate-400/15' : 'bg-white/5 text-emerald-100/75 hover:bg-emerald-500/12'}`}>
-                              <span>{token.displayText ?? token.text}</span>
-                              {token.durationLabel && !String(token.displayText ?? token.text).includes(token.durationLabel) ? (
-                                <span className={`rounded px-1 text-[9px] ${isActive ? 'bg-slate-950/10 text-slate-950/70' : 'bg-black/25 text-white/45'}`}>{token.durationLabel}</span>
-                              ) : null}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : sectionSegments.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-white/10 px-4 py-6 text-center text-[11px] text-emerald-100/40">目前沒有可預覽的譜面段落，請匯入或輸入譜面。</div>
-            ) : (
-              <div className="space-y-2">
-                {sectionSegments.map((segment, index) => {
-                  const isActive = index === activeSegmentIndex;
-
-                  return (
-                    <button key={segment.id} type="button" data-seek-tick={segment.startTick} className={`block w-full rounded-2xl border px-4 py-3 text-left transition-colors ${isActive ? 'border-emerald-300/35 bg-emerald-400/15 text-emerald-50' : 'border-white/8 bg-black/30 text-emerald-100/75 hover:border-emerald-400/25 hover:bg-emerald-500/10'}`}>
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="truncate text-xs font-semibold">{segment.label}</span>
-                        <span className="shrink-0 text-[10px] uppercase tracking-[0.18em] text-white/35">{Math.round(segment.startTick)} tick</span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          <ActiveScoreMap tokenLines={normalizedScore?.structure?.tokenLines} compactTokenLineGroups={compactTokenLineGroups} sectionSegments={sectionSegments} onPreviewClick={handlePreviewClick} />
         </div>
       ) : null}
 

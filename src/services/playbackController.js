@@ -1,6 +1,6 @@
-import audioEngine from './audioEngine';
-import { KEY_INFO_MAP } from '../constants/music';
-import { PPQ } from '../utils/score';
+import audioEngine from './audioEngine.js';
+import { KEY_INFO_MAP } from '../constants/music.js';
+import { PPQ } from '../utils/score.js';
 
 const LOOKAHEAD_INTERVAL_MS = 25;
 const SCHEDULE_AHEAD_SEC = 0.12;
@@ -285,7 +285,7 @@ function normalizeArticulationRatio(value, fallback = 1) {
   return clamp(numeric, 0.1, 1);
 }
 
-class PlaybackController {
+export class PlaybackController {
   constructor(engine = audioEngine) {
     this.audioEngine = engine;
     this.events = [];
@@ -309,6 +309,7 @@ class PlaybackController {
     };
     this.schedulerTimer = null;
     this.visualFrame = null;
+    this.playRequestId = 0;
     this.visualAttackIndex = 0;
     this.visualReleaseIndex = 0;
     this.activeVisualCounts = new Map();
@@ -513,7 +514,11 @@ class PlaybackController {
       return this.getState();
     }
 
+    const requestId = ++this.playRequestId;
     await this.audioEngine.resume();
+    if (requestId !== this.playRequestId || this.transport.status === 'playing') {
+      return this.getState();
+    }
 
     const startTick = this.transport.status === 'paused' ? this.transport.currentTick : this.transport.currentTick || 0;
     const generation = this.bumpTransportGeneration();
@@ -529,6 +534,7 @@ class PlaybackController {
   }
 
   pause() {
+    this.playRequestId += 1;
     if (this.transport.status !== 'playing') {
       return this.getState();
     }
@@ -575,6 +581,7 @@ class PlaybackController {
   }
 
   async seek(targetTimeOrIndex, snapshot = null) {
+    const requestId = ++this.playRequestId;
     if (snapshot) {
       this.snapshot = this.createSnapshot({
         ...this.snapshot,
@@ -608,6 +615,11 @@ class PlaybackController {
 
     if (wasPlaying && this.events.length) {
       await this.audioEngine.resume();
+      if (requestId !== this.playRequestId
+        || generation !== this.transport.generation
+        || this.transport.status !== 'paused') {
+        return this.getState();
+      }
       this.startTransport(targetTick, generation);
       this.startLoops(generation);
     }
@@ -617,6 +629,7 @@ class PlaybackController {
   }
 
   stop(options = {}) {
+    this.playRequestId += 1;
     const { preserveLoadedEvents = true } = options;
 
     const generation = this.bumpTransportGeneration();
@@ -659,6 +672,7 @@ class PlaybackController {
     }
 
     const currentTick = this.getCurrentTick();
+    this.playRequestId += 1;
     const currentTime = ticksToSeconds(currentTick, this.timing);
     const wasPlaying = this.transport.status === 'playing';
     const generation = this.bumpTransportGeneration();

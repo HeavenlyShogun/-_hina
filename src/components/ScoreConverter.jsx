@@ -48,6 +48,10 @@ function safeTrim(value) {
 }
 
 function getPayloadSummary(payload) {
+  if (payload?.version === '3.2-ultra-slim' && Array.isArray(payload?.notes)) {
+    return `${payload.notes.length} notes`;
+  }
+
   if (Array.isArray(payload?.tracks)) {
     const eventCount = payload.tracks.reduce(
       (count, track) => count + (track.events?.length ?? 0),
@@ -73,10 +77,10 @@ function getMidiPresetSummary(payload) {
   const tracks = Array.isArray(payload?.tracks) ? payload.tracks : [];
   const tempoCount = getTempoMapCount(payload);
   const activeTrackCount = tracks.length;
-  const totalTrackCount = Number(sourceMidi?.tracks) || activeTrackCount;
+  const totalTrackCount = Number(Array.isArray(sourceMidi) ? sourceMidi[3] : sourceMidi?.tracks) || activeTrackCount;
   const instrumentNames = [...new Set(
     tracks
-      .map((track) => track?.instrument || track?.name)
+      .map((track) => (Array.isArray(track) ? track[2] || track[0] : track?.instrument || track?.name))
       .filter(Boolean),
   )].slice(0, 3);
 
