@@ -1,103 +1,99 @@
-# universe rhythm recorder
+# Universe Rhythm Recorder (`_hina`)
 
-這個專案使用 `Vite + React` 建立，已接上 GitHub 倉庫，並設定成推送到 `main` 後自動部署到 GitHub Pages。
+這是一個使用 React + Vite 打造的音樂與節奏樂譜播放系統。專案核心著重於將 MIDI、MusicXML 等樂譜轉換為統一的事件資料（Slim JSON），並交由播放控制器處理。系統同時支援 Firebase 雲端曲庫同步、GitHub Pages 自動部署，以及實體硬體控制器的介接規劃。
 
-## 已完成項目
+## 核心架構與資料流
 
-- GitHub remote 已連線：`git@github.com:HeavenlyShogun/-_hina.git`
-- 本地開發支援即時熱更新：`Vite HMR`
-- GitHub Pages 自動部署：`.github/workflows/deploy.yml`
-- 自訂網域支援：設定 `VITE_CUSTOM_DOMAIN` 後會自動產生 `CNAME`
-- SPA 重新整理修復：`index.html` 與 `public/404.html`
-- 專案內含 `風物之琴譜/` 譜面整理資料夾，供匯入譜面與素材歸檔使用
+專案自 v1.1 起進行了核心資料模型的收斂與重構：
 
-## 本地開發
+* **統一事件模型 (Canonical Event Schema)**：樂譜資料全面統一為 `tick`, `durationTicks`, `k`, `v`, `noteName`, `frequency`, `trackId`。
+* **播放器重構**：`playbackController` 僅讀取正規化後的 canonical events，不再依賴 `startTick`, `pitch`, `velocity`, `key` 等舊版備用欄位。
+* **格式汰舊換新**：全面棄用舊版鍵盤文字譜與數字譜。目前系統僅支援讀取由 MIDI / MusicXML / MXL 轉出的 JSON，以及系統專用的壓縮格式 Slim JSON。
+
+## 目錄與工作區結構
+
+除了網頁原始碼（`src/`），專案包含兩個重要的獨立工作區：
+
+### 1. `風物之琴譜/`（樂譜素材工作區）
+
+用於歸檔與整理系統支援的樂譜檔案。
+
+* `縮小版可匯入譜面/slim-json/`：網站可直接讀取的高效壓縮 JSON / Slim JSON。
+* `縮小版可匯入譜面/midi/`：轉檔來源 MIDI。需透過轉換區或 `scores:slim:midi` 產出 JSON 後再由系統讀取。
+* `待整理/`：尚未符合目前譜面格式，或保留中的原始備份檔案。
+* `工具與參考/`：外掛程式、腳本捷徑、參考圖片等非譜面檔案。
+
+### 2. `外接硬體資訊/`（實體演奏控制器工作區）
+
+專案不僅是網頁播放器，也包含硬體介接計畫。此資料夾保存硬體製作、接線圖、韌體與實機測試紀錄。
+
+* 目前網站的 Web MIDI 接收功能仍在開發中。
+* 第一代控制器（如 Hina Lyre）的 USB MIDI 介接契約與軟體待辦事項，請見 `外接硬體資訊/硬體計畫資訊.md`。
+
+---
+
+## 本機開發指南
+
+**啟動開發伺服器**
 
 ```bash
+# 預設啟動 (localhost:5173)
 npm run dev
-```
 
-如果你要在同一個區網內用其他裝置同步檢視，使用：
-
-```bash
+# 允許區網內其他裝置連線同步檢視 (0.0.0.0:5173)
 npm run dev:host
+
 ```
 
-預設開發環境：
+**開發環境設定備註：**
 
-- Host：`0.0.0.0`
-- Port：`5173`
-- React 程式碼修改後即時熱更新
-- 若某些磁碟同步或虛擬環境無法偵測檔案變更，可在 `.env` 設定 `VITE_USE_POLLING=true`
+* 支援 Vite HMR (即時熱更新)，React 程式碼修改後會自動刷新。
+* 若在某些磁碟同步或虛擬環境下無法偵測檔案變更，請在 `.env` 中設定 `VITE_USE_POLLING=true`。
+* 專案內已處理 SPA 重新整理問題（包含 `index.html` 與 `public/404.html` 重導向機制）。
 
-## 環境變數
+### 環境變數 (`.env`)
 
-請依照 `.env.example` 建立 `.env`：
+請複製 `.env.example` 建立 `.env` 檔案並填入對應數值：
+
+| 變數名稱 | 說明 |
+| --- | --- |
+| `VITE_APP_ID` | 應用程式 ID，預設為 `universe-rhythm-recorder` |
+| `VITE_FIREBASE_CONFIG` | Firebase 專案設定 (JSON 格式字串) |
+| `VITE_INITIAL_AUTH_TOKEN` | 初始驗證 Token (視環境需求設定) |
+| `VITE_CUSTOM_DOMAIN` | 自訂網域 (設定後部署時會自動產生 CNAME) |
+| `VITE_DEV_HOST` | 開發環境 Host，預設為 `0.0.0.0` |
+| `VITE_DEV_PORT` | 開發環境 Port，預設為 `5173` |
+| `VITE_HMR_HOST` | 熱更新 Host 指定 |
+| `VITE_HMR_CLIENT_PORT` | 熱更新 Client Port 指定 |
+| `VITE_USE_POLLING` | 設為 `true` 開啟輪詢偵測檔案變更 (預設 `false`) |
+
+---
+
+## 部署與網域設定
+
+本專案支援 GitHub Pages 與 Firebase Hosting 雙平台部署。GitHub remote 已連線，並透過 `.github/workflows/deploy.yml` 設定推送至 `main` 分支時自動部署。
+
+### 部署指令
 
 ```bash
-VITE_APP_ID=universe-rhythm-recorder
-VITE_FIREBASE_CONFIG={"apiKey":"","authDomain":"","projectId":"","storageBucket":"","messagingSenderId":"","appId":""}
-VITE_INITIAL_AUTH_TOKEN=
-VITE_CUSTOM_DOMAIN=
-VITE_DEV_HOST=0.0.0.0
-VITE_DEV_PORT=5173
-VITE_HMR_HOST=
-VITE_HMR_CLIENT_PORT=
-VITE_USE_POLLING=false
+npm run build:pages   # 建置 GitHub Pages 版本 (自動設定 base path 為 /-_hina/)
+npm run build:firebase # 建置 Firebase Hosting 版本 (自動設定 base path 為 /)
+npm run preview:pages # 本機預覽 GitHub Pages 建置結果
+
 ```
 
-## 部署與網域
+*備註：執行 `firebase deploy` 前，`firebase.json` 的 `predeploy` 掛鉤會自動執行 `npm run build:firebase`。*
 
-GitHub Pages 預設網址：
+### 自訂網域與 CI/CD 設定
 
-- `https://heavenlyshogun.github.io/-_hina/`
+**1. 設定 GitHub Pages 自訂網域**
 
-部署指令：
+1. 在 GitHub Repository 的 `Settings > Pages` 設定 Custom domain。
+2. 在 Repository Variables 新增 `VITE_CUSTOM_DOMAIN`。
+3. 重新部署後，Vite 建置流程會讀取該變數並自動輸出 `dist/CNAME` 檔案，確保網域設定不會跑版。
 
-- GitHub Pages：`npm run build:pages`
-- Firebase Hosting：`npm run build:firebase`
+**2. 啟用 Firebase 雲端同步 (GitHub Actions)**
+若部署版需要正確連線至 Firebase，請在 GitHub Repo Settings 中設定以下 Secrets 與 Variables：
 
-路徑規則：
-
-- GitHub Pages 版會自動使用 `/-_hina/` 當作 base path。
-- Firebase Hosting 版會自動使用 `/` 當作 base path。
-- `firebase deploy` 前會透過 `firebase.json` 的 `predeploy` 自動執行 `npm run build:firebase`。
-
-設定自訂網域：
-
-1. 在 GitHub Repository 的 `Settings > Pages` 設定 custom domain。
-2. 在 Repository `Variables` 新增 `VITE_CUSTOM_DOMAIN`。
-3. 重新部署後，建置流程會自動輸出 `dist/CNAME`。
-
-如果部署版也要使用 Firebase 雲端同步，請在 GitHub 設定：
-
-- `Variables`：`VITE_APP_ID`、`VITE_CUSTOM_DOMAIN`
-- `Secrets`：`VITE_FIREBASE_CONFIG`、`VITE_INITIAL_AUTH_TOKEN`
-
-## 常用指令
-
-```bash
-npm run dev
-npm run dev:host
-npm run build
-npm run preview:pages
-```
-
-## 譜面資料夾
-
-`風物之琴譜/` 是專案內的譜面素材工作區，目前結構如下：
-
-- `縮小版可匯入譜面/slim-json/`：網站可直接讀取的壓縮 JSON / Slim JSON。
-- `縮小版可匯入譜面/midi/`：轉檔來源 MIDI，需透過轉換區或 `scores:slim:midi` 產出 JSON 後讀取。
-- `待整理/`：尚未符合目前譜面格式或保留中的原始備份。
-- `工具與參考/`：外掛、捷徑、圖片等非譜面檔案
-
-## 外接硬體工作區
-
-`外接硬體資訊/` 是網站以外的實體演奏控制器工作區，保存硬體製作、接線、韌體與實機測試；網站程式與雲端作業仍保存在 `src/` 與 `專案記憶/`。目前網站尚未實作 Web MIDI 接收，第一代控制器的 USB MIDI 介接契約與軟體待辦見 `外接硬體資訊/硬體計畫資訊.md`。
-
-## 2026-05-29 Notes
-
-- Canonical event schema is unified as `tick`, `durationTicks`, `k`, `v`, `noteName`, `frequency`, `trackId`.
-- `playbackController` now consumes only canonical events and no longer depends on `startTick`, `pitch`, `velocity`, `key`, or other fallback aliases.
-- 1.1 起不再讀取舊版鍵盤文字譜或數字譜；可讀取格式收斂為 MIDI/MusicXML/MXL 轉出的 JSON，以及壓縮後 Slim JSON。
+* **Repository Variables**: `VITE_APP_ID`, `VITE_CUSTOM_DOMAIN`
+* **Repository Secrets**: `VITE_FIREBASE_CONFIG`, `VITE_INITIAL_AUTH_TOKEN`
