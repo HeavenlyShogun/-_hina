@@ -8,7 +8,12 @@
 
 * **統一事件模型 (Canonical Event Schema)**：樂譜資料全面統一為 `tick`, `durationTicks`, `k`, `v`, `noteName`, `frequency`, `trackId`。
 * **播放器重構**：`playbackController` 僅讀取正規化後的 canonical events，不再依賴 `startTick`, `pitch`, `velocity`, `key` 等舊版備用欄位。
-* **格式汰舊換新**：全面棄用舊版鍵盤文字譜與數字譜。目前系統僅支援讀取由 MIDI / MusicXML / MXL 轉出的 JSON，以及系統專用的壓縮格式 Slim JSON。
+* **新 MIDI 匯入**：`midiToSlim.js` 以 `midi-file` 解析原始軌道與事件順序，輸出 Slim V3.2；MusicXML / MXL 也轉成 Slim payload。
+* **舊資料相容**：既有 V2/V3 曲譜仍可讀取，並經 `score.js` 正規化為 canonical runtime events。
+* **Slim 往返**：`scoreToMidi.js` 以原始 `sourceTrackIndex` 合併軌道，保留同 tick 的 program change / note 順序；不含新 metadata 的舊 Slim 繼續走 legacy 匯出路徑。
+* **Slim 軌道契約**：前五欄維持 `[name, channel, instrumentName, programNumber, instrumentFamily]`，後續欄位為 `sourceTrackIndex`、`programChanges`；音符資料保留原始 note-on/off order。
+* **播放生命週期**：播放控制器管理自己的 scheduler timer 與 animation frame；音訊引擎負責釋放活動音符。譜面預覽與高頻 playhead 更新分開訂閱。
+* **Firebase 安全**：私人曲譜由 Firestore/Storage 擁有者規則保護；大曲譜可保存為 Storage `score.json`。公開摘要複製次數以每位使用者唯一 ledger 限制一次。
 
 ## 目錄與工作區結構
 
@@ -27,7 +32,7 @@
 
 專案不僅是網頁播放器，也包含硬體介接計畫。此資料夾保存硬體製作、接線圖、韌體與實機測試紀錄。
 
-* 目前網站的 Web MIDI 接收功能仍在開發中。
+* 網站有 MIDI 輸入 hook；Hina Lyre 對外硬體輸出整合與實機驗證仍在規劃中。
 * 第一代控制器（如 Hina Lyre）的 USB MIDI 介接契約與軟體待辦事項，請見 `外接硬體資訊/硬體計畫資訊.md`。
 
 ---
@@ -66,6 +71,30 @@ npm run dev:host
 | `VITE_HMR_HOST` | 熱更新 Host 指定 |
 | `VITE_HMR_CLIENT_PORT` | 熱更新 Client Port 指定 |
 | `VITE_USE_POLLING` | 設為 `true` 開啟輪詢偵測檔案變更 (預設 `false`) |
+
+---
+
+## 測試與 CI
+
+```bash
+npm run test:unit
+npm run build
+```
+
+Firebase 規則實測使用 Firestore 與 Storage Emulator，需安裝 Java 21：
+
+```bash
+npx firebase emulators:exec --only firestore,storage --project demo-hina-ci "npm run test:rules:emulator"
+```
+
+本機若未安裝 Java，仍可執行 `npm run test:unit`；GitHub Actions 會設定 Temurin Java 21，於 push 至 `main`／`master` 或 pull request 時執行單元測試、規則 Emulator 測試及 build。Playwright E2E 測試另行執行：
+
+```bash
+npx playwright install chromium
+npm run test:e2e
+```
+
+專案資料流：`MIDI / MusicXML -> Slim JSON -> Runtime Events -> Tone.js Audio / Sheet UI`。Firebase 長曲譜可分流到 Storage；Hina Lyre 硬體與網站的輸出連接尚未完成實機驗證。
 
 ---
 

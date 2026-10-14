@@ -1,6 +1,6 @@
 # GitHub 與部署記憶
 
-最後更新：2026-09-30
+最後更新：2026-10-14
 
 本檔記錄 Git remote、GitHub Pages、Firebase Hosting 與常用部署指令。
 
@@ -44,6 +44,15 @@ npm.cmd run build:pages
 npm.cmd run preview:firebase
 npm.cmd run preview:pages
 ```
+
+## GitHub Actions CI 與品質檢查
+
+- Workflow：`.github/workflows/ci.yml`，在推送 `main`／`master` 與 pull request 時執行。
+- 環境：Ubuntu latest、Node 22、Temurin Java 21。
+- Pipeline：`npm ci` → `npm run test:unit` → Firestore/Storage Emulator rules tests → `npm run build`。
+- Emulator command：`npx firebase emulators:exec --only firestore,storage --project demo-hina-ci "npm run test:rules:emulator"`；rules tests 的執行方式參考 `04_Firebase與雲端曲庫記憶.md`。
+- Playwright 用 `npm run test:e2e`；先執行 `npx playwright install chromium` 安裝本機瀏覽器。
+- `test-results/`、`playwright-report/`、`blob-report/`、`*.log` 與 Playwright `error-context.md` 都忽略，不納入 Git。
 
 ## 2026-05-29 驗證結果
 
@@ -95,6 +104,12 @@ npm.cmd run preview:pages
 - 本次 Firebase predeploy 自動執行 `npm run build:firebase`，並成功發布 15 個 Hosting 檔案。
 - 發布內容包含歡迎頁繁體中文導覽與工作區入口修正；Playwright Chromium 入口 smoke test 通過。
 - 只部署 Hosting，沒有部署 Firestore 或 Storage rules。
+
+## 2026-10-14 Phase 1–4 驗證基線
+
+- `npm run test:unit` 18/18 通過；`npm run build` 成功。更新 Browserslist database 後 build 不再提示 caniuse-lite 過期。
+- `tests/firebase-rules.emulator.test.js` 已新增，含擁有者 CRUD、私人讀取、copy counter 唯一 ledger 與 Storage owner-only 測試。本機未安裝 Java，尚未本機執行；CI job 將用 Java 21 執行。
+- 本輪只建立 workflow，尚未推送或等待 GitHub Actions 結果；不得記錄為雲端 CI 已通過。
 
 ## 2026-09-27 驗證結果
 

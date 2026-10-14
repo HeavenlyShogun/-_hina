@@ -7,6 +7,14 @@ __pycache__/
 *.pyc
 node_modules
 
+# Local test output and developer logs
+test-results/
+playwright-report/
+blob-report/
+*.log
+error-context.md
+**/error-context.md
+
 # local env files
 .env
 .env.local

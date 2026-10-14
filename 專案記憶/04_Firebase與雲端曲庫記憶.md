@@ -1,6 +1,6 @@
 # Firebase 與雲端曲庫記憶
 
-最後更新：2026-09-30
+最後更新：2026-10-14
 
 本檔記錄 Firebase 設定、Auth、Firestore 曲庫、分享連結、離線快取、自動同步與上傳限制。
 
@@ -23,6 +23,8 @@
 - Firebase rules：`firestore.rules`
 - Storage rules：`storage.rules`
 - Hosting 設定：`firebase.json`
+- Emulator 測試：`tests/firebase-rules.emulator.test.js`
+- 靜態規則回歸：`tests/firebase-rules.test.js`
 - 本機環境範例：`.env.example`
 
 ## 環境變數
@@ -85,6 +87,14 @@
 - App 初始化時若 URL 帶有 `scoreId`，會呼叫 `loadSharedScore()` 從公開譜庫載入該譜面。
 - `ScoreLibrary.jsx` 有「我的樂譜」與「玩家共享」分頁；公開譜面可直接載入，也可用 `copyPublicScore()` 複製到自己的私有曲庫。
 - 公開譜面讀取對所有人開放；建立、更新、刪除必須由 `ownerUid` 對應的登入使用者執行。
+
+## Security Rules 與 Emulator 驗證
+
+- 權限欄位契約為 `ownerUid`、`isPublic`、`copiedCount`、`createdAt`、`updatedAt`；Firestore Rules 的欄位驗證需跟 `firebase.js` payload 同步。
+- 使用者完整譜面與摘要只有路徑擁有者可讀寫；公開文件與公開摘要允許讀取，只有擁有者可更新／刪除。
+- 非擁有者只可將公開摘要 `copiedCount` 加 1 並更新 `updatedAt`，且 Batch 必須首次建立 `/copies/{uid}` ledger。Rules 檢查 `!exists(...) && existsAfter(...)`，ledger 禁止 update/delete。
+- Storage 使用者譜面的 `score.json` 路徑限擁有者讀取；上傳限擁有者、JSON MIME type、非空且不超過 20 MiB。公開大譜面透過公開摘要內的 download URL 讀取。
+- `npm run test:rules:emulator` 以 `@firebase/rules-unit-testing` 執行 Firestore 與 Storage 實際 Allow/Deny 測試；使用 `firebase emulators:exec --only firestore,storage --project demo-hina-ci "npm run test:rules:emulator"` 啟動。CI 以 Temurin Java 21 執行；無 Java 的本機只能跑 `npm run test:unit` 靜態測試。
 
 ## 自動同步
 
