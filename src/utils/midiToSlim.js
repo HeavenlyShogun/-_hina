@@ -1,205 +1,101 @@
-import toneMidi from '@tonejs/midi';
-import midiFile from 'midi-file';
-import { DEFAULT_SCORE_PARAMS } from '../constants/music.js';
-import { PPQ } from './score.js';
+import { parseMidi } from 'midi-file';
 
-const { Midi } = toneMidi;
-const { parseMidi } = midiFile;
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
-function slugify(value) {
-  return String(value || 'score')
-    .trim()
-    .replace(/[^\w-]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-    .toLowerCase() || 'score';
-}
+/** Parse a MIDI byte buffer into the project's V3.2 Slim representation.
+ * Track tuples preserve the legacy first five fields, then append sourceTrackIndex and programChanges.
+ */
+export function midiBytesToSlim(input, options = {}) {
+  const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
+  const raw = parseMidi(bytes);
+  const ppq = Math.max(1, Number(raw.header.ticksPerBeat) || 480);
+  const tracks = [];
+  const notes = [];
+  const globalEvents = [];
+  const sourceTrackNames = [];
+  const tempos = [];
+  const timeSignatures = [];
 
-function stripExtension(value) {
-  return String(value || 'Untitled MIDI').replace(/\.[^.]+$/u, '') || 'Untitled MIDI';
-}
+  raw.tracks.forEach((events, sourceTrackIndex) => {
+    let tick = 0;
+    let name = '';
+    const programs = new Map();
+    const queues = new Map();
+    const changes = [];
+    const completed = [];
+    events.forEach((event, order) => {
+      tick += Number(event.deltaTime) || 0;
+      if (sourceTrackIndex === 0 && ['setTempo', 'timeSignature', 'keySignature', 'text', 'marker', 'cuePoint'].includes(event.type)) {
+        globalEvents.push({ ...event, tick, order });
+      }
+      if (event.type === 'setTempo' && Number(event.microsecondsPerBeat) > 0) {
+        tempos.push({ startTick: tick, bpm: 60000000 / Number(event.microsecondsPerBeat) });
+      }
+      if (event.type === 'timeSignature') {
+        timeSignatures.push([tick, Number(event.numerator) || 4, 2 ** (Number(event.denominator) || 2)]);
+      }
+      if (event.type === 'trackName') { name = event.text || ''; sourceTrackNames[sourceTrackIndex] = { text: name, order }; }
+      const channel = Number(event.channel ?? 0);
+      const stateKey = `${sourceTrackIndex}:${channel}`;
+      if (!programs.has(stateKey)) programs.set(stateKey, 0);
+      if (event.type === 'programChange') {
+        programs.set(stateKey, Number(event.programNumber) || 0);
+        changes.push({ tick, order, channel, programNumber: programs.get(stateKey) });
+      } else if (event.type === 'noteOn' && Number(event.velocity) > 0) {
+        const key = `${stateKey}:${event.noteNumber}`;
+        if (!queues.has(key)) queues.set(key, []);
+        queues.get(key).push({ tick, order, pitch: event.noteNumber, velocity: event.velocity, channel, programNumber: programs.get(stateKey) });
+      } else if (event.type === 'noteOff' || (event.type === 'noteOn' && Number(event.velocity) === 0)) {
+        const key = `${stateKey}:${event.noteNumber}`;
+        const queue = queues.get(key);
+        if (queue?.length) {
+          const start = queue.shift();
+          completed.push({ ...start, duration: Math.max(1, tick - start.tick) });
+          completed[completed.length - 1].noteOffOrder = order;
+        }
+      }
+    });
+    const channels = new Map();
+    completed.forEach((note) => {
+      if (!channels.has(note.channel)) channels.set(note.channel, new Map());
+      const byProgram = channels.get(note.channel);
+      if (!byProgram.has(note.programNumber)) byProgram.set(note.programNumber, []);
+      byProgram.get(note.programNumber).push(note);
+    });
+    for (const [channel, byProgram] of channels) {
+      for (const [programNumber, channelNotes] of byProgram) {
+        const trackIndex = tracks.length;
+        tracks.push([name || `Track ${sourceTrackIndex + 1}`, channel, `program-${programNumber}`, programNumber, null,
+          sourceTrackIndex, changes.filter((change) => change.channel === channel)]);
+        channelNotes.forEach((note) => notes.push([note.tick, note.duration, note.pitch,
+          Number((note.velocity / 127).toFixed(4)), trackIndex, note.order, note.noteOffOrder]));
+      }
+    }
+  });
 
-function normalizeVelocity(value) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return 0.85;
-  return Math.min(1, Math.max(0, numeric));
-}
-
-function buildTempoMap(tempos, fallbackBpm) {
-  const normalized = (Array.isArray(tempos) ? tempos : [])
-    .map((tempo) => [
-      Math.max(0, Math.round(Number(tempo?.ticks) || 0)),
-      Number(tempo?.bpm) || fallbackBpm,
-    ])
-    .filter(([, bpm]) => Number.isFinite(bpm) && bpm > 0)
-    .sort((left, right) => left[0] - right[0]);
-
-  if (!normalized.length || normalized[0][0] !== 0) normalized.unshift([0, fallbackBpm]);
-  return normalized;
-}
-
-function buildTimeSignatures(timeSignatures) {
-  return (Array.isArray(timeSignatures) ? timeSignatures : [])
-    .map((entry) => {
-      const signature = entry?.timeSignature ?? [];
-      return [
-        Math.max(0, Math.round(Number(entry?.ticks) || 0)),
-        Number(signature[0]) || 4,
-        Number(signature[1]) || 4,
-      ];
-    })
-    .sort((left, right) => left[0] - right[0]);
-}
-
-function getTrackProgramNumber(track) {
-  const candidates = [track?.instrument?.number, track?.instrument?.program, track?.instrument?.programNumber];
-  return candidates.map(Number).find((value) => Number.isInteger(value) && value >= 0 && value <= 127) ?? null;
-}
-
-function toArrayBuffer(fileOrBuffer) {
-  if (fileOrBuffer instanceof ArrayBuffer) return fileOrBuffer;
-  if (ArrayBuffer.isView(fileOrBuffer)) {
-    return fileOrBuffer.buffer.slice(
-      fileOrBuffer.byteOffset,
-      fileOrBuffer.byteOffset + fileOrBuffer.byteLength,
-    );
-  }
-  return fileOrBuffer.arrayBuffer();
+  if (!tracks.length) throw new Error('The MIDI file does not contain any note events.');
+  const normalizedTempos = tempos.sort((a, b) => a.startTick - b.startTick).filter((tempo, index, list) => (
+    index === 0 || tempo.startTick !== list[index - 1].startTick || tempo.bpm !== list[index - 1].bpm
+  ));
+  const bpm = normalizedTempos[0]?.bpm || Number(options.bpm) || 120;
+  const normalizedSignatures = timeSignatures.sort((a, b) => a[0] - b[0]);
+  const firstSignature = normalizedSignatures[0] || [0, Number(options.timeSigNum) || 4, Number(options.timeSigDen) || 4];
+  const title = options.title || String(options.fileName || 'MIDI Import').replace(/\.[^.]+$/u, '');
+  return {
+    version: '3.2-ultra-slim', columns: ['startTick', 'durationTicks', 'note', 'velocity', 'trackId'],
+    meta: { title, displayTitle: title, sourceType: 'midi', originalFormat: 'midi', storageFormat: 'hina-slim-score@3.2' },
+    transport: { bpm, timeSigNum: firstSignature[1], timeSigDen: firstSignature[2], resolution: ppq },
+    playback: { tone: options.tone ?? 'midi-original', globalKeyOffset: options.globalKeyOffset ?? 0, scaleMode: options.scaleMode ?? 'major', reverb: options.reverb ?? true, accidentals: options.accidentals ?? {}, fixedPitch: true, tempoMap: normalizedTempos.length ? normalizedTempos : [{ startTick: 0, bpm }] },
+    source: { midi: [options.fileName || '', ppq, raw.header.format, raw.tracks.length, normalizedSignatures, globalEvents, sourceTrackNames] }, tracks,
+    notes: notes.sort((a, b) => a[0] - b[0] || a[4] - b[4] || a[2] - b[2]),
+  };
 }
 
 export async function parseMidiToSlim(fileOrBuffer, options = {}) {
-  if (!fileOrBuffer || !(fileOrBuffer instanceof ArrayBuffer) && !ArrayBuffer.isView(fileOrBuffer)
-    && typeof fileOrBuffer.arrayBuffer !== 'function') {
-    throw new TypeError('Expected a MIDI File, ArrayBuffer, or typed array.');
-  }
-
-  const arrayBuffer = await toArrayBuffer(fileOrBuffer);
-  const midi = new Midi(arrayBuffer);
-  const fileName = options.fileName || fileOrBuffer?.name || 'import.mid';
-  const title = options.title || stripExtension(fileName);
-  const resolution = Math.max(1, Math.round(Number(midi.header.ppq) || PPQ));
-  const bpm = Number(midi.header.tempos?.[0]?.bpm) || Number(options.bpm) || DEFAULT_SCORE_PARAMS.bpm;
-  const timeSignature = midi.header.timeSignatures?.[0]?.timeSignature ?? [];
-  const lowLevelMidi = parseMidi(new Uint8Array(arrayBuffer));
-  const tracks = [];
-  const notes = [];
-
-  const rawTrackUseCount = new Map();
-  midi.tracks.forEach((track, sourceTrackIndex) => {
-    const trackName = track.name?.trim() || '';
-    const namedCandidates = lowLevelMidi.tracks
-      .map((events, index) => ({
-        events,
-        index,
-        name: events.find((event) => event.type === 'trackName')?.text?.trim() || '',
-      }))
-      .filter((entry) => entry.name === trackName);
-    const usedCount = rawTrackUseCount.get(trackName) ?? 0;
-    const namedTrack = namedCandidates[usedCount];
-    const noteSignature = track.notes[0];
-    const matchingNoteTrack = noteSignature
-      ? lowLevelMidi.tracks.find((events) => {
-        let tick = 0;
-        return events.some((event) => {
-          tick += Number(event.deltaTime) || 0;
-          return event.type === 'noteOn'
-            && event.noteNumber === noteSignature.midi
-            && tick === noteSignature.ticks;
-        });
-      })
-      : null;
-    const rawTrack = namedTrack?.events
-      ?? matchingNoteTrack
-      ?? lowLevelMidi.tracks[sourceTrackIndex + Math.max(0, lowLevelMidi.tracks.length - midi.tracks.length)]
-      ?? [];
-    const rawTrackName = rawTrack.find((event) => event.type === 'trackName')?.text?.trim() || '';
-    rawTrackUseCount.set(trackName, usedCount + 1);
-    let absoluteTick = 0;
-    const programChanges = rawTrack
-      .flatMap((event) => {
-        absoluteTick += Number(event.deltaTime) || 0;
-        return event.type === 'programChange'
-          ? [{ tick: absoluteTick, channel: event.channel, programNumber: event.programNumber }]
-          : [];
-      })
-      .sort((left, right) => left.tick - right.tick);
-    const sourceChannel = track.notes.length ? track.channel : programChanges[0]?.channel ?? track.channel;
-    const notesByProgram = new Map();
-
-    track.notes.forEach((note) => {
-      let programNumber = programChanges.length ? 0 : getTrackProgramNumber(track) ?? 0;
-      programChanges.forEach((change) => {
-        if (change.tick <= note.ticks && change.channel === track.channel) {
-          programNumber = change.programNumber;
-        }
-      });
-      if (!notesByProgram.has(programNumber)) notesByProgram.set(programNumber, []);
-      notesByProgram.get(programNumber).push(note);
-    });
-
-    if (!notesByProgram.size) {
-      notesByProgram.set(getTrackProgramNumber(track) ?? 0, []);
-    }
-
-    const splitPrograms = notesByProgram.size > 1;
-    notesByProgram.forEach((programNotes, programNumber) => {
-      const trackId = tracks.length;
-      const baseName = trackName || rawTrackName || 'track-' + (sourceTrackIndex + 1);
-      const needsProgramLabel = splitPrograms || (rawTrackName && trackName !== rawTrackName);
-      const instrumentName = programNumber === getTrackProgramNumber(track)
-        ? track.instrument?.name || 'unknown'
-        : 'program-' + programNumber;
-      tracks.push([
-        needsProgramLabel ? baseName + ' [' + programNumber + ']' : baseName,
-        Math.min(15, Math.max(0, Math.round(Number(sourceChannel ?? 0) || 0))),
-        instrumentName,
-        programNumber,
-        programNumber === getTrackProgramNumber(track) ? track.instrument?.family || null : null,
-      ]);
-      programNotes.forEach((note) => notes.push([
-        Math.max(0, Math.round(Number(note.ticks) || 0)),
-        Math.max(1, Math.round(Number(note.durationTicks) || 0)),
-        Math.max(0, Math.round(Number(note.midi) || 0)),
-        Number(normalizeVelocity(note.velocity).toFixed(4)),
-        trackId,
-      ]));
-    });
-  });
-  if (!notes.length) throw new Error('The MIDI file does not contain any note events.');
-  notes.sort((left, right) => left[0] - right[0] || left[4] - right[4] || left[2] - right[2] || left[1] - right[1]);
-
-  return {
-    version: '3.2-ultra-slim',
-    columns: ['startTick', 'durationTicks', 'note', 'velocity', 'trackId'],
-    meta: {
-      id: options.id || `${slugify(title)}-${Date.now()}`,
-      title,
-      displayTitle: options.displayTitle || title,
-      sourceType: 'midi',
-      sourceFormat: 'midi',
-      originalFormat: 'midi',
-      storageFormat: 'hina-slim-score@3.2',
-      fileName,
-      migratedAt: new Date().toISOString(),
-    },
-    transport: {
-      bpm,
-      timeSigNum: Number(timeSignature[0]) || Number(options.timeSigNum) || DEFAULT_SCORE_PARAMS.timeSigNum,
-      timeSigDen: Number(timeSignature[1]) || Number(options.timeSigDen) || DEFAULT_SCORE_PARAMS.timeSigDen,
-      resolution,
-    },
-    playback: {
-      tone: options.tone ?? DEFAULT_SCORE_PARAMS.tone,
-      globalKeyOffset: Number(options.globalKeyOffset) || 0,
-      scaleMode: options.scaleMode ?? DEFAULT_SCORE_PARAMS.scaleMode,
-      reverb: options.reverb ?? DEFAULT_SCORE_PARAMS.reverb,
-      accidentals: options.accidentals ?? {},
-      tempoMap: buildTempoMap(midi.header.tempos, bpm),
-    },
-    source: {
-      midi: [fileName, resolution, midi.header.format, midi.tracks.length, buildTimeSignatures(midi.header.timeSignatures)],
-    },
-    tracks,
-    notes,
-  };
+  const buffer = fileOrBuffer instanceof ArrayBuffer
+    ? new Uint8Array(fileOrBuffer)
+    : ArrayBuffer.isView(fileOrBuffer)
+      ? new Uint8Array(fileOrBuffer.buffer, fileOrBuffer.byteOffset, fileOrBuffer.byteLength)
+      : new Uint8Array(await fileOrBuffer.arrayBuffer());
+  return midiBytesToSlim(buffer, { ...options, fileName: options.fileName || fileOrBuffer?.name || '' });
 }

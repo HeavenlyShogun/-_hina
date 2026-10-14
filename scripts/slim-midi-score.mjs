@@ -1,6 +1,7 @@
 import { readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import toneMidi from '@tonejs/midi';
+import { midiBytesToSlim } from '../src/utils/midiToSlim.js';
 
 const { Midi } = toneMidi;
 
@@ -103,35 +104,8 @@ async function main() {
   const firstTimeSignature = midi.header.timeSignatures?.[0]?.timeSignature ?? [];
   const timeSigNum = Number(firstTimeSignature[0]) || 4;
   const timeSigDen = Number(firstTimeSignature[1]) || 4;
-  const activeTracks = midi.tracks.filter((track) => Array.isArray(track.notes) && track.notes.length > 0);
-
-  if (!activeTracks.length) {
-    throw new Error(`No note tracks found in ${input}`);
-  }
-
-  const tracks = activeTracks.map((track, index) => [
-    track.name?.trim() || `track-${index + 1}`,
-    Number(track.channel ?? 0),
-    track.instrument?.name || 'unknown',
-    getTrackProgramNumber(track),
-    track.instrument?.family || null,
-  ]);
-
-  const notes = activeTracks
-    .flatMap((track, trackIndex) => track.notes.map((note) => [
-      Math.max(0, Math.round(Number(note.ticks) || 0)),
-      Math.max(1, Math.round(Number(note.durationTicks) || 0)),
-      Math.max(0, Math.round(Number(note.midi) || 0)),
-      Number(normalizeVelocity(note.velocity).toFixed(4)),
-      trackIndex,
-    ]))
-    .sort((left, right) => (
-      left[0] - right[0]
-      || left[4] - right[4]
-      || left[2] - right[2]
-      || left[1] - right[1]
-    ));
-
+  const bytes = fileBuffer;
+  const parsedSlim = midiBytesToSlim(bytes, { fileName, title, bpm });
   const slimScore = {
     version: '3.2-ultra-slim',
     columns: ['startTick', 'durationTicks', 'note', 'velocity', 'trackId'],
@@ -169,8 +143,8 @@ async function main() {
         buildTimeSignatures(midi.header.timeSignatures),
       ],
     },
-    tracks,
-    notes,
+    tracks: parsedSlim.tracks,
+    notes: parsedSlim.notes,
   };
 
   const payload = JSON.stringify(slimScore);
@@ -181,7 +155,7 @@ async function main() {
   }
 
   console.log(`Wrote ${output}`);
-  console.log(`Notes: ${notes.length}, tracks: ${tracks.length}, bytes: ${Buffer.byteLength(payload, 'utf8')}`);
+  console.log(`Notes: ${slimScore.notes.length}, tracks: ${slimScore.tracks.length}, bytes: ${Buffer.byteLength(payload, 'utf8')}`);
 }
 
 main().catch((error) => {

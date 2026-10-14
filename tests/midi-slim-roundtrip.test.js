@@ -3,9 +3,9 @@ import { readFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import toneMidi from '@tonejs/midi';
 import midiFile from 'midi-file';
-import { parseMidiToSlim } from '../src/utils/midiToSlim.js';
+import { midiBytesToSlim, parseMidiToSlim } from '../src/utils/midiToSlim.js';
 import { normalizeScoreSource } from '../src/utils/score.js';
-import { scoreJsonToMidi } from '../src/utils/scoreToMidi.js';
+import { scoreJsonToMidi, scoreJsonToMidiBytes } from '../src/utils/scoreToMidi.js';
 import { applyPlaybackMode } from '../src/utils/scoreModeFilter.js';
 
 const { Midi } = toneMidi;
@@ -216,3 +216,121 @@ for (const [fileName, expected] of goldenFixtures) {
     }
   });
 }
+
+function rawFixture(tracks, format = 1) {
+  return writeMidi({
+    header: { format, numTracks: tracks.length, ticksPerBeat: 480 },
+    tracks: tracks.map((events) => {
+      let last = 0;
+      return [...events, { type: 'endOfTrack', deltaTime: 0 }].map((event) => {
+        const copy = { ...event, deltaTime: (event.tick ?? last) - last };
+        last = event.tick ?? last;
+        delete copy.tick;
+        return copy;
+      });
+    }),
+  });
+}
+
+const roundTripMeta = { type: 'trackName', text: 'Piano', deltaTime: 0 };
+const programChange = (tick, channel, programNumber) => ({ type: 'programChange', tick, channel, programNumber });
+const noteOn = (tick, channel, noteNumber, velocity = 90) => ({ type: 'noteOn', tick, channel, noteNumber, velocity });
+const noteOff = (tick, channel, noteNumber) => ({ type: 'noteOff', tick, channel, noteNumber, velocity: 0 });
+
+function roundTrip(tracks) {
+  const original = rawFixture(tracks);
+  const first = midiBytesToSlim(original);
+  const exported = scoreJsonToMidiBytes(first);
+  const raw = parseMidi(exported);
+  const second = midiBytesToSlim(exported);
+  const canonical = (score) => score.notes.map((note) => [
+    note[0], note[1], note[2], note[3], score.tracks[note[4]][1],
+    score.tracks[note[4]][3], score.tracks[note[4]][5],
+  ]).sort((a, b) => a[6] - b[6] || a[0] - b[0] || a[2] - b[2]);
+  assert.deepEqual(canonical(second), canonical(first));
+  const changes = (score) => [...new Map(score.tracks.flatMap((track) => track[6] || [])
+    .map((change) => [JSON.stringify(change), change])).values()]
+    .sort((a, b) => a.tick - b.tick || a.order - b.order || a.channel - b.channel);
+  assert.deepEqual(changes(second), changes(first));
+  assert.equal(raw.tracks.length, parseMidi(original).tracks.length);
+  return { first, exported, raw, second };
+}
+
+function notesFor(score, sourceTrackIndex) {
+  return score.notes.filter((note) => score.tracks[note[4]][5] === sourceTrackIndex);
+}
+
+test('same named tracks remain distinct by original index', () => {
+  const { first: score } = roundTrip([
+    [roundTripMeta, noteOn(0, 0, 60), noteOff(120, 0, 60)],
+    [roundTripMeta, noteOn(0, 0, 60), noteOff(240, 0, 60)],
+  ]);
+  assert.deepEqual(notesFor(score, 0).map((note) => [note[0], note[1], note[2]]), [[0, 120, 60]]);
+  assert.deepEqual(notesFor(score, 1).map((note) => [note[0], note[1], note[2]]), [[0, 240, 60]]);
+});
+
+test('format 1 tempo-only leading track does not shift source indexes', () => {
+  const { first: score } = roundTrip([
+    [{ type: 'setTempo', tick: 0, microsecondsPerBeat: 500000 }],
+    [roundTripMeta, noteOn(0, 0, 60), noteOff(120, 0, 60)],
+    [roundTripMeta, noteOn(0, 0, 62), noteOff(240, 0, 62)],
+  ]);
+  assert.equal(score.tracks[0][5], 1);
+  assert.equal(score.tracks[1][5], 2);
+});
+
+test('program changes split notes while preserving source metadata', () => {
+  const { first: score, second } = roundTrip([[
+    roundTripMeta, programChange(0, 0, 0), noteOn(0, 0, 60), noteOff(100, 0, 60),
+    programChange(480, 0, 48), noteOn(480, 0, 64), noteOff(600, 0, 64),
+  ]]);
+  assert.deepEqual(score.notes.map((note) => [note[0], score.tracks[note[4]][3]]), [[0, 0], [480, 48]]);
+  assert.deepEqual(score.tracks[0][6], [
+    { tick: 0, order: 1, channel: 0, programNumber: 0 },
+    { tick: 480, order: 4, channel: 0, programNumber: 48 },
+  ]);
+  assert.deepEqual(second.tracks.map((track) => track[6]), score.tracks.map((track) => track[6]));
+});
+
+test('same tick program changes are applied in source event order', () => {
+  const { first: score, raw } = roundTrip([[
+    roundTripMeta, programChange(0, 0, 10), programChange(240, 0, 24),
+    programChange(240, 0, 25), noteOn(240, 0, 60), programChange(240, 0, 26),
+    noteOff(360, 0, 60), noteOn(600, 0, 62), programChange(600, 0, 27), noteOff(720, 0, 62),
+  ]]);
+  assert.equal(score.tracks[score.notes[0][4]][3], 25);
+  assert.deepEqual(score.tracks[0][6].filter((event) => event.tick === 240)
+    .map((event) => [event.tick, event.order, event.programNumber]), [[240, 2, 24], [240, 3, 25], [240, 5, 26]]);
+  let tick = 0;
+  const sameTick = raw.tracks[0].map((event) => {
+    tick += event.deltaTime || 0;
+    return { ...event, tick };
+  }).filter((event) => event.tick === 240 && ['programChange', 'noteOn'].includes(event.type));
+  assert.deepEqual(sameTick.map((event) => [event.type, event.programNumber ?? event.noteNumber]), [
+    ['programChange', 24], ['programChange', 25], ['noteOn', 60], ['programChange', 26],
+  ]);
+  const laterNote = score.notes.find((note) => note[2] === 62);
+  assert.equal(score.tracks[laterNote[4]][3], 26);
+});
+
+test('channels on one source track have independent program state', () => {
+  const { first: score } = roundTrip([[
+    roundTripMeta, programChange(0, 0, 48), noteOn(0, 0, 60), noteOn(0, 9, 36),
+    noteOff(100, 0, 60), noteOff(100, 9, 36),
+  ]]);
+  const melodic = score.tracks.find((track) => track[1] === 0);
+  const drums = score.tracks.find((track) => track[1] === 9);
+  assert.equal(melodic[3], 48);
+  assert.equal(drums[3], 0);
+  assert.equal(notesFor(score, 0).length, 2);
+});
+
+test('note off after a program change closes the original FIFO note', () => {
+  const { first: score } = roundTrip([[
+    roundTripMeta, programChange(0, 0, 0), noteOn(240, 0, 60),
+    programChange(480, 0, 48), noteOff(960, 0, 60),
+  ]]);
+  assert.equal(score.notes.length, 1);
+  assert.deepEqual(score.notes[0].slice(0, 4), [240, 720, 60, Number((90 / 127).toFixed(4))]);
+  assert.equal(score.tracks[score.notes[0][4]][3], 0);
+});

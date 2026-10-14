@@ -1,9 +1,10 @@
 import toneMidi from '@tonejs/midi';
+import midiFile from 'midi-file';
 import { ALL_KEYS_FLAT, DEFAULT_SCORE_PARAMS, mapKey } from '../constants/music.js';
 import { PPQ } from './score.js';
 
+const DEFAULT_EXPORT_PPQ = 480;
 const { Midi } = toneMidi;
-
 const DEFAULT_CHANNELS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15];
 const KEY_TO_MIDI = Object.fromEntries(
   ALL_KEYS_FLAT.map((entry) => {
@@ -64,11 +65,10 @@ function resolveMidiNote(event) {
 function resolveVelocity(event) {
   const rawVelocity = Number(event?.velocity ?? event?.v ?? 0.85);
   if (!Number.isFinite(rawVelocity)) {
-    return Math.round(0.85 * 127) / 127;
+    return 0.85;
   }
 
-  const normalized = clamp(rawVelocity > 1 ? rawVelocity / 127 : rawVelocity, 0, 1);
-  return Math.round(normalized * 127) / 127;
+  return clamp(rawVelocity > 1 ? rawVelocity / 127 : rawVelocity, 0, 1);
 }
 
 function normalizeTrackEvents(track, sourcePpq, targetPpq) {
@@ -126,82 +126,64 @@ function normalizeScoreTracks(scoreJson) {
     return Array.isArray(scoreJson.tracks) ? scoreJson.tracks.filter((track) => !track?.mute) : [];
   }
 
-  const metadata = Array.isArray(scoreJson.tracks) ? scoreJson.tracks : [];
-  const grouped = new Map(metadata.map((track, index) => [String(index), []]));
+  const trackMetadata = Array.isArray(scoreJson.tracks) ? scoreJson.tracks : [];
+  const grouped = new Map();
   scoreJson.notes.forEach((entry) => {
     if (!Array.isArray(entry) || entry.length < 3) return;
     const trackId = String(entry[4] ?? 0);
     if (!grouped.has(trackId)) grouped.set(trackId, []);
-    grouped.get(trackId).push({ tick: entry[0], durationTicks: entry[1], midi: entry[2], velocity: entry[3] });
+    grouped.get(trackId).push({
+      tick: entry[0],
+      durationTicks: entry[1],
+      midi: entry[2],
+      velocity: entry[3],
+    });
   });
 
-  return [...grouped.entries()].map(([trackId, events], index) => {
-    const raw = metadata[Number(trackId)];
-    if (Array.isArray(raw)) {
-      return {
-        id: String(trackId),
-        name: raw[0] || 'Track ' + (index + 1),
-        channel: raw[1],
-        instrument: raw[2],
-        programNumber: raw[3],
-        instrumentFamily: raw[4],
-        events,
-      };
-    }
-    return {
-      ...(raw ?? {}),
-      id: raw?.id ?? 'track-' + trackId,
-      name: raw?.name ?? 'Track ' + (index + 1),
-      events,
-    };
-  });
+  return [...grouped.entries()].map(([trackId, events], index) => ({
+    ...(trackMetadata[Number(trackId)] ?? {}),
+    id: trackMetadata[Number(trackId)]?.id ?? `track-${trackId}`,
+    name: trackMetadata[Number(trackId)]?.name ?? `Track ${index + 1}`,
+    channel: Array.isArray(trackMetadata[Number(trackId)]) ? trackMetadata[Number(trackId)][1] : trackMetadata[Number(trackId)]?.channel,
+    programNumber: Array.isArray(trackMetadata[Number(trackId)]) ? trackMetadata[Number(trackId)][3] : trackMetadata[Number(trackId)]?.programNumber,
+    sourceTrackIndex: Array.isArray(trackMetadata[Number(trackId)]) ? trackMetadata[Number(trackId)][5] : trackMetadata[Number(trackId)]?.sourceTrackIndex,
+    programChanges: Array.isArray(trackMetadata[Number(trackId)]) ? trackMetadata[Number(trackId)][6] : trackMetadata[Number(trackId)]?.programChanges,
+    events,
+  }));
 }
 
 function resolveTempoEntries(scoreJson, sourcePpq, fallbackBpm) {
   const tempoMap = scoreJson.playback?.tempoMap;
-  if (!Array.isArray(tempoMap) || !tempoMap.length) return [{ ticks: 0, bpm: fallbackBpm }];
-
-  return tempoMap.map((entry) => {
-    const ticks = Array.isArray(entry) ? entry[0] : (entry.startTick ?? entry.ticks ?? entry.tick);
-    const bpm = Array.isArray(entry) ? entry[1] : entry.bpm;
-    const secondsPerTick = Array.isArray(entry) ? null : entry.secondsPerTick;
-    return {
-      ticks: Math.max(0, Math.round(Number(ticks) || 0)),
-      bpm: Number(bpm) > 0 ? Number(bpm) : 60 / (Math.max(Number(secondsPerTick) || 0, Number.EPSILON) * sourcePpq),
-    };
-  });
-}
-
-function resolveTimeSignatureEntries(scoreJson, fallbackNumerator, fallbackDenominator) {
-  const sourceSignatures = scoreJson.source?.midi?.[4];
-  const signatures = Array.isArray(sourceSignatures)
-    ? sourceSignatures.map((entry) => ({
-      ticks: Math.max(0, Math.round(Number(Array.isArray(entry) ? entry[0] : entry?.ticks) || 0)),
-      timeSignature: [
-        Number(Array.isArray(entry) ? entry[1] : entry?.timeSignature?.[0]) || fallbackNumerator,
-        Number(Array.isArray(entry) ? entry[2] : entry?.timeSignature?.[1]) || fallbackDenominator,
-      ],
-    }))
-    : [];
-
-  if (!signatures.length || signatures[0].ticks !== 0) {
-    signatures.unshift({ ticks: 0, timeSignature: [fallbackNumerator, fallbackDenominator] });
+  if (!Array.isArray(tempoMap) || !tempoMap.length) {
+    return [{ ticks: 0, bpm: fallbackBpm }];
   }
-  return signatures.sort((left, right) => left.ticks - right.ticks);
+
+  return tempoMap.map((entry) => ({
+    ticks: Number(entry.startTick) || 0,
+    bpm: Number(entry.bpm) > 0
+      ? Number(entry.bpm)
+      : 60 / (Math.max(Number(entry.secondsPerTick) || 0, Number.EPSILON) * sourcePpq),
+  }));
 }
 
 export function scoreJsonToMidi(scoreJson, options = {}) {
   if (!scoreJson || typeof scoreJson !== 'object') {
     throw new Error('Score JSON is required before exporting MIDI.');
   }
+  if (hasSourceMetadata(scoreJson)) {
+    return { toArray: () => exportRoundTripBytes(scoreJson, options) };
+  }
 
   const transport = scoreJson.transport ?? {};
   const sourcePpq = normalizePpq(transport.resolution, PPQ);
-  const targetPpq = normalizePpq(options.ppq, sourcePpq);
+  const targetPpq = normalizePpq(options.ppq, DEFAULT_EXPORT_PPQ);
   const bpm = Number(transport.bpm) || DEFAULT_SCORE_PARAMS.bpm;
   const timeSigNum = Number(transport.timeSigNum) || DEFAULT_SCORE_PARAMS.timeSigNum;
   const timeSigDen = Number(transport.timeSigDen) || DEFAULT_SCORE_PARAMS.timeSigDen;
   const tracks = normalizeScoreTracks(scoreJson);
+  const hasRoundTripMetadata = tracks.length > 0 && tracks.every((track) => (
+    Number.isInteger(Number(track?.sourceTrackIndex)) && Array.isArray(track?.programChanges)
+  ));
   const midi = new Midi();
 
   midi.fromJSON({
@@ -210,7 +192,7 @@ export function scoreJsonToMidi(scoreJson, options = {}) {
       ppq: targetPpq,
       meta: [],
       tempos: resolveTempoEntries(scoreJson, sourcePpq, bpm),
-      timeSignatures: resolveTimeSignatureEntries(scoreJson, timeSigNum, timeSigDen),
+      timeSignatures: [{ ticks: 0, timeSignature: [timeSigNum, timeSigDen] }],
       keySignatures: [],
     },
     tracks: tracks.map((track, index) => {
@@ -223,9 +205,9 @@ export function scoreJsonToMidi(scoreJson, options = {}) {
         name: track?.name || track?.id || `Track ${index + 1}`,
         channel,
         instrument: {
-          family: track?.instrumentFamily || 'piano',
+          family: 'piano',
           number: Number.isInteger(Number(track?.programNumber)) ? clamp(Number(track.programNumber), 0, 127) : 0,
-          name: track?.instrument || 'acoustic grand piano',
+          name: 'acoustic grand piano',
         },
         notes: normalized.notes,
         controlChanges: {},
@@ -235,7 +217,94 @@ export function scoreJsonToMidi(scoreJson, options = {}) {
     }),
   });
 
+  if (hasRoundTripMetadata) {
+    const raw = midiFile.parseMidi(midi.toArray());
+    tracks.forEach((track, index) => {
+      const sourceIndex = Number(track.sourceTrackIndex);
+      const channel = clamp(Number(track.channel) || 0, 0, 15);
+      let target = raw.tracks.find((events) => events.some((event) => event.type === 'trackName' && event.text === (track.name || track.id)));
+      if (!target) target = raw.tracks[index + 1];
+      if (!target) return;
+      const existing = target.reduce((list, event) => { list.push(event); return list; }, []);
+      const absolute = [];
+      let tick = 0;
+      existing.forEach((event, order) => { tick += event.deltaTime || 0; absolute.push({ ...event, tick, order }); });
+      const changes = track.programChanges.filter((change) => Number(change.channel) === channel)
+        .map((change) => ({ type: 'programChange', channel, programNumber: clamp(Number(change.programNumber) || 0, 0, 127), tick: scaleTick(change.tick, sourcePpq, targetPpq), order: Number(change.order) || 0 }));
+      const merged = [...absolute.filter((event) => event.type !== 'programChange'), ...changes]
+        .sort((a, b) => a.tick - b.tick || a.order - b.order);
+      let last = 0;
+      target.splice(0, target.length, ...merged.map(({ tick: at, order, ...event }) => { event.deltaTime = at - last; last = at; return event; }));
+    });
+    midi.toArray = () => midiFile.writeMidi(raw);
+  }
+
   return midi;
+}
+
+function hasSourceMetadata(score) {
+  return Array.isArray(score?.tracks) && score.tracks.some((track) => Array.isArray(track) ? track[5] != null : track?.sourceTrackIndex != null);
+}
+
+function exportRoundTripBytes(score, options = {}) {
+  const source = score.source?.midi;
+  const sourcePpq = normalizePpq(score.transport?.resolution, PPQ);
+  const ppq = normalizePpq(options.ppq, sourcePpq);
+  const metadata = score.tracks || [];
+  const trackInfo = metadata.map((track) => Array.isArray(track)
+    ? { channel: Number(track[1]) || 0, programNumber: Number(track[3]) || 0, sourceTrackIndex: Number(track[5]), programChanges: track[6] || [] }
+    : { channel: Number(track.channel) || 0, programNumber: Number(track.programNumber) || 0, sourceTrackIndex: Number(track.sourceTrackIndex), programChanges: track.programChanges || [] });
+  const count = Math.max(Number(source?.[3]) || 0, ...trackInfo.map((track) => track.sourceTrackIndex + 1), 1);
+  const tracks = Array.from({ length: count }, () => []);
+  const add = (index, event) => tracks[index].push(event);
+  const seenChanges = new Set();
+  trackInfo.forEach((info) => info.programChanges.forEach((change) => {
+    const channel = clamp(Number(change.channel ?? info.channel), 0, 15);
+    const tick = scaleTick(change.tick, sourcePpq, ppq);
+    const programNumber = clamp(Number(change.programNumber) || 0, 0, 127);
+    const key = `${info.sourceTrackIndex}/${tick}/${change.order}/${channel}/${programNumber}`;
+    if (seenChanges.has(key)) return;
+    seenChanges.add(key);
+    add(info.sourceTrackIndex, { type: 'programChange', channel, programNumber, tick, order: Number(change.order) || 0 });
+  }));
+
+  (score.notes || []).forEach((note) => {
+    const info = trackInfo[Number(note?.[4])];
+    if (!info) return;
+    const start = scaleTick(note[0], sourcePpq, ppq);
+    const end = start + Math.max(1, scaleTick(note[1], sourcePpq, ppq));
+    const channel = clamp(info.channel, 0, 15);
+    const pitch = clamp(Math.round(Number(note[2]) || 0), 0, 127);
+    const velocity = clamp(Math.round((Number(note[3]) || 0.85) * 127), 1, 127);
+    let onOrder = Number.isFinite(Number(note[5])) ? Number(note[5]) : null;
+    let offOrder = Number.isFinite(Number(note[6])) ? Number(note[6]) : null;
+    if (onOrder === null) {
+      const sameTick = info.programChanges.filter((pc) => Number(pc.tick) === Number(note[0]) && Number(pc.channel) === channel).sort((a, b) => a.order - b.order);
+      const matching = sameTick.filter((pc) => Number(pc.programNumber) === info.programNumber);
+      onOrder = matching.length ? Number(matching[matching.length - 1].order) + 0.5 : -0.5;
+    }
+    add(info.sourceTrackIndex, { type: 'noteOn', channel, noteNumber: pitch, velocity, tick: start, order: onOrder });
+    add(info.sourceTrackIndex, { type: 'noteOff', channel, noteNumber: pitch, velocity: 0, tick: end, order: offOrder ?? Number.MAX_SAFE_INTEGER });
+  });
+
+  const bpm = Number(score.transport?.bpm) || DEFAULT_SCORE_PARAMS.bpm;
+  const signatures = Array.isArray(source?.[4]) ? source[4] : [];
+  signatures.forEach((sig, i) => add(0, { type: 'timeSignature', numerator: Number(sig[1]) || 4, denominator: Number(sig[2]) || 4, metronome: 24, thirtyseconds: 8, tick: scaleTick(sig[0], sourcePpq, ppq), order: -90000 + i }));
+  (Array.isArray(source?.[5]) ? source[5] : []).forEach(({ tick, order, ...event }) => add(0, { ...event, tick: scaleTick(tick, sourcePpq, ppq), order: order ?? 0 }));
+
+  const rawTracks = tracks.map((events, index) => {
+    const trackNames = Array.isArray(source?.[6]) ? source[6] : [];
+    if (!events.some((event) => event.type === 'trackName')) {
+      const stored = trackNames[index];
+      events.push({ type: 'trackName', text: typeof stored === 'object' ? stored.text : (stored || (index === 0 ? score.meta?.title || 'MIDI export' : '')), tick: 0, order: typeof stored === 'object' ? stored.order : -200000 });
+    }
+    events.sort((a, b) => a.tick - b.tick || a.order - b.order);
+    let previous = 0;
+    const encoded = events.map(({ tick, order, ...event }) => { event.deltaTime = tick - previous; previous = tick; return event; });
+    encoded.push({ type: 'endOfTrack', deltaTime: 0 });
+    return encoded;
+  });
+  return midiFile.writeMidi({ header: { format: Number(source?.[2]) === 0 ? 0 : 1, numTracks: count, ticksPerBeat: ppq }, tracks: rawTracks });
 }
 
 export function scoreJsonToMidiBytes(scoreJson, options = {}) {
